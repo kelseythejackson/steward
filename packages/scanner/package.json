@@ -12,13 +12,21 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -b",
     "typecheck": "tsc -b",
     "test": "vitest run"
   },
   "dependencies": {
-    "@steward/model": "workspace:*"
+    "@babel/parser": "^8.1.0",
+    "@babel/traverse": "^8.1.0",
+    "@steward/model": "workspace:*",
+    "culori": "^4.0.2"
+  },
+  "devDependencies": {
+    "@types/culori": "^4.0.1"
   }
 }

@@ -1,6 +1,5 @@
 /**
- * @steward/scanner — Steward Setup: extract, cluster, suggest, write tokens and report
- *
- * Placeholder export so the package builds and tests before real code lands.
+ * @steward/scanner: Steward Setup. Extracts what a repo actually uses,
+ * clusters near-duplicates and suggests a system.
  */
-export const PACKAGE_NAME = "@steward/scanner" as const;
+export * from "./colors/index.js";

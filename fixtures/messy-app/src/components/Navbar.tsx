@@ -1,4 +1,5 @@
 import type { Page } from "../App";
+import { cn } from "../lib/cn";
 
 interface NavbarProps {
   current: Page;
@@ -25,9 +26,10 @@ export function Navbar({ current, onNavigate }: NavbarProps) {
               <button
                 type="button"
                 onClick={() => onNavigate(link.id)}
-                className={`text-sm ${
-                  current === link.id ? "font-medium text-[#3b82f6]" : "text-[#6b7280] hover:text-[#1f2937]"
-                }`}
+                className={cn("text-sm", {
+                  "font-medium text-[#3b82f6]": current === link.id,
+                  "text-[#6b7280] hover:text-[#1f2937]": current !== link.id,
+                })}
               >
                 {link.label}
               </button>

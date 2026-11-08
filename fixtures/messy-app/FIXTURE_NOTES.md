@@ -6,9 +6,13 @@ a startup codebase that has drifted for a year. Every inconsistency below is
 deliberate. Tests in `packages/*` assert against the tables in this file, so
 **update this file whenever you change the fixture**.
 
-Counts were taken with `grep -ohE '#[0-9a-f]{6}\b' -r src tailwind.config.ts`
-and similar. A hex value appearing in a `hover:` class counts once per
-occurrence, the same as the scanner will see it.
+Counts were taken with `grep -ohE '#[0-9a-f]{6}\b' -r src` and similar. A hex
+value appearing in a `hover:` class counts once per occurrence, the same as
+the scanner will see it. Colors in `tailwind.config.ts` are **definitions**,
+not uses, and are listed separately below.
+
+The color tables are machine-read by `packages/scanner` tests: keep the
+first two columns as `` `#hex` `` and a plain number.
 
 It typechecks (`pnpm -F @steward/fixture-messy-app typecheck`) but is not
 meant to be run. There is no bundler and `/logo.svg` does not exist.
@@ -20,9 +24,9 @@ meant to be run. There is no bundler and `/logo.svg` does not exist.
 | Hex       | Uses | Where                                                   | Role in the drift                                    |
 |-----------|-----:|---------------------------------------------------------|------------------------------------------------------|
 | `#9ca3af` |   12 | App, Card, Panel, Modal, TextField, Dashboard, Settings, Billing, styles.css `body` | **Most used gray. Body text. 2.54:1 on white, fails AA 4.5:1.** |
-| `#6b7280` |    9 | Button, Modal, Dialog, Navbar, Dashboard, Billing, tailwind.config `muted` | Secondary text                                      |
+| `#6b7280` |    8 | Button, Modal, Dialog, Navbar, Dashboard, Billing        | Secondary text. Also defined as `muted` in config.   |
 | `#374151` |    9 | Button, TextField, Settings, Billing, styles.css `td`    | Labels and headings                                  |
-| `#1f2937` |    8 | Panel, Dialog, Button, Modal, Navbar, Billing, tailwind.config `ink` | Hover text and dark headings                 |
+| `#1f2937` |    7 | Panel, Dialog, Button, Modal, Navbar, Billing            | Hover text and dark headings. Also defined as `ink` in config. |
 | `#111827` |    8 | Card, Modal, TextField, Navbar, Dashboard, Settings, Billing | Headings                                         |
 | `#e5e7eb` |    4 | Card, Navbar, Billing, styles.css `td`                   | Borders                                              |
 | `#f3f4f6` |    3 | Button, Dashboard, Billing                               | Subtle backgrounds                                   |
@@ -49,10 +53,10 @@ A sensible merged scale is around six grays.
 
 | Hex       | Uses | Where                                                    |
 |-----------|-----:|----------------------------------------------------------|
-| `#3b82f6` |    7 | Button primary, CTAButton hover, TextField focus, Navbar active, Billing bar and link, styles.css `.badge-blue` |
+| `#3b82f6` |    7 | Button primary, CTAButton hover, TextField focus, Navbar active, Billing link, Billing usage bar (inline style), styles.css `.badge-blue` |
 | `#3a81f5` |    3 | PrimaryBtn, Dashboard "Extend trial", styles.css `a`      |
 | `#3b83f7` |    2 | CTAButton, styles.css `a:hover`                           |
-| `#2563eb` |    2 | Button primary hover, tailwind.config `brand`             |
+| `#2563eb` |    1 | Button primary hover. Also defined as `brand` in config.  |
 
 Expected merge: `#3a81f5` and `#3b83f7` → `#3b82f6`. `#2563eb` is a real
 darker shade and should stay separate.
@@ -66,6 +70,24 @@ All three button components use white text on blue at `text-sm`.
 `tailwind.config.ts` defines `brand`, `ink` and `muted`. No component uses
 the `bg-brand`, `text-ink` or `text-muted` classes. The same hex values are
 pasted as arbitrary values instead.
+
+| Definition | Hex       | Config line |
+|------------|-----------|------------:|
+| `brand`    | `#2563eb` |          10 |
+| `ink`      | `#1f2937` |          11 |
+| `muted`    | `#6b7280` |          12 |
+
+### Where colors hide (extraction coverage)
+
+| Form                                   | Example in the fixture                                   |
+|----------------------------------------|----------------------------------------------------------|
+| Plain `className` string               | most components                                          |
+| Template literal `className`           | `Card.tsx`, `TextField.tsx`, `PrimaryBtn.tsx`            |
+| Class strings in a variable or map     | `Button.tsx` `variants`, `CTAButton.tsx` `base`          |
+| `cn()` call with object keys           | `Navbar.tsx` active and inactive link classes            |
+| Inline `style={{ ... }}` object        | `Billing.tsx` usage bar, `backgroundColor: "#3b82f6"`    |
+| CSS file                               | `src/styles.css`                                         |
+| Tailwind config (definition, not use)  | `tailwind.config.ts`                                     |
 
 ## 2. Spacing off the scale
 
@@ -83,7 +105,7 @@ Tailwind arbitrary values in TSX:
 | `py-[13px]`  |    1 | `py-3` (12px)                            |
 | `h-[42px]`   |    1 | `h-10` (40px) or `h-11` (44px)           |
 
-Also `w-[91%]` in Billing (a percentage, should **not** be flagged as spacing drift).
+The Billing usage bar sets its width with an inline style (`width: `${usagePct}%``), which is dynamic and should **not** be flagged as spacing drift.
 
 Raw CSS in `src/styles.css`: `padding: 9px 13px`, `padding: 11px 13px`,
 `padding: 2px 7px`, `width: 302px`.
@@ -128,8 +150,8 @@ components themselves):
 |--------------------------------|-----:|-----------------------------------------------------|
 | `src/pages/Dashboard.tsx`      |   74 | "Extend trial" inline link-style button, no `type`  |
 | `src/pages/Settings.tsx`       |   43 | "Delete workspace" danger button, no `type`         |
-| `src/pages/Billing.tsx`        |   71 | "Download all invoices" ghost-style button          |
-| `src/components/Navbar.tsx`    |   25 | Navigation items rendered as raw buttons            |
+| `src/pages/Billing.tsx`        |   74 | "Download all invoices" ghost-style button          |
+| `src/components/Navbar.tsx`    |   26 | Navigation items rendered as raw buttons            |
 | `src/components/Modal.tsx`     |   34 | Icon-only close button (also an a11y failure, below)|
 
 Line numbers are correct as of this commit; tests should prefer matching on
@@ -141,10 +163,10 @@ file plus a distinctive attribute over exact line numbers.
 |----------------------------------------|-------------------------------|-----:|------------------------------------------------------------------------|
 | Body text contrast                     | many, see grays table         |      | `#9ca3af` on white is 2.54:1. Needs 4.5:1. Nearest passing gray in the same family: `#6b7280` at 4.83:1. |
 | Button text contrast (secondary)       | Button, PrimaryBtn, CTAButton |      | White on `#3b82f6` is 3.68:1 at `text-sm`. Passes 3:1 for UI, fails 4.5:1 for normal text. |
-| `<img>` without `alt`                  | `src/components/Navbar.tsx`   |   19 | Logo image has `src`, `width`, `height`, no `alt`.                     |
+| `<img>` without `alt`                  | `src/components/Navbar.tsx`   |   20 | Logo image has `src`, `width`, `height`, no `alt`.                     |
 | Icon-only button with no accessible name | `src/components/Modal.tsx`  |   34 | Close button contains only an inline SVG. No `aria-label`, no text.    |
 | `<input>` without a label              | `src/pages/Dashboard.tsx`     |   22 | Search input has a `placeholder` but no `<label>`, `aria-label` or `aria-labelledby`. |
-| Click handler on non-interactive element | `src/pages/Billing.tsx`     |   56 | `<div onClick>` used to select an invoice. No `role`, `tabIndex` or key handler. |
+| Click handler on non-interactive element | `src/pages/Billing.tsx`     |   59 | `<div onClick>` used to select an invoice. No `role`, `tabIndex` or key handler. |
 | Focus outline removed, no replacement  | `src/components/TextField.tsx`|   18 | `outline-none` with only `focus:border-[#3b82f6]`. Border color change alone is not a sufficient focus indicator. |
 | Focus outline removed, no replacement  | `src/styles.css`              |   40 | `.legacy-input:focus { outline: none; }` with nothing else. Applied to the Dashboard search input. |
 
@@ -159,7 +181,8 @@ Things that are **correct** and must not be flagged (negative test cases):
 ## 6. Quick reference for tests
 
 ```
-distinct hex values:         19 (14 grays + white + 3 near blues + #2563eb)
+distinct hex values used:    19 (14 grays + white + 3 near blues + #2563eb)
+color uses:                  78 (excludes 3 config definitions)
 most-used gray:              #9ca3af (12 uses, fails AA)
 expected gray merges:        5 pairs
 expected blue merges:        2 → #3b82f6

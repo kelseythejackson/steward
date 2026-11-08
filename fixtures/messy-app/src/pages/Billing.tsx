@@ -9,6 +9,8 @@ const invoices = [
   { id: "INV-0040", date: "Aug 1, 2026", amount: "$149.00", status: "Refunded" },
 ];
 
+const usagePct = Math.round((9120 / 10000) * 100);
+
 export function Billing() {
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -34,7 +36,8 @@ export function Billing() {
         <Panel heading="Usage">
           <p className="text-[#374151]">9,120 / 10,000 events</p>
           <div className="mt-[7px] h-2 w-full rounded-full bg-[#e5e7eb]">
-            <div className="h-2 w-[91%] rounded-full bg-[#3b82f6]" />
+            {/* Inline style because the width is dynamic. The color came along for the ride. */}
+            <div className="h-2 rounded-full" style={{ width: `${usagePct}%`, backgroundColor: "#3b82f6" }} />
           </div>
         </Panel>
       </div>

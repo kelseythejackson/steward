@@ -1,6 +1,16 @@
 /**
- * @steward/model — Shared types and read/write of the Steward system model (DTCG tokens JSON)
- *
- * Placeholder export so the package builds and tests before real code lands.
+ * @steward/model: shared types and read/write of the Steward system model
+ * (`.steward/system.json`). Every package reads and writes the model through here.
  */
-export const PACKAGE_NAME = "@steward/model" as const;
+export * from "./types.js";
+export {
+  compareStrings,
+  emptySystemModel,
+  isToken,
+  normalizeSystemModel,
+  serializeSystemModel,
+  sortKeysDeep,
+  suggestionId,
+} from "./canonical.js";
+export { parseSystemModel, SystemModelError } from "./parse.js";
+export { readSystemModel, STEWARD_DIR, SYSTEM_MODEL_FILE, systemModelPath, writeSystemModel } from "./io.js";
