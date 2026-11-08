@@ -1,0 +1,19 @@
+{
+  "name": "@steward/fixture-messy-app",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Deliberately inconsistent React + Tailwind app used as the Steward test target. See FIXTURE_NOTES.md.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "tailwindcss": "^3.4.17"
+  }
+}

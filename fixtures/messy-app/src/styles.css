@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Legacy globals from before we moved to Tailwind. Nobody dares delete them. */
+
+body {
+  background: #fafafa;
+  color: #9ca3af;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+a {
+  color: #3a81f5;
+}
+
+a:hover {
+  color: #3b83f7;
+}
+
+.legacy-table th {
+  color: #6b7380;
+  border-bottom: 1px solid #e4e4e7;
+  padding: 9px 13px;
+}
+
+.legacy-table td {
+  color: #374151;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 11px 13px;
+}
+
+.sidebar {
+  background: #f4f4f5;
+  width: 302px;
+}
+
+/* "Fixes" the blue ring on Safari. Also removes it everywhere else. */
+.legacy-input:focus {
+  outline: none;
+}
+
+.badge-blue {
+  background: #3b82f6;
+  color: #ffffff;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
