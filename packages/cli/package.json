@@ -1,0 +1,33 @@
+{
+  "name": "@steward/cli",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The steward command: scan, review, context, check",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "steward": "./dist/bin.js",
+    "stew": "./dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@steward/context": "workspace:*",
+    "@steward/guard": "workspace:*",
+    "@steward/model": "workspace:*",
+    "@steward/scanner": "workspace:*"
+  }
+}

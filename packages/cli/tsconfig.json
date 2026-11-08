@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "src/**/*.test.ts"
+  ],
+  "references": [
+    {
+      "path": "../model"
+    },
+    {
+      "path": "../scanner"
+    },
+    {
+      "path": "../context"
+    },
+    {
+      "path": "../guard"
+    }
+  ]
+}

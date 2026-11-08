@@ -1,0 +1,24 @@
+{
+  "name": "@steward/context",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Steward Brief: design.md generator and MCP server",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@steward/model": "workspace:*"
+  }
+}

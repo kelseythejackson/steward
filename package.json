@@ -1,0 +1,20 @@
+{
+  "name": "steward-monorepo",
+  "private": true,
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -b packages/cli",
+    "typecheck": "tsc -b packages/cli",
+    "test": "vitest run",
+    "steward": "tsx packages/cli/src/bin.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
