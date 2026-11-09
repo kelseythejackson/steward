@@ -3,7 +3,7 @@ import { findArbitraryClassColors, findColors } from "./normalize.js";
 import type { FoundColor } from "./types.js";
 
 /** Replaces comments with spaces, keeping newlines so line numbers stay right. */
-function blankComments(code: string, scss: boolean): string {
+export function blankComments(code: string, scss: boolean): string {
   const blank = (s: string) => s.replace(/[^\n]/g, " ");
   let out = code.replace(/\/\*[\s\S]*?\*\//g, blank);
   // SCSS line comments. Skip `//` right after `:` so `url(http://…)` survives.

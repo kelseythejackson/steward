@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import {
   STEWARD_EXTENSION,
   SYSTEM_MODEL_VERSION,
-  type MergeSuggestion,
+  type Suggestion,
   type SuggestionKind,
   type SystemModel,
   type Token,
@@ -43,14 +43,11 @@ export function emptySystemModel(): SystemModel {
 
 function normalizeToken<T extends Token>(token: T): T {
   const ext = token.$extensions?.[STEWARD_EXTENSION];
-  if (!ext?.mergedFrom) return token;
-  return {
-    ...token,
-    $extensions: {
-      ...token.$extensions,
-      [STEWARD_EXTENSION]: { ...ext, mergedFrom: sortedStrings(ext.mergedFrom) },
-    },
-  };
+  if (!ext?.mergedFrom && !ext?.contrastIssues) return token;
+  const sorted = { ...ext };
+  if (ext.mergedFrom) sorted.mergedFrom = sortedStrings(ext.mergedFrom);
+  if (ext.contrastIssues) sorted.contrastIssues = sortedStrings(ext.contrastIssues);
+  return { ...token, $extensions: { ...token.$extensions, [STEWARD_EXTENSION]: sorted } };
 }
 
 function normalizeTokens(group: TokenGroup): TokenGroup {
@@ -73,8 +70,9 @@ export function normalizeSystemModel(model: SystemModel): SystemModel {
       .map((c) => ({ ...c, variants: sortedStrings(c.variants) }))
       .sort((a, b) => compareStrings(a.name, b.name) || compareStrings(a.filePath, b.filePath)),
     suggestions: model.suggestions
-      .map((s): MergeSuggestion => {
+      .map((s): Suggestion => {
         const members = sortedStrings(s.members);
+        if (s.kind === "contrast") return { ...s, members, proposed: { ...s.proposed, token: normalizeToken(s.proposed.token) } };
         if (s.kind === "color") return { ...s, members, proposed: { ...s.proposed, token: normalizeToken(s.proposed.token) } };
         if (s.kind === "spacing") return { ...s, members, proposed: { ...s.proposed, token: normalizeToken(s.proposed.token) } };
         return { ...s, members };

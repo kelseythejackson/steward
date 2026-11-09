@@ -37,6 +37,12 @@ export interface StewardTokenExtension {
   uses?: number;
   /** Raw values merged into this token, e.g. `["#3a81f5", "#3b83f7"]`. Lets a merge be undone. */
   mergedFrom?: string[];
+  /**
+   * Ids of open contrast suggestions for this color. Steward never makes an
+   * inaccessible value official: while this list is non-empty the token is a
+   * proposal only, until a person resolves each suggestion.
+   */
+  contrastIssues?: string[];
 }
 
 export interface TokenExtensions {
@@ -85,7 +91,7 @@ export interface ComponentEntry {
 // Merge suggestions and decisions
 // ---------------------------------------------------------------------------
 
-export type SuggestionKind = "color" | "spacing" | "component";
+export type SuggestionKind = "color" | "spacing" | "component" | "contrast";
 
 /** Every suggestion explains itself: a plain-English summary plus the numbers behind it. */
 export interface SuggestionReason {
@@ -121,6 +127,35 @@ export interface ComponentMergeSuggestion extends SuggestionBase {
 }
 
 export type MergeSuggestion = ColorMergeSuggestion | SpacingMergeSuggestion | ComponentMergeSuggestion;
+
+/**
+ * What a color pair is used for, which sets the WCAG AA minimum:
+ * `text` 4.5:1, `large-text` 3:1 (24px+, or 20px+ bold), `ui` 3:1
+ * (form control borders and icons).
+ */
+export type ContrastUse = "text" | "large-text" | "ui";
+
+/**
+ * A color pair used together that fails WCAG AA, with the nearest passing
+ * alternative. `members` holds the two colors; `pair` keeps which is which.
+ */
+export interface ContrastSuggestion extends SuggestionBase {
+  kind: "contrast";
+  pair: { foreground: string; background: string; use: ContrastUse };
+  proposed: {
+    /** Which side of the pair the fix changes. */
+    replaces: "foreground" | "background";
+    /** Token path of the replacement, e.g. `"color.gray.500"`. */
+    path: string;
+    token: ColorToken;
+    /** Contrast ratio of the pair after the fix, e.g. 4.83. */
+    ratio: number;
+    /** True when the replacement is already a token in the system. */
+    existing: boolean;
+  };
+}
+
+export type Suggestion = MergeSuggestion | ContrastSuggestion;
 
 export type DecisionStatus = "accepted" | "rejected";
 
@@ -159,7 +194,7 @@ export interface SystemModel {
   version: typeof SYSTEM_MODEL_VERSION;
   tokens: TokenGroup;
   components: ComponentEntry[];
-  suggestions: MergeSuggestion[];
+  suggestions: Suggestion[];
   decisions: MergeDecision[];
   rules: Rule[];
 }

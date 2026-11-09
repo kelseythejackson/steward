@@ -3,3 +3,4 @@
  * clusters near-duplicates and suggests a system.
  */
 export * from "./colors/index.js";
+export * from "./contrast/index.js";

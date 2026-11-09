@@ -64,10 +64,11 @@ export function stepsByFit(hex: string): number[] {
  * Pure: proposes a dot-separated token path for each color, e.g.
  * `color.gray.500`, `color.white`. Colors are named in the order given, so
  * pass the most important first: if two colors want the same step, the
- * later one takes the nearest free step instead. Names are always unique.
+ * later one takes the nearest free step instead. Names are always unique,
+ * including against `alreadyTaken` (paths that exist in the system already).
  */
-export function proposeColorPaths(hexes: readonly string[]): Map<string, string> {
-  const taken = new Set<string>();
+export function proposeColorPaths(hexes: readonly string[], alreadyTaken: Iterable<string> = []): Map<string, string> {
+  const taken = new Set<string>(alreadyTaken);
   const paths = new Map<string, string>();
   for (const hex of hexes) {
     if (paths.has(hex)) continue;

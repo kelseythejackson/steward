@@ -19,7 +19,9 @@ const isFiniteNumber = (v: unknown): v is number => typeof v === "number" && Num
 
 const COLOR_SPACES = new Set(["srgb", "display-p3", "oklch"]);
 const DIMENSION_UNITS = new Set(["px", "rem"]);
-const KINDS = new Set(["color", "spacing", "component"]);
+const KINDS = new Set(["color", "spacing", "component", "contrast"]);
+const CONTRAST_USES = new Set(["text", "large-text", "ui"]);
+const SIDES = new Set(["foreground", "background"]);
 const STATUSES = new Set(["accepted", "rejected"]);
 const SEVERITIES = new Set(["warn", "error"]);
 const HEX = /^#[0-9a-f]{6}([0-9a-f]{2})?$/i;
@@ -49,6 +51,11 @@ class Checker {
     const v = obj[key];
     if (!isStringArray(v)) this.fail(`${path}.${key}`, "a value that should be a list of text values");
     if (v.length < minLength) this.fail(`${path}.${key}`, `a list that needs at least ${minLength} entries`);
+  }
+
+  hex(obj: Rec, key: string, path: string): void {
+    const v = obj[key];
+    if (typeof v !== "string" || !HEX.test(v)) this.fail(`${path}.${key}`, 'a value that should be a hex color like "#3b82f6"');
   }
 
   record(v: unknown, path: string, what: string): Rec {
@@ -108,6 +115,7 @@ class Checker {
       this.fail(`${extPath}.uses`, "a value that should be a whole number of 0 or more");
     }
     if (s["mergedFrom"] !== undefined) this.stringArray(s, "mergedFrom", extPath);
+    if (s["contrastIssues"] !== undefined) this.stringArray(s, "contrastIssues", extPath);
   }
 
   tokenGroup(v: unknown, path: string): void {
@@ -148,13 +156,23 @@ class Checker {
   suggestions(v: unknown): void {
     this.list(v, "suggestions").forEach((item, i) => {
       const path = `suggestions[${i}]`;
-      const s = this.record(item, path, "a merge suggestion");
+      const s = this.record(item, path, "a suggestion");
       this.string(s, "id", path, { nonEmpty: true });
       this.oneOf(s, "kind", path, KINDS);
       this.stringArray(s, "members", path, 2);
       this.reason(s["reason"], `${path}.reason`);
       const p = this.record(s["proposed"], `${path}.proposed`, "an object");
-      if (s["kind"] === "component") {
+      if (s["kind"] === "contrast") {
+        const pair = this.record(s["pair"], `${path}.pair`, "an object like { foreground, background, use }");
+        this.hex(pair, "foreground", `${path}.pair`);
+        this.hex(pair, "background", `${path}.pair`);
+        this.oneOf(pair, "use", `${path}.pair`, CONTRAST_USES);
+        this.oneOf(p, "replaces", `${path}.proposed`, SIDES);
+        this.string(p, "path", `${path}.proposed`, { nonEmpty: true });
+        this.token(p["token"], `${path}.proposed.token`, "color");
+        if (!isFiniteNumber(p["ratio"]) || p["ratio"] < 1) this.fail(`${path}.proposed.ratio`, "a value that should be a contrast ratio of 1 or more");
+        if (typeof p["existing"] !== "boolean") this.fail(`${path}.proposed.existing`, "a value that should be true or false");
+      } else if (s["kind"] === "component") {
         this.string(p, "name", `${path}.proposed`, { nonEmpty: true });
       } else {
         this.string(p, "path", `${path}.proposed`, { nonEmpty: true });

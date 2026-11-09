@@ -178,6 +178,46 @@ Things that are **correct** and must not be flagged (negative test cases):
 - `src/components/Button.tsx` and `src/components/CTAButton.tsx` set `type="button"`.
 - Navbar links have visible text content, so they do have an accessible name even though they are raw buttons.
 
+## 5b. Contrast pairs (colors actually used together)
+
+Machine-read by `packages/scanner` contrast tests: keep the first three
+columns as `` `#fg` ``, `` `#bg` `` and the expected fix `` `#hex` ``.
+Colors are the **token** values after the expected merges (so `#3a81f5` and
+`#3b83f7` count as `#3b82f6`, `#fafafa` as `#f9fafb`). Where no background
+is set in the same file, white is assumed. Lines point at the element's `className`
+attribute (or the element itself when it has none). Ratios computed with culori's
+`wcagContrast`.
+
+Pairs that fail WCAG AA (every one should get a contrast suggestion):
+
+| Foreground | Background | Fix       | Use        | Ratio  | Where (file:line)                                                                                                                                                   |
+|------------|------------|-----------|------------|-------:|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `#9ca3af`  | `#ffffff`  | `#6b7280` | text       | 2.54:1 | Card.tsx:13, Panel.tsx:13, TextField.tsx:21, Modal.tsx:34 (icon), Dashboard.tsx:40, Dashboard.tsx:49, Dashboard.tsx:53, Dashboard.tsx:57, Billing.tsx:24, Billing.tsx:31, Billing.tsx:66, Settings.tsx:42 |
+| `#9ca3af`  | `#f3f4f6`  | `#374151` | text       | 2.31:1 | Billing.tsx:66 (selected row)                                                                                                                                       |
+| `#9ca3af`  | `#f9fafb`  | `#6b7280` | text       | 2.46:1 | styles.css:9 (`body`)                                                                                                                                               |
+| `#ffffff`  | `#3b82f6`  | `#2563eb` | text       | 3.68:1 | Button.tsx:21, CTAButton.tsx:20, CTAButton.tsx:26, PrimaryBtn.tsx:16, styles.css:45 (`.badge-blue`)                                                                 |
+| `#3b82f6`  | `#ffffff`  | `#2563eb` | text       | 3.68:1 | Navbar.tsx:29 (active link), Billing.tsx:59                                                                                                                         |
+| `#3b82f6`  | `#f3f4f6`  | `#2563eb` | text       | 3.34:1 | Billing.tsx:59 (selected row), Dashboard.tsx:74 ("Extend trial")                                                                                                    |
+| `#6b7280`  | `#f3f4f6`  | `#f9fafb` | text       | 4.39:1 | Dashboard.tsx:72 (trial banner; the fix lightens the background)                                                                                                    |
+| `#dc2626`  | `#fef2f2`  | `#dc2626` | text       | 4.42:1 | Settings.tsx:45 (`hover:bg-red-50` on the delete button; neither color is a token yet, so the fix is a computed shade, not checked by hex)                           |
+| `#d1d5db`  | `#ffffff`  | `#6b7280` | ui         | 1.47:1 | TextField.tsx:18, Dashboard.tsx:28 (input borders, need 3:1)                                                                                                        |
+
+Fixes prefer a token already in the system in the same color family, then
+the nearest computed shade (same OKLCH hue and chroma, only lightness
+changes). When the foreground can't be fixed (white text), the background
+is changed instead.
+
+Pairs that pass and must **not** be flagged include `#6b7280` on white
+(4.83:1), `#374151` on white, `#111827` on white, white on `#2563eb`
+(Button primary hover, 5.17:1) and `#dc2626` on white (4.83:1).
+
+### Focus styles
+
+Expected focus findings (from the table above): `TextField.tsx:18`
+(`outline-none`, only `focus:border-[#3b82f6]`) and `styles.css:40`
+(`.legacy-input:focus { outline: none; }`). No other element removes its
+focus outline.
+
 ## 6. Quick reference for tests
 
 ```
@@ -192,4 +232,5 @@ container duplicates:        Card ≈ Panel
 overlay near-duplicates:     Modal ~ Dialog (behaviour differs)
 raw <button> outside button components: 5
 a11y static findings:        6 distinct rule hits (7 locations) + 1 contrast failure on body text
+failing contrast pairs:      9 (see 5b)
 ```

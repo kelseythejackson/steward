@@ -61,6 +61,17 @@ function sampleModel(): SystemModel {
         proposed: { path: "color.blue.500", token: blue },
         reason: { summary: "These 3 blues are nearly identical.", evidence: { maxDeltaE: 1.2, uses: 12 } },
       },
+      {
+        id: suggestionId("contrast", ["foreground #9ca3af", "background #ffffff"]),
+        kind: "contrast",
+        members: ["#9ca3af", "#ffffff"],
+        pair: { foreground: "#9ca3af", background: "#ffffff", use: "text" },
+        proposed: { replaces: "foreground", path: "color.gray.500", token: gray("#6b7280", 12), ratio: 4.83, existing: true },
+        reason: {
+          summary: "gray-400 on white is 2.5:1; normal text needs 4.5:1.",
+          evidence: { ratio: 2.54, required: 4.5, uses: 12 },
+        },
+      },
     ],
     decisions: [
       {
@@ -190,6 +201,12 @@ describe("parseSystemModel", () => {
     ["a suggestion with one member", (m) => (m.suggestions[0].members = ["Card"]), "suggestions[0].members"],
     ["a suggestion with no reason", (m) => delete m.suggestions[1].reason, "suggestions[1].reason"],
     ["a color suggestion proposing a dimension", (m) => (m.suggestions[1].proposed.token = m.tokens.spacing["2"]), "suggestions[1].proposed.token.$type"],
+    ["a contrast suggestion with no pair", (m) => delete m.suggestions[2].pair, "suggestions[2].pair"],
+    ["a contrast pair with an unknown use", (m) => (m.suggestions[2].pair.use = "heading"), "suggestions[2].pair.use"],
+    ["a contrast pair with a non-hex color", (m) => (m.suggestions[2].pair.background = "white"), "suggestions[2].pair.background"],
+    ["a contrast fix with no ratio", (m) => delete m.suggestions[2].proposed.ratio, "suggestions[2].proposed.ratio"],
+    ["a contrast fix replacing an unknown side", (m) => (m.suggestions[2].proposed.replaces = "border"), "suggestions[2].proposed.replaces"],
+    ["contrastIssues that aren't a list", (m) => (m.tokens.color.gray["50"].$extensions["dev.steward"].contrastIssues = "x"), "tokens.color.gray.50.$extensions.dev.steward.contrastIssues"],
     ["a decision with an unknown status", (m) => (m.decisions[0].status = "maybe"), "decisions[0].status"],
     ["a decision with a bad date", (m) => (m.decisions[0].decidedAt = "yesterday"), "decisions[0].decidedAt"],
     ["a rule with a non-boolean enabled", (m) => (m.rules[0].enabled = "yes"), "rules[0].enabled"],
