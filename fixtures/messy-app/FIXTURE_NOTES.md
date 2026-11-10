@@ -110,6 +110,11 @@ The Billing usage bar sets its width with an inline style (`width: `${usagePct}%
 Raw CSS in `src/styles.css`: `padding: 9px 13px`, `padding: 11px 13px`,
 `padding: 2px 7px`, `width: 302px`.
 
+`h-[42px]` and `width: 302px` are sizes, not spacing: the scanner lists them
+but doesn't snap them to the spacing scale. Expected snaps on the default
+scale (4, 8, 12, 16, 24, 32, 48, 64; halfway values round up): 2→4, 7/9→8,
+10/11/13→12, 18→16, 20/22→24, 28→32.
+
 ## 3. Duplicate components
 
 ### Three buttons doing the same job

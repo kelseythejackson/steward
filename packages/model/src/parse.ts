@@ -177,7 +177,18 @@ class Checker {
       } else {
         this.string(p, "path", `${path}.proposed`, { nonEmpty: true });
         this.token(p["token"], `${path}.proposed.token`, s["kind"] === "color" ? "color" : "dimension");
+        if (s["kind"] === "spacing" && s["locations"] !== undefined) this.locations(s["locations"], `${path}.locations`);
       }
+    });
+  }
+
+  locations(v: unknown, path: string): void {
+    this.list(v, path).forEach((item, i) => {
+      const at = `${path}[${i}]`;
+      const l = this.record(item, at, "a location ({ file, line, value })");
+      this.string(l, "file", at, { nonEmpty: true });
+      if (!Number.isInteger(l["line"]) || (l["line"] as number) < 1) this.fail(`${at}.line`, "a value that should be a line number of 1 or more");
+      this.string(l, "value", at, { nonEmpty: true });
     });
   }
 

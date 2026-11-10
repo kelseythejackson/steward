@@ -4,3 +4,4 @@
  */
 export * from "./colors/index.js";
 export * from "./contrast/index.js";
+export * from "./spacing/index.js";

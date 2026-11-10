@@ -72,6 +72,17 @@ function sampleModel(): SystemModel {
           evidence: { ratio: 2.54, required: 4.5, uses: 12 },
         },
       },
+      {
+        id: suggestionId("spacing", ["9px", "7px", "8px"]),
+        kind: "spacing",
+        members: ["9px", "7px", "8px"],
+        proposed: { path: "spacing.2", token: { $type: "dimension", $value: { value: 8, unit: "px" } } },
+        locations: [
+          { file: "src/styles.css", line: 24, value: "padding: 9px 13px" },
+          { file: "src/components/Card.tsx", line: 12, value: "mt-[7px]" },
+        ],
+        reason: { summary: "7px and 9px are 1px from 8px, the nearest step on the scale.", evidence: { step: 8, uses: 2 } },
+      },
     ],
     decisions: [
       {
@@ -137,6 +148,8 @@ describe("serializeSystemModel", () => {
     const ids = out.suggestions.map((s: { id: string }) => s.id);
     expect(ids).toEqual([...ids].sort());
     expect(out.tokens.color.blue["500"].$extensions["dev.steward"].mergedFrom).toEqual(["#3a81f5", "#3b83f7"]);
+    const spacing = out.suggestions.find((s: { kind: string }) => s.kind === "spacing");
+    expect(spacing.locations.map((l: { file: string }) => l.file)).toEqual(["src/components/Card.tsx", "src/styles.css"]);
   });
 
   it("keeps numeric token names in numeric order (50, 500, 900), not string order", () => {
@@ -207,6 +220,9 @@ describe("parseSystemModel", () => {
     ["a contrast fix with no ratio", (m) => delete m.suggestions[2].proposed.ratio, "suggestions[2].proposed.ratio"],
     ["a contrast fix replacing an unknown side", (m) => (m.suggestions[2].proposed.replaces = "border"), "suggestions[2].proposed.replaces"],
     ["contrastIssues that aren't a list", (m) => (m.tokens.color.gray["50"].$extensions["dev.steward"].contrastIssues = "x"), "tokens.color.gray.50.$extensions.dev.steward.contrastIssues"],
+    ["spacing locations that aren't a list", (m) => (m.suggestions[3].locations = "src/a.tsx"), "suggestions[3].locations"],
+    ["a spacing location with no line", (m) => delete m.suggestions[3].locations[0].line, "suggestions[3].locations[0].line"],
+    ["a spacing location with no file", (m) => (m.suggestions[3].locations[1].file = ""), "suggestions[3].locations[1].file"],
     ["a decision with an unknown status", (m) => (m.decisions[0].status = "maybe"), "decisions[0].status"],
     ["a decision with a bad date", (m) => (m.decisions[0].decidedAt = "yesterday"), "decisions[0].decidedAt"],
     ["a rule with a non-boolean enabled", (m) => (m.rules[0].enabled = "yes"), "rules[0].enabled"],

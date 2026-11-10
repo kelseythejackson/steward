@@ -115,9 +115,24 @@ export interface ColorMergeSuggestion extends SuggestionBase {
   proposed: { path: string; token: ColorToken };
 }
 
+/** Where a value is used, e.g. `{ file: "src/Card.tsx", line: 12, value: "mt-[7px]" }`. */
+export interface UsageLocation {
+  /** Path relative to the repo root, with forward slashes. */
+  file: string;
+  line: number;
+  /** The class or declaration exactly as written. */
+  value: string;
+}
+
+/**
+ * Off-scale spacing values that would snap to one step of the scale.
+ * `members` holds the off-scale values and the step itself, e.g. `["7px", "9px", "8px"]`.
+ */
 export interface SpacingMergeSuggestion extends SuggestionBase {
   kind: "spacing";
   proposed: { path: string; token: DimensionToken };
+  /** Where the off-scale values are used, so a person can review each one. */
+  locations?: UsageLocation[];
 }
 
 export interface ComponentMergeSuggestion extends SuggestionBase {

@@ -74,7 +74,13 @@ export function normalizeSystemModel(model: SystemModel): SystemModel {
         const members = sortedStrings(s.members);
         if (s.kind === "contrast") return { ...s, members, proposed: { ...s.proposed, token: normalizeToken(s.proposed.token) } };
         if (s.kind === "color") return { ...s, members, proposed: { ...s.proposed, token: normalizeToken(s.proposed.token) } };
-        if (s.kind === "spacing") return { ...s, members, proposed: { ...s.proposed, token: normalizeToken(s.proposed.token) } };
+        if (s.kind === "spacing") {
+          const out = { ...s, members, proposed: { ...s.proposed, token: normalizeToken(s.proposed.token) } };
+          if (s.locations) {
+            out.locations = [...s.locations].sort((a, b) => compareStrings(a.file, b.file) || a.line - b.line || compareStrings(a.value, b.value));
+          }
+          return out;
+        }
         return { ...s, members };
       })
       .sort((a, b) => compareStrings(a.id, b.id)),
