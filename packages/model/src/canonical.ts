@@ -67,7 +67,12 @@ export function normalizeSystemModel(model: SystemModel): SystemModel {
     ...model,
     tokens: normalizeTokens(model.tokens),
     components: model.components
-      .map((c) => ({ ...c, variants: sortedStrings(c.variants) }))
+      .map((c) => {
+        const out = { ...c, variants: sortedStrings(c.variants) };
+        if (c.props) out.props = sortedStrings(c.props);
+        if (c.rootElements) out.rootElements = sortedStrings(c.rootElements);
+        return out;
+      })
       .sort((a, b) => compareStrings(a.name, b.name) || compareStrings(a.filePath, b.filePath)),
     suggestions: model.suggestions
       .map((s): Suggestion => {

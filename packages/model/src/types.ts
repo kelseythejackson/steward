@@ -84,7 +84,13 @@ export interface ComponentEntry {
   name: string;
   /** Path relative to the repo root, with forward slashes. */
   filePath: string;
+  /** Line where the component is defined. */
+  line?: number;
   variants: string[];
+  /** Prop names, from the destructured parameter and the props type. */
+  props?: string[];
+  /** Elements the component can render at its root, e.g. `["a", "button"]`. */
+  rootElements?: string[];
 }
 
 // ---------------------------------------------------------------------------

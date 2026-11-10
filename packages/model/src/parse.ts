@@ -139,6 +139,11 @@ class Checker {
       this.string(c, "name", path, { nonEmpty: true });
       this.string(c, "filePath", path, { nonEmpty: true });
       this.stringArray(c, "variants", path);
+      if (c["props"] !== undefined) this.stringArray(c, "props", path);
+      if (c["rootElements"] !== undefined) this.stringArray(c, "rootElements", path);
+      if (c["line"] !== undefined && (!Number.isInteger(c["line"]) || (c["line"] as number) < 1)) {
+        this.fail(`${path}.line`, "a value that should be a line number of 1 or more");
+      }
     });
   }
 

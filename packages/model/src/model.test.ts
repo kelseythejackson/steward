@@ -44,7 +44,14 @@ function sampleModel(): SystemModel {
     },
     components: [
       { name: "Panel", filePath: "src/components/Panel.tsx", variants: [] },
-      { name: "Button", filePath: "src/components/Button.tsx", variants: ["secondary", "primary", "ghost"] },
+      {
+        name: "Button",
+        filePath: "src/components/Button.tsx",
+        line: 17,
+        variants: ["secondary", "primary", "ghost"],
+        props: ["variant", "children", "className"],
+        rootElements: ["button"],
+      },
     ],
     suggestions: [
       {
@@ -143,6 +150,7 @@ describe("serializeSystemModel", () => {
     expect(Object.keys(out)).toEqual(["components", "decisions", "rules", "suggestions", "tokens", "version"]);
     expect(out.components.map((c: { name: string }) => c.name)).toEqual(["Button", "Panel"]);
     expect(out.components[0].variants).toEqual(["ghost", "primary", "secondary"]);
+    expect(out.components[0].props).toEqual(["children", "className", "variant"]);
     expect(out.rules.map((r: { id: string }) => r.id)).toEqual(["img-alt", "no-raw-button"]);
     expect(out.decisions[0].members).toEqual(["12px", "13px"]);
     const ids = out.suggestions.map((s: { id: string }) => s.id);
@@ -211,6 +219,9 @@ describe("parseSystemModel", () => {
     ["an unknown dimension unit", (m) => (m.tokens.spacing["2"].$value.unit = "em"), "tokens.spacing.2.$value.unit"],
     ["a negative usage count", (m) => (m.tokens.color.gray["50"].$extensions["dev.steward"].uses = -1), "tokens.color.gray.50.$extensions.dev.steward.uses"],
     ["a component with no name", (m) => delete m.components[0].name, "components[0].name"],
+    ["component props that aren't a list", (m) => (m.components[1].props = "variant"), "components[1].props"],
+    ["component root elements that aren't a list", (m) => (m.components[1].rootElements = [1]), "components[1].rootElements"],
+    ["a component with a bad line", (m) => (m.components[1].line = 0), "components[1].line"],
     ["a suggestion with one member", (m) => (m.suggestions[0].members = ["Card"]), "suggestions[0].members"],
     ["a suggestion with no reason", (m) => delete m.suggestions[1].reason, "suggestions[1].reason"],
     ["a color suggestion proposing a dimension", (m) => (m.suggestions[1].proposed.token = m.tokens.spacing["2"]), "suggestions[1].proposed.token.$type"],
