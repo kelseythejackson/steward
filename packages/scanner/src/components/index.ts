@@ -15,7 +15,7 @@ export {
   type Signal,
   type SimilarComponents,
 } from "./duplicates.js";
-export { collectComponents, inventoryFile, isComponentFile } from "./inventory.js";
+export { collectComponents, inventoryFile, isComponentFile, nameFromFile } from "./inventory.js";
 export { baseWord, nameWords } from "./names.js";
 export { classPattern, classPatterns, patternOverlap } from "./patterns.js";
 export { componentEntries } from "./summary.js";

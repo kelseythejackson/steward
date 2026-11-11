@@ -43,19 +43,22 @@ const V4_KEY = /^\d+(?:\.(?:25|5|75))?$/;
  * Reads a Tailwind length: a default spacing key (`2.5`, or on Tailwind 4 any
  * multiple of 0.25 like `13`) or an arbitrary px/rem value (`[13px]`).
  */
-export function lengthPx(value: string, version: TailwindVersion = 3): number | null {
-  if (SPACING_KEYS.has(value) || (version === 4 && V4_KEY.test(value))) return Number(value) * 4;
+export function lengthPx(value: string, version: TailwindVersion = 3, rootPx = 16): number | null {
+  // Each spacing key is 0.25rem, so it scales with the root font size.
+  if (SPACING_KEYS.has(value) || (version === 4 && V4_KEY.test(value))) return round(Number(value) * (rootPx / 4));
   const m = ARBITRARY.exec(value);
   if (!m) return null;
-  return Number(m[1]) * (m[2] === "rem" ? 16 : 1);
+  return round(Number(m[1]) * (m[2] === "rem" ? rootPx : 1));
 }
+
+const round = (n: number) => Math.round(n * 1000) / 1000;
 
 /**
  * Reads one Tailwind class as spacing (`p-4` → 16px, `mt-[7px]` → 7px) or a
  * size (`h-[42px]`). Returns null for anything else, including `0`, `px`,
  * `auto`, fractions, percentages and `calc()`.
  */
-export function parseSpacingClass(cls: string, version: TailwindVersion = 3): SpacingClass | null {
+export function parseSpacingClass(cls: string, version: TailwindVersion = 3, rootPx = 16): SpacingClass | null {
   let c = stripVariants(cls);
   if (c.startsWith("!")) c = c.slice(1);
   if (c.endsWith("!")) c = c.slice(0, -1);
@@ -66,7 +69,7 @@ export function parseSpacingClass(cls: string, version: TailwindVersion = 3): Sp
   if (!m) return null;
   const property = m[1]!;
   if (negative && !NEGATABLE.test(property)) return null;
-  const px = lengthPx(m[2]!, version);
+  const px = lengthPx(m[2]!, version, rootPx);
   if (px === null || px <= MIN_SPACING_PX) return null;
   return { category: SIZE_PREFIXES.includes(property) ? "size" : "spacing", property, px };
 }

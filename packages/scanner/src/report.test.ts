@@ -22,6 +22,7 @@ const clean: ScanSummary = {
   storiesAndTests: { files: 0, offSystemColors: 0, offScaleSpacing: 0 },
   skippedFiles: [],
   tooLarge: [],
+  linksOutside: [],
 };
 
 const report = (summary: ScanSummary) => `${describeScan(summary).join("\n")}\n`;
@@ -118,5 +119,6 @@ describe("describeScan", () => {
     const r = report({ ...clean, skippedFiles: ["src/Broken.tsx"], tooLarge: ["src/generated/graphql.ts"] });
     expect(r).toContain("Couldn't read 1 file, so it was skipped: src/Broken.tsx\n");
     expect(r).toContain("Skipped 1 file over 1 MB, probably generated: src/generated/graphql.ts\n");
+    expect(report({ ...clean, linksOutside: ["shared"] })).toContain("Didn't follow 1 link that points outside the repo or is broken: shared\n");
   });
 });

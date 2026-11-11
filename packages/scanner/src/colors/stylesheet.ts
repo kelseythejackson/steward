@@ -1,17 +1,12 @@
-import { lineLocator } from "./lines.js";
 import type { ThemeColors } from "../contrast/classes.js";
+import { blankComments, parseCss } from "../css.js";
+import { lineLocator } from "./lines.js";
 import { findNamedClassColors } from "./named.js";
 import { cssValueColor, findArbitraryClassColors, findColors } from "./normalize.js";
 import type { FoundColor } from "./types.js";
 
-/** Replaces comments with spaces, keeping newlines so line numbers stay right. */
-export function blankComments(code: string, scss: boolean): string {
-  const blank = (s: string) => s.replace(/[^\n]/g, " ");
-  let out = code.replace(/\/\*[\s\S]*?\*\//g, blank);
-  // SCSS line comments. Skip `//` right after `:` so `url(http://…)` survives.
-  if (scss) out = out.replace(/(^|[^:])(\/\/[^\n]*)/gm, (_m, before: string, comment: string) => before + blank(comment));
-  return out;
-}
+/** Kept here too, since other code imports it from this module. */
+export { blankComments };
 
 /**
  * Finds colors in CSS and SCSS. Only declaration values are scanned, so
@@ -20,43 +15,32 @@ export function blankComments(code: string, scss: boolean): string {
  * properties that hold a color are recorded as definitions, not uses.
  */
 export function extractStylesheetColors(code: string, file: string, theme: ThemeColors = {}): FoundColor[] {
-  const text = blankComments(code, file.endsWith(".scss"));
   const lineAt = lineLocator(code);
   const out: FoundColor[] = [];
 
-  for (const seg of text.matchAll(/[^{};]+/g)) {
-    const segStart = seg.index;
-    const segEnd = segStart + seg[0].length;
-    if (text[segEnd] === "{") continue; // a selector or at-rule prelude
-
-    const body = seg[0];
-    const trimmed = body.trim();
-    const snippet = trimmed.replace(/\s+/g, " ");
-
-    if (trimmed.startsWith("@apply")) {
-      for (const m of findArbitraryClassColors(body)) {
-        out.push({ file, line: lineAt(segStart + m.index), raw: m.raw, value: m.value, source: "css", snippet: m.className });
+  for (const rule of parseCss(code, file.endsWith(".scss"))) {
+    for (const d of rule.declarations) {
+      if (d.prop === "@apply") {
+        for (const m of findArbitraryClassColors(d.value)) {
+          out.push({ file, line: lineAt(d.valueStart + m.index), raw: m.raw, value: m.value, source: "css", snippet: m.className });
+        }
+        for (const m of findNamedClassColors(d.value, theme)) {
+          out.push({ file, line: lineAt(d.valueStart + m.index), raw: m.raw, value: m.value, source: "tailwind-name", snippet: m.className });
+        }
+        continue;
       }
-      for (const m of findNamedClassColors(body, theme)) {
-        out.push({ file, line: lineAt(segStart + m.index), raw: m.raw, value: m.value, source: "tailwind-name", snippet: m.className });
+      const snippet = `${d.prop}: ${d.value}`.replace(/\s+/g, " ");
+      // A custom property or SCSS variable that holds one color defines it (`--primary: 222 47% 11%`, `$brand: #3b82f6`).
+      if (d.prop.startsWith("--") || d.prop.startsWith("$")) {
+        const value = cssValueColor(d.value);
+        if (value) out.push({ file, line: lineAt(d.valueStart), raw: d.value, value, source: "css-variable", snippet });
+        continue;
       }
-      continue;
-    }
-    if (trimmed.startsWith("@")) continue; // @import, @tailwind, @use…
-
-    const colon = body.indexOf(":");
-    if (colon === -1) continue;
-    const valueStart = colon + 1;
-    // A custom property that holds one color defines it (`--primary: 222 47% 11%`, `@theme { --color-brand: … }`).
-    if (trimmed.startsWith("--")) {
-      const raw = body.slice(valueStart).trim();
-      const value = cssValueColor(raw);
-      const offset = body.indexOf(raw, valueStart);
-      if (value) out.push({ file, line: lineAt(segStart + offset), raw, value, source: "css-variable", snippet });
-      continue;
-    }
-    for (const m of findColors(body.slice(valueStart))) {
-      out.push({ file, line: lineAt(segStart + valueStart + m.index), raw: m.raw, value: m.value, source: "css", snippet });
+      // Colors inside url(…), like an inline SVG's `fill='#fff'`, belong to the image, not the UI.
+      const value = d.value.replace(/url\((?:"[^"]*"|'[^']*'|[^)]*)\)/g, (u) => " ".repeat(u.length));
+      for (const m of findColors(value)) {
+        out.push({ file, line: lineAt(d.valueStart + m.index), raw: m.raw, value: m.value, source: "css", snippet });
+      }
     }
   }
   return out;

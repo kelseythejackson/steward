@@ -37,6 +37,8 @@ export interface ScanResult {
   files: string[];
   /** Files not read at all, with why (e.g. over 1 MB, so probably generated). */
   notRead: SkippedFile[];
+  /** Symlinks not followed because they point outside the repo or are broken, repo-relative. */
+  linksOutside: string[];
   /** The decisions the scan honored, so the summary can show what people chose to keep. */
   decisions: MergeDecision[];
   colors: ColorExtraction;
@@ -109,6 +111,8 @@ export interface ScanSummary {
   skippedFiles: string[];
   /** Files left out before parsing because they're too big to be hand-written. */
   tooLarge: string[];
+  /** Symlinks not followed because they point outside the repo or are broken. */
+  linksOutside: string[];
 }
 
 const isScanned = (path: string) => isColorSourceFile(path) || isComponentFile(path);
@@ -123,21 +127,22 @@ export function scanFiles(files: readonly SourceFile[], options: ScanOptions = {
   const setup = tailwindSetup(all);
 
   const colors = collectColors(sorted, setup.theme);
-  const spacing = collectSpacing(sorted, setup.version);
+  const spacing = collectSpacing(sorted, setup.version, setup.rootPx);
   const components = collectComponents(sorted);
   const contrastPairs = collectContrast(sorted);
 
   const colorSuggestions = suggestColorTokens(colors.colors, { decisions });
-  const spacingSuggestions = suggestSpacingScale(spacing.values, { decisions });
+  const spacingSuggestions = suggestSpacingScale(spacing.values, { decisions, rootPx: setup.rootPx });
   const contrast = checkContrast(contrastPairs, colorSuggestions, { decisions });
 
   const storyColors = collectColors(stories, setup.theme);
-  const storySpacing = collectSpacing(stories, setup.version);
+  const storySpacing = collectSpacing(stories, setup.version, setup.rootPx);
   const inSystem = new Set(contrast.tokens.flatMap((t) => [tokenKey(t), ...(t.token.$extensions?.[STEWARD_EXTENSION]?.mergedFrom ?? [])]));
   const onScale = new Set(spacingSuggestions.scale);
   return {
     files: sorted.map((f) => f.path),
     notRead: [],
+    linksOutside: [],
     decisions: [...decisions],
     colors,
     spacing,
@@ -157,8 +162,9 @@ export function scanFiles(files: readonly SourceFile[], options: ScanOptions = {
 
 /** Walks a repo and scans it. The only part that touches the disk. */
 export async function scanRepo(repoRoot: string, options: ScanOptions = {}): Promise<ScanResult> {
-  const { files, skipped } = await readRepoFiles(repoRoot, await listFiles(repoRoot, isScanned));
-  return { ...scanFiles(files, options), notRead: skipped };
+  const linksOutside: string[] = [];
+  const { files, skipped } = await readRepoFiles(repoRoot, await listFiles(repoRoot, isScanned, linksOutside));
+  return { ...scanFiles(files, options), notRead: skipped, linksOutside };
 }
 
 /** Puts a token at a dot-separated path, e.g. `color.gray.500`. */
@@ -289,5 +295,6 @@ export function summarizeScan(result: ScanResult): ScanSummary {
     },
     skippedFiles,
     tooLarge: result.notRead.map((s) => s.file),
+    linksOutside: result.linksOutside,
   };
 }

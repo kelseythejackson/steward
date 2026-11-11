@@ -34,4 +34,6 @@ export interface SpacingExtraction {
   sizes: ExtractedSpacing[];
   filesScanned: number;
   skipped: { file: string; reason: string }[];
+  /** Root font size the px values were worked out with (16 unless the CSS sets `html { font-size }`). */
+  rootPx: number;
 }

@@ -1,7 +1,7 @@
 import { compareStrings } from "@steward/model";
 import { isColorSourceFile } from "../colors/collect.js";
 import type { SourceFile } from "../colors/types.js";
-import { tailwindVersion, type TailwindVersion } from "../tailwind.js";
+import { rootPxOf, tailwindVersion, type TailwindVersion } from "../tailwind.js";
 import { extractCssSpacing } from "./css.js";
 import { extractScriptSpacing } from "./script.js";
 import type { ExtractedSpacing, FoundSpacing, SpacingExtraction, SpacingLocation } from "./types.js";
@@ -25,18 +25,22 @@ function group(found: readonly FoundSpacing[]): ExtractedSpacing[] {
  * locations, smallest first. Widths and heights are kept apart as sizes.
  * Files that fail to parse are listed in `skipped` instead of stopping the scan.
  */
-/** `version` defaults to the Tailwind version found in `files`; pass it when scanning a subset (like stories) without the CSS entry point. */
-export function collectSpacing(files: readonly SourceFile[], version?: TailwindVersion): SpacingExtraction {
+/**
+ * `version` and `rootPx` default to what's found in `files`; pass them when
+ * scanning a subset (like stories) without the CSS entry point.
+ */
+export function collectSpacing(files: readonly SourceFile[], version?: TailwindVersion, rootPx?: number): SpacingExtraction {
   const found: FoundSpacing[] = [];
   const skipped: SpacingExtraction["skipped"] = [];
   let filesScanned = 0;
   const sorted = [...files].sort((a, b) => compareStrings(a.path, b.path));
   const tw = version ?? tailwindVersion(sorted);
+  const root = rootPx ?? rootPxOf(sorted);
   for (const f of sorted) {
     if (!isColorSourceFile(f.path)) continue;
     filesScanned++;
     try {
-      found.push(...(isStylesheet(f.path) ? extractCssSpacing(f.content, f.path, tw) : extractScriptSpacing(f.content, f.path, tw)));
+      found.push(...(isStylesheet(f.path) ? extractCssSpacing(f.content, f.path, tw, root) : extractScriptSpacing(f.content, f.path, tw, root)));
     } catch (err) {
       skipped.push({ file: f.path, reason: err instanceof Error ? err.message.split("\n")[0]! : String(err) });
     }
@@ -46,5 +50,6 @@ export function collectSpacing(files: readonly SourceFile[], version?: TailwindV
     sizes: group(found.filter((f) => f.category === "size")),
     filesScanned,
     skipped,
+    rootPx: root,
   };
 }

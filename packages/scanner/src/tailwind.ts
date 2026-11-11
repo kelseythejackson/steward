@@ -1,7 +1,7 @@
 import { compareStrings } from "@steward/model";
 import { isTailwindConfig } from "./colors/script.js";
 import { cssValueColor } from "./colors/normalize.js";
-import { blankComments } from "./colors/stylesheet.js";
+import { blankComments, parseCss, type CssRule } from "./css.js";
 import type { SourceFile } from "./colors/types.js";
 import type { ThemeColors } from "./contrast/classes.js";
 import { TAILWIND_V4_PALETTE } from "./contrast/palette-v4.js";
@@ -21,6 +21,8 @@ export interface TailwindSetup {
   theme: ThemeColors;
   /** Light-mode CSS custom properties that hold a color, e.g. `{ "--primary": "#0f172a" }`. */
   variables: Readonly<Record<string, string>>;
+  /** Root font size in px (16 unless `html { font-size }` changes it). rem and Tailwind's spacing and text sizes scale with it. */
+  rootPx: number;
 }
 
 const isStylesheet = (p: string) => p.endsWith(".css") || p.endsWith(".scss");
@@ -33,21 +35,53 @@ export function tailwindVersion(files: readonly SourceFile[]): TailwindVersion {
   return files.some((f) => isStylesheet(f.path) && V4_MARKER.test(blankComments(f.content, f.path.endsWith(".scss")))) ? 4 : 3;
 }
 
+/** True for rules that only apply in dark mode, which the theme doesn't use since `dark:` isn't checked yet. */
+const isDark = (rule: CssRule) => DARK_SELECTOR.test(rule.selector) || rule.atRules.some((a) => DARK_SELECTOR.test(a));
+
 /**
  * Pure: custom property declarations in one stylesheet, raw values as
  * written, from light-mode rules only (`:root`, `@theme`, `html`, `@layer`
- * blocks). Later declarations win.
+ * blocks; not `.dark` or `@media (prefers-color-scheme: dark)`). Later
+ * declarations win.
  */
 export function cssVariableDeclarations(code: string, scss = false): Record<string, string> {
-  const text = blankComments(code, scss);
   const out: Record<string, string> = {};
-  for (const rule of text.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
-    const prelude = rule[1]!;
-    const selector = prelude.slice(prelude.lastIndexOf(";") + 1).trim();
-    if (DARK_SELECTOR.test(selector)) continue;
-    for (const decl of rule[2]!.matchAll(/(--[\w-]+)\s*:\s*([^;]+)/g)) out[decl[1]!] = decl[2]!.trim();
+  for (const rule of parseCss(code, scss)) {
+    if (isDark(rule)) continue;
+    for (const d of rule.declarations) if (d.prop.startsWith("--")) out[d.prop] = d.value;
   }
   return out;
+}
+
+/** The browser default, which rem and Tailwind's spacing and text sizes are measured against. */
+export const DEFAULT_ROOT_PX = 16;
+
+/**
+ * Pure: the root font size in px from `html { font-size: … }` (or `:root`),
+ * e.g. `62.5%` → 10. Rules inside `@media` are ignored, since only the
+ * default size is used. Returns null when the stylesheet doesn't set it.
+ */
+export function rootFontSize(code: string, scss = false): number | null {
+  let px: number | null = null;
+  for (const rule of parseCss(code, scss)) {
+    if (rule.atRules.some((a) => a.startsWith("@media")) || !rule.selector.split(",").some((s) => /^(?:html|:root)$/.test(s.trim()))) continue;
+    for (const d of rule.declarations) {
+      if (d.prop !== "font-size") continue;
+      const m = /^(\d*\.?\d+)(px|%|rem|em)$/.exec(d.value.replace(/!important$/, "").trim());
+      if (m) px = m[2] === "px" ? Number(m[1]) : m[2] === "%" ? (DEFAULT_ROOT_PX * Number(m[1])) / 100 : DEFAULT_ROOT_PX * Number(m[1]);
+    }
+  }
+  return px;
+}
+
+/** The repo's root font size in px, from its stylesheets (last one wins), or 16. */
+export function rootPxOf(files: readonly SourceFile[]): number {
+  let px = DEFAULT_ROOT_PX;
+  for (const f of [...files].sort((a, b) => compareStrings(a.path, b.path))) {
+    if (!isStylesheet(f.path)) continue;
+    px = rootFontSize(f.content, f.path.endsWith(".scss")) ?? px;
+  }
+  return px;
 }
 
 /**
@@ -109,5 +143,5 @@ export function tailwindSetup(files: readonly SourceFile[]): TailwindSetup {
       // Theme names from this config just won't resolve.
     }
   }
-  return { version, theme, variables };
+  return { version, theme, variables, rootPx: rootPxOf(sorted) };
 }

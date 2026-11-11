@@ -51,7 +51,7 @@ describe("normalizeScale", () => {
 
 describe("spacingTokenPath", () => {
   it("uses Tailwind's numbering, so p-4 maps to spacing.4", () => {
-    expect(DEFAULT_SPACING_SCALE.map(spacingTokenPath)).toEqual([
+    expect(DEFAULT_SPACING_SCALE.map((px) => spacingTokenPath(px))).toEqual([
       "spacing.1", "spacing.2", "spacing.3", "spacing.4", "spacing.6", "spacing.8", "spacing.12", "spacing.16",
     ]);
   });

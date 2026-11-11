@@ -22,6 +22,7 @@ const summary: ScanSummary = {
   storiesAndTests: { files: 0, offSystemColors: 0, offScaleSpacing: 0 },
   skippedFiles: [],
   tooLarge: [],
+  linksOutside: [],
 };
 
 describe("formatScanReport", () => {

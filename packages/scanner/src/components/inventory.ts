@@ -16,6 +16,22 @@ const sorted = (xs: Iterable<string>) => [...new Set(xs)].sort(compareStrings);
 
 export const isComponentFile = (path: string) => path.endsWith(".tsx");
 
+/**
+ * The name an anonymous default export goes by: the file name in
+ * PascalCase (`user-card.tsx` → `UserCard`), or the folder's for an
+ * `index.tsx` (`Card/index.tsx` → `Card`). That's how it's imported and rendered.
+ */
+export function nameFromFile(file: string): string {
+  const parts = file.split("/");
+  let base = parts[parts.length - 1]!.replace(/\.[^.]+$/, "");
+  if (base === "index" && parts.length > 1) base = parts[parts.length - 2]!;
+  return base
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean)
+    .map((w) => w[0]!.toUpperCase() + w.slice(1))
+    .join("");
+}
+
 function jsxName(name: N<"JSXOpeningElement">["name"]): string {
   if (name.type === "JSXIdentifier") return name.name;
   if (name.type === "JSXNamespacedName") return `${name.namespace.name}:${name.name.name}`;
@@ -235,6 +251,10 @@ function analyzeFile(code: string, file: string): FileAnalysis {
         const target = (exported ? stmt.get("declaration") : stmt) as NodePath;
         if (target.isFunctionDeclaration() && target.node.id) {
           add(target.node.id.name, target as FnPath, target.node.loc?.start.line ?? 0, exported);
+        } else if (stmt.isExportDefaultDeclaration() && !target.isIdentifier() && !target.isClassDeclaration()) {
+          // `export default function () {}`, `export default () => …`, `export default memo(function () {})`.
+          const fn = target.isFunctionDeclaration() ? (target as FnPath) : functionOf(target);
+          add(nameFromFile(file), fn, stmt.node.loc?.start.line ?? 0, true);
         } else if (target.isVariableDeclaration()) {
           for (const d of target.get("declarations")) {
             const id = d.node.id;

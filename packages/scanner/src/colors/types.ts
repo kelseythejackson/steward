@@ -2,8 +2,8 @@
 /**
  * Where a color was found. `tailwind-class` is an arbitrary value (`bg-[#fff]`);
  * `tailwind-name` is a palette or theme color class (`text-gray-400`, `bg-brand`).
- * `tailwind-config` and `css-variable` (`--primary: 222 47% 11%`, `@theme`)
- * are definitions, not uses.
+ * `tailwind-config` and `css-variable` (`--primary: 222 47% 11%`, `@theme`,
+ * SCSS `$brand: #3b82f6`) are definitions, not uses.
  */
 export type ColorSource = "tailwind-class" | "tailwind-name" | "inline-style" | "css" | "tailwind-config" | "css-variable";
 

@@ -7,5 +7,6 @@ export * from "./contrast/index.js";
 export * from "./spacing/index.js";
 export * from "./components/index.js";
 export { buildSystemModel, isStoryOrTest, scanFiles, scanRepo, summarizeScan, type ScanOptions, type ScanResult, type ScanSummary } from "./scan.js";
-export { cssVariableDeclarations, resolveCssColor, tailwindSetup, tailwindVersion, type TailwindSetup, type TailwindVersion } from "./tailwind.js";
+export { cssVariableDeclarations, DEFAULT_ROOT_PX, resolveCssColor, rootFontSize, rootPxOf, tailwindSetup, tailwindVersion, type TailwindSetup, type TailwindVersion } from "./tailwind.js";
+export { parseCss, resolveNested, type CssDeclaration, type CssRule } from "./css.js";
 export { describeScan } from "./report.js";

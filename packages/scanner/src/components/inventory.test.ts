@@ -90,3 +90,21 @@ describe("collectComponents", () => {
     expect(r.filesScanned).toBe(3);
   });
 });
+
+describe("anonymous default exports", () => {
+  const names = (code: string, file: string) => inventoryFile(code, file).map((c) => `${c.name} ${c.exported} ${c.rootElements.join("|")}`);
+
+  it("names them after the file, like they're imported", () => {
+    expect(names(`export default function () { return <button />; }`, "src/components/user-card.tsx")).toEqual(["UserCard true button"]);
+    expect(names(`export default () => <section />;`, "src/Card/index.tsx")).toEqual(["Card true section"]);
+    expect(names(`export default memo(function () { return <nav />; });`, "src/nav_bar.tsx")).toEqual(["NavBar true nav"]);
+  });
+
+  it("still uses the real name of a named default export", () => {
+    expect(names(`export default function Hero() { return <header />; }`, "src/whatever.tsx")).toEqual(["Hero true header"]);
+  });
+
+  it("skips files whose name can't be a component", () => {
+    expect(names(`export default () => <div />;`, "src/123.tsx")).toEqual([]);
+  });
+});

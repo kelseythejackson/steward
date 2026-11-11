@@ -19,7 +19,7 @@ const kebab = (s: string) => s.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
  *   Dynamic values like `${pct}%` are skipped.
  * Tailwind configs are skipped. Throws if the file can't be parsed.
  */
-export function extractScriptSpacing(code: string, file: string, version: TailwindVersion = 3): FoundSpacing[] {
+export function extractScriptSpacing(code: string, file: string, version: TailwindVersion = 3, rootPx = 16): FoundSpacing[] {
   if (isTailwindConfig(file)) return [];
   const ast = parse(code, { sourceType: "module", plugins: file.endsWith(".tsx") ? ["typescript", "jsx"] : ["typescript"] });
   const lineAt = lineLocator(code);
@@ -30,7 +30,7 @@ export function extractScriptSpacing(code: string, file: string, version: Tailwi
     const raw = code.slice(start, end);
     for (const m of raw.matchAll(/\S+/g)) {
       if ((openLeft && m.index === 0) || (openRight && m.index + m[0].length === raw.length)) continue;
-      const cls = parseSpacingClass(m[0], version);
+      const cls = parseSpacingClass(m[0], version, rootPx);
       if (cls) out.push({ file, line: lineAt(start + m.index), raw: m[0], property: cls.property, px: cls.px, category: cls.category, source: "tailwind-class" });
     }
   };
@@ -69,7 +69,7 @@ export function extractScriptSpacing(code: string, file: string, version: Tailwi
           lengths = v.value > 1 ? [v.value] : [];
         } else if (v.type === "StringLiteral") {
           text = v.value;
-          lengths = cssLengths(v.value);
+          lengths = cssLengths(v.value, rootPx);
         } else continue; // dynamic
         for (const px of lengths) out.push({ file, line, raw: `${key}: ${text}`, property, px, category, source: "inline-style" });
       }

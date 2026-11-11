@@ -14,6 +14,8 @@ import { pushTo } from "../collections.js";
 export interface SpacingSuggestionOptions {
   /** Scale steps in px. By default the scale is built from the repo's own values (see `deriveSpacingScale`). */
   scale?: readonly number[];
+  /** Root font size in px, so Tailwind's rem-based values are recognised and named right. Defaults to 16. */
+  rootPx?: number;
   /** Past decisions. A rejected snap is never suggested again. */
   decisions?: readonly MergeDecision[];
 }
@@ -91,7 +93,8 @@ function reasonSummary(step: number, snapping: readonly Snapping[], uses: number
  * where they're used. Nothing is applied: a person accepts or rejects each one.
  */
 export function suggestSpacingScale(values: readonly ExtractedSpacing[], options: SpacingSuggestionOptions = {}): SpacingSuggestions {
-  const derived = options.scale ? { scale: [...options.scale], basis: "custom" as const } : deriveSpacingScale(values);
+  const rootPx = options.rootPx ?? 16;
+  const derived = options.scale ? { scale: [...options.scale], basis: "custom" as const } : deriveSpacingScale(values, undefined, rootPx);
   const scale = normalizeScale(derived.scale);
   const decisions = options.decisions ?? [];
   const sorted = [...values].sort((a, b) => a.px - b.px);
@@ -114,7 +117,7 @@ export function suggestSpacingScale(values: readonly ExtractedSpacing[], options
   const suggestions: SpacingMergeSuggestion[] = [];
   const kept: ExtractedSpacing[] = [];
   for (const step of scale) {
-    const path = spacingTokenPath(step);
+    const path = spacingTokenPath(step, rootPx);
     const alreadyUsed = onScale.get(step) ?? 0;
     const rejected = rejectedFor(step, decisions);
     const all = snapsTo.get(step) ?? [];

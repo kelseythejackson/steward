@@ -111,5 +111,9 @@ export function describeScan(summary: ScanSummary): string[] {
     const n = summary.tooLarge.length;
     lines.push(`Skipped ${plural(n, "file")} over 1 MB, probably generated: ${summary.tooLarge.join(", ")}`);
   }
+  if (summary.linksOutside.length > 0) {
+    const n = summary.linksOutside.length;
+    lines.push(`Didn't follow ${plural(n, "link")} that ${n === 1 ? "points" : "point"} outside the repo or ${n === 1 ? "is" : "are"} broken: ${summary.linksOutside.join(", ")}`);
+  }
   return lines;
 }

@@ -27,7 +27,7 @@ const STATE_ORDER: Readonly<Record<InteractionState, number>> = { base: 0, hover
  */
 export function collectContrast(files: readonly SourceFile[]): ContrastExtraction {
   const sorted = [...files].sort((a, b) => compareStrings(a.path, b.path));
-  const { theme } = tailwindSetup(sorted);
+  const { theme, rootPx } = tailwindSetup(sorted);
 
   const out: ContrastExtraction = { pairs: [], focus: [], skipped: [] };
   for (const f of sorted) {
@@ -35,7 +35,7 @@ export function collectContrast(files: readonly SourceFile[]): ContrastExtractio
     const isCss = f.path.endsWith(".css") || f.path.endsWith(".scss");
     if (!isJsx && !isCss) continue;
     try {
-      const r = isJsx ? extractJsxContrast(f.content, f.path, theme) : extractCssContrast(f.content, f.path);
+      const r = isJsx ? extractJsxContrast(f.content, f.path, theme, rootPx) : extractCssContrast(f.content, f.path);
       out.pairs.push(...r.pairs);
       out.focus.push(...r.focus);
       out.skipped.push(...r.skipped);

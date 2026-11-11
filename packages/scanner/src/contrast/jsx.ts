@@ -37,7 +37,8 @@ interface Context {
   weight: number;
 }
 
-const ROOT: Context = { text: undefined, bg: WHITE, bgAssumed: true, sizePx: 16, weight: 400 };
+/** What a file's root elements start from: no known text color, white assumed behind, body text at the root font size. */
+const rootContext = (rootPx: number): Context => ({ text: undefined, bg: WHITE, bgAssumed: true, sizePx: rootPx, weight: 400 });
 
 // ---------------------------------------------------------------------------
 // Static class resolution: every class string an expression could produce
@@ -254,8 +255,9 @@ const realBg = (bg: StateStyle["bg"]): ResolvedColor | undefined => (bg && bg !=
  *
  * Throws if the file can't be parsed.
  */
-export function extractJsxContrast(code: string, file: string, theme: ThemeColors = {}): ContrastExtraction {
+export function extractJsxContrast(code: string, file: string, theme: ThemeColors = {}, rootPx = 16): ContrastExtraction {
   const ast = parse(code, { sourceType: "module", plugins: ["typescript", "jsx"] });
+  const ROOT = rootContext(rootPx);
   const pairs: PairOccurrence[] = [];
   const focus: FocusFinding[] = [];
   const skipped: ContrastSkip[] = [];
@@ -311,7 +313,7 @@ export function extractJsxContrast(code: string, file: string, theme: ThemeColor
           : [""];
     const inline = inlineStyle(opening);
     const styles: ClassListStyle[] = classStrings.map((cls) => {
-      const s = parseClassList(cls, theme);
+      const s = parseClassList(cls, theme, rootPx);
       if (inline.text || inline.bg) s.states.base = { ...s.states.base, ...inline };
       return s;
     });

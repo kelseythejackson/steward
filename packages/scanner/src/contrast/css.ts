@@ -1,7 +1,7 @@
 import { parse as parseColor, formatHex } from "culori";
 import { lineLocator } from "../colors/lines.js";
 import { findColors } from "../colors/normalize.js";
-import { blankComments } from "../colors/stylesheet.js";
+import { parseCss } from "../css.js";
 import type { ContrastExtraction, FocusFinding, InteractionState, PairOccurrence } from "./types.js";
 
 interface Declaration {
@@ -32,30 +32,21 @@ const isFocusIndicator = (d: Declaration) =>
 /**
  * Pure: finds color pairs in CSS rules that set both `color` and a background,
  * and `:focus` rules that remove the outline with no visible replacement.
- * Rules inside `@media` blocks are read like any other rule.
+ * Rules inside `@media` blocks are read like any other rule, and SCSS nesting
+ * is resolved, so `.btn { &:focus { … } }` is checked as `.btn:focus`.
  */
 export function extractCssContrast(code: string, file: string): ContrastExtraction {
-  const text = blankComments(code, file.endsWith(".scss"));
   const lineAt = lineLocator(code);
   const pairs: PairOccurrence[] = [];
   const focus: FocusFinding[] = [];
   const skipped: ContrastExtraction["skipped"] = [];
 
-  for (const rule of text.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    // The match can start with earlier statements (`@tailwind base;`); the selector is what follows the last `;`.
-    const prelude = rule[1]!;
-    const selector = prelude.slice(prelude.lastIndexOf(";") + 1).trim().replace(/\s+/g, " ");
-    if (selector === "" || selector.startsWith("@")) continue;
-    const bodyStart = rule.index + prelude.length + 1;
-
-    const decls: Declaration[] = [];
-    for (const part of rule[2]!.matchAll(/[^;]+/g)) {
-      const colon = part[0].indexOf(":");
-      if (colon === -1) continue;
-      const prop = part[0].slice(0, colon).trim().toLowerCase();
-      const offset = part[0].length - part[0].trimStart().length;
-      decls.push({ prop, value: part[0].slice(colon + 1).trim(), line: lineAt(bodyStart + part.index + offset) });
-    }
+  for (const rule of parseCss(code, file.endsWith(".scss"))) {
+    const selector = rule.selector;
+    if (selector === "") continue;
+    const decls: Declaration[] = rule.declarations
+      .filter((d) => d.prop !== "@apply")
+      .map((d) => ({ prop: d.prop, value: d.value, line: lineAt(d.start) }));
 
     const state = stateOf(selector);
     const colorDecl = lastWhere(decls, (d) => d.prop === "color");

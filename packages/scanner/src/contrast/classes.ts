@@ -107,7 +107,8 @@ function isFocusIndicator(utility: string): boolean {
 }
 
 /** Pure: reads the colors, font size and weight, and focus styling from one class string. */
-export function parseClassList(classes: string, theme: ThemeColors = {}): ClassListStyle {
+/** `rootPx` is the root font size: Tailwind's text sizes are rem-based, so `text-2xl` is 24px only on a 16px root. */
+export function parseClassList(classes: string, theme: ThemeColors = {}, rootPx = 16): ClassListStyle {
   const out: ClassListStyle = { states: {}, removesOutline: false, hasFocusIndicator: false, ignored: [] };
   const stateStyle = (s: InteractionState) => (out.states[s] ??= {});
 
@@ -142,7 +143,7 @@ export function parseClassList(classes: string, theme: ThemeColors = {}): ClassL
       const size = FONT_SIZES[rest];
       const arbitrarySize = /^\[(\d*\.?\d+)(px|rem)\]$/.exec(rest);
       if (size !== undefined || arbitrarySize) {
-        if (state === "base") out.fontSizePx = size ?? Number(arbitrarySize![1]) * (arbitrarySize![2] === "rem" ? 16 : 1);
+        if (state === "base") out.fontSizePx = size !== undefined ? (size * rootPx) / 16 : Number(arbitrarySize![1]) * (arbitrarySize![2] === "rem" ? rootPx : 1);
         continue;
       }
       const c = resolveColorName(rest, theme);

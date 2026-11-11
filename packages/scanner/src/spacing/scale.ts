@@ -15,10 +15,17 @@ export const MIN_STEP_USES = 2;
  * never does. Falls back to `DEFAULT_SPACING_SCALE` when fewer than two
  * values qualify, since one step can't be a scale.
  */
-export function deriveSpacingScale(values: readonly { px: number; uses: number }[], minUses = MIN_STEP_USES): { scale: number[]; basis: "repo" | "default" } {
-  const steps = values.filter((v) => TAILWIND_SPACING_PX.has(v.px) && v.uses >= minUses).map((v) => v.px);
+export function deriveSpacingScale(
+  values: readonly { px: number; uses: number }[],
+  minUses = MIN_STEP_USES,
+  rootPx = 16,
+): { scale: number[]; basis: "repo" | "default" } {
+  // Tailwind's values are rem-based: on a 10px root, p-4 is 10px, so compare at the 16px they're defined at.
+  const at16 = (px: number) => Math.round(((px * 16) / rootPx) * 1000) / 1000;
+  const steps = values.filter((v) => TAILWIND_SPACING_PX.has(at16(v.px)) && v.uses >= minUses).map((v) => v.px);
   const scale = [...new Set(steps)].sort((a, b) => a - b);
-  return scale.length >= 2 ? { scale, basis: "repo" } : { scale: [...DEFAULT_SPACING_SCALE], basis: "default" };
+  if (scale.length >= 2) return { scale, basis: "repo" };
+  return { scale: DEFAULT_SPACING_SCALE.map((px) => Math.round(((px * rootPx) / 16) * 1000) / 1000), basis: "default" };
 }
 
 export type Snap =
@@ -52,7 +59,12 @@ export function snapToScale(px: number, scale: readonly number[] = DEFAULT_SPACI
   return { kind: "snap", step: below, distance: down, halfway: false };
 }
 
-/** `16` → `spacing.4` (Tailwind's numbering, so `p-4` maps straight to it). `10` → `spacing.2_5`. */
-export function spacingTokenPath(px: number): string {
-  return `spacing.${String(px / 4).replace(".", "_")}`;
+/**
+ * `16` → `spacing.4` (Tailwind's numbering, so `p-4` maps straight to it).
+ * `10` → `spacing.2_5`. On a different root font size the number follows
+ * Tailwind's key, so on a 10px root `10` → `spacing.4`.
+ */
+export function spacingTokenPath(px: number, rootPx = 16): string {
+  const key = Math.round((px / (rootPx / 4)) * 1000) / 1000;
+  return `spacing.${String(key).replace(".", "_")}`;
 }
