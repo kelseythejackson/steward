@@ -9,7 +9,7 @@
     "build": "tsc -b packages/cli",
     "typecheck": "tsc -b packages/cli",
     "test": "vitest run",
-    "steward": "tsx packages/cli/src/bin.ts"
+    "steward": "tsx --conditions=source packages/cli/src/bin.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

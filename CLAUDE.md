@@ -84,15 +84,18 @@ pnpm test              # all packages (vitest projects)
 pnpm -F scanner test   # one package
 pnpm typecheck         # tsc -b across all packages via project references
 pnpm build             # compile every package to dist/
-pnpm steward           # run the CLI via tsx (help)
-pnpm build && pnpm steward scan fixtures/messy-app          # writes fixtures/messy-app/.steward/system.json + prints the report
-pnpm build && pnpm steward scan fixtures/messy-app --json   # full result as JSON (summary, model, details)
+pnpm steward           # run the CLI from source via tsx (help); no build needed
+pnpm steward scan fixtures/messy-app          # writes fixtures/messy-app/.steward/system.json + prints the report
+pnpm steward scan fixtures/messy-app --json   # full result as JSON (summary, model, details)
 pnpm -F cli test       # includes the end-to-end scan test (builds first, runs dist/bin.js on a temp copy of the fixture)
 pnpm -F web dev                        # planned (apps/web is empty)
 ```
 
-Cross-package imports resolve to each package's `dist/`, so run `pnpm build` after
-changing a dependency package before running the CLI from source.
+Each package's `exports` has a `source` condition pointing at `src/index.ts`.
+`pnpm steward` runs tsx with `--conditions=source`, and every vitest config
+spreads `sourceResolution` from `vitest.shared.ts`, so the CLI and tests always
+use current source, never a stale `dist/`. Plain `node` (and the published
+`bin`) still use `dist/`, so run `pnpm build` before using `dist/bin.js` directly.
 
 Package names are scoped (`@steward/model`, `@steward/cli`, ...). `pnpm -F scanner`
 matches the unscoped part, so short filters work. New native build scripts must be
