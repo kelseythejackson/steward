@@ -8,7 +8,7 @@ const FIXTURE = fileURLToPath(new URL("../../../../fixtures/messy-app", import.m
 /** Reads `| \`#hex\` | count |` rows from the color tables in FIXTURE_NOTES.md. */
 async function expectedUsesFromNotes(): Promise<Map<string, number>> {
   const notes = await readFile(`${FIXTURE}/FIXTURE_NOTES.md`, "utf8");
-  const rows = [...notes.matchAll(/^\| `(#[0-9a-f]{6})` \|\s*(\d+) \|/gm)];
+  const rows = [...notes.matchAll(/^\| `(#[0-9a-f]{6}(?:[0-9a-f]{2})?)`\s*\|\s*(\d+) \|/gm)];
   return new Map(rows.map((m) => [m[1]!, Number(m[2])]));
 }
 
@@ -31,7 +31,7 @@ describe("extractColors on fixtures/messy-app", () => {
 
   it("finds exactly the colors and use counts listed in FIXTURE_NOTES.md", async () => {
     const expected = await expectedUsesFromNotes();
-    expect(expected.size).toBe(19); // guard against the notes table format changing silently
+    expect(expected.size).toBe(24); // guard against the notes table format changing silently
     const actual = new Map(result.colors.filter((c) => c.uses > 0).map((c) => [c.value, c.uses]));
     expect(Object.fromEntries([...actual].sort())).toEqual(Object.fromEntries([...expected].sort()));
   });
@@ -78,7 +78,7 @@ describe("extractColors on fixtures/messy-app", () => {
 
   it("prints a readable summary", () => {
     expect(summarizeColors(result)).toBe(
-      `Found 19 colors used 78 times across ${result.filesScanned} files. The Tailwind config defines 3 colors.`,
+      `Found 24 colors used 93 times across ${result.filesScanned} files. The Tailwind config defines 3 colors.`,
     );
   });
 });

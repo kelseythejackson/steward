@@ -20,7 +20,10 @@ const round = (n: number, places: number) => Number(n.toFixed(places));
 export interface ColorSuggestionOptions {
   /** Merge threshold in ΔEOK × 100. Defaults to `DEFAULT_MAX_DELTA_E` (1.0). */
   maxDeltaE?: number;
-  /** Past decisions. Rejected merges are never suggested again; their colors get their own tokens. */
+  /**
+   * Past decisions. Colors in a rejected merge are never grouped together
+   * again, even if the group would change; each can still merge with others.
+   */
   decisions?: readonly MergeDecision[];
 }
 
@@ -70,22 +73,8 @@ export function mergeReasonSummary(cluster: ColorCluster, family: string): strin
   return `${what} ${closeness}. Used ${plural(cluster.uses, "time")} in ${plural(cluster.files.length, "file")}.`;
 }
 
-function isRejected(members: readonly string[], decisions: readonly MergeDecision[]): boolean {
-  const id = suggestionId("color", members);
-  const key = [...members].sort(compareStrings).join(",");
-  return decisions.some(
-    (d) =>
-      d.kind === "color" &&
-      d.status === "rejected" &&
-      (d.suggestionId === id || [...d.members].sort(compareStrings).join(",") === key),
-  );
-}
-
-/** Splits a rejected group back into one group per color. */
-function singleton(color: ExtractedColor): ColorCluster {
-  const files = [...new Set(color.locations.map((l) => l.file))].sort(compareStrings);
-  return { value: color.value, members: [color], uses: color.uses, files, maxDeltaE: 0 };
-}
+/** Colors in a rejected merge stay apart for good, even when new near-duplicates appear later. */
+const rejectedSets = (decisions: readonly MergeDecision[]) => decisions.filter((d) => d.kind === "color" && d.status === "rejected").map((d) => d.members);
 
 /**
  * Pure: clusters near-duplicate colors and proposes one token per group,
@@ -96,9 +85,7 @@ export function suggestColorTokens(colors: readonly ExtractedColor[], options: C
   const maxDeltaE = options.maxDeltaE ?? DEFAULT_MAX_DELTA_E;
   const decisions = options.decisions ?? [];
 
-  const clusters = clusterColors(colors, { maxDeltaE })
-    .flatMap((c) => (c.members.length > 1 && isRejected(c.members.map((m) => m.value), decisions) ? c.members.map(singleton) : [c]))
-    .sort((a, b) => b.uses - a.uses || compareStrings(a.value, b.value));
+  const clusters = clusterColors(colors, { maxDeltaE, keepApart: rejectedSets(decisions) });
 
   // Most-used groups get first pick of names.
   const paths = proposeColorPaths(clusters.map((c) => c.value));

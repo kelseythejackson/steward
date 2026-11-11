@@ -70,9 +70,16 @@ describe("suggestColorTokens", () => {
     expect(result.suggestions).toEqual([]);
   });
 
-  it("still suggests when only an accepted or different decision exists", () => {
-    const other = rejected(["#3a81f5", "#3b82f6"]);
-    expect(suggestColorTokens(blues(), { decisions: [other] }).suggestions).toHaveLength(1);
+  it("keeps a rejected pair apart for good, even when a new near-duplicate shows up", () => {
+    // A person said #3a81f5 and #3b82f6 stay separate. #3b83f7 is close to both: it may join one, never both.
+    const result = suggestColorTokens(blues(), { decisions: [rejected(["#3a81f5", "#3b82f6"])] });
+    expect(result.suggestions.map((s) => s.members)).toEqual([["#3b82f6", "#3b83f7"]]);
+    for (const s of result.suggestions) expect(s.members.includes("#3a81f5") && s.members.includes("#3b82f6")).toBe(false);
+  });
+
+  it("ignores accepted decisions when grouping", () => {
+    const accepted = { ...rejected(["#3a81f5", "#3b82f6"]), status: "accepted" as const };
+    expect(suggestColorTokens(blues(), { decisions: [accepted] }).suggestions.map((s) => s.members)).toEqual([["#3a81f5", "#3b82f6", "#3b83f7"]]);
   });
 
   it("is deterministic", () => {

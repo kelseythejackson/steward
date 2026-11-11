@@ -1,12 +1,10 @@
 import { compareStrings } from "@steward/model";
 import { isColorSourceFile } from "../colors/collect.js";
-import { isTailwindConfig } from "../colors/script.js";
 import type { SourceFile } from "../colors/types.js";
 import { listFiles, readSourceFiles } from "../colors/walk.js";
-import type { ThemeColors } from "./classes.js";
 import { extractCssContrast } from "./css.js";
 import { extractJsxContrast } from "./jsx.js";
-import { themeColorsFromConfig } from "./theme.js";
+import { tailwindSetup } from "../tailwind.js";
 import type { ContrastExtraction, InteractionState } from "./types.js";
 
 export * from "./types.js";
@@ -16,7 +14,8 @@ export { extractCssContrast } from "./css.js";
 export { chooseFix, nearestPassingShade, type Fix, type Shade, type TokenRef } from "./fix.js";
 export { classAlternatives, extractJsxContrast, SKIP_SEMI_TRANSPARENT, SKIP_UNKNOWN_TEXT } from "./jsx.js";
 export { TAILWIND_PALETTE } from "./palette.js";
-export { themeColorsFromConfig } from "./theme.js";
+export { TAILWIND_V4_PALETTE } from "./palette-v4.js";
+export { themeColorsFromConfig, type ConfigColorResolver } from "./theme.js";
 export { contrastRatio, formatRatio, isLargeText, REQUIRED_RATIO } from "./wcag.js";
 
 const STATE_ORDER: Readonly<Record<InteractionState, number>> = { base: 0, hover: 1, focus: 2 };
@@ -28,15 +27,7 @@ const STATE_ORDER: Readonly<Record<InteractionState, number>> = { base: 0, hover
  */
 export function collectContrast(files: readonly SourceFile[]): ContrastExtraction {
   const sorted = [...files].sort((a, b) => compareStrings(a.path, b.path));
-  const theme: Record<string, string> = {};
-  for (const f of sorted) {
-    if (!isTailwindConfig(f.path)) continue;
-    try {
-      Object.assign(theme, themeColorsFromConfig(f.content));
-    } catch {
-      // A config we can't read just means theme names won't resolve; the color extractor reports parse errors.
-    }
-  }
+  const { theme } = tailwindSetup(sorted);
 
   const out: ContrastExtraction = { pairs: [], focus: [], skipped: [] };
   for (const f of sorted) {
@@ -44,7 +35,7 @@ export function collectContrast(files: readonly SourceFile[]): ContrastExtractio
     const isCss = f.path.endsWith(".css") || f.path.endsWith(".scss");
     if (!isJsx && !isCss) continue;
     try {
-      const r = isJsx ? extractJsxContrast(f.content, f.path, theme as ThemeColors) : extractCssContrast(f.content, f.path);
+      const r = isJsx ? extractJsxContrast(f.content, f.path, theme) : extractCssContrast(f.content, f.path);
       out.pairs.push(...r.pairs);
       out.focus.push(...r.focus);
       out.skipped.push(...r.skipped);

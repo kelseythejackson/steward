@@ -27,7 +27,7 @@ describe("scanRepo on fixtures/messy-app", () => {
       { family: "gray", found: 14, suggested: 9 },
       { family: "blue", found: 4, suggested: 2 },
     ]);
-    expect(s.colors).toEqual({ found: 19, suggested: 12, merges: 6 });
+    expect(s.colors).toEqual({ found: 24, suggested: 17, merges: 6, keptApart: 0 });
     expect(s.components).toMatchObject({ duplicateGroups: 2, duplicateComponents: 5 });
     expect(s.accessibility).toMatchObject({ failingPairs: 9, fixesSuggested: 9, focusProblems: 2 });
     expect(s.spacing.scaleSteps).toBe(result.spacingSuggestions.scale.length);

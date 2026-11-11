@@ -5,7 +5,7 @@ import { listFiles, readSourceFiles } from "./walk.js";
 export * from "./types.js";
 export { clusterColors, DEFAULT_MAX_DELTA_E, deltaE, type ClusterOptions, type ColorCluster } from "./cluster.js";
 export { collectColors, isColorSourceFile, summarizeColors } from "./collect.js";
-export { colorFamily, GRAY_MAX_CHROMA, LIGHTNESS_STEPS, proposeColorPaths, stepsByFit } from "./naming.js";
+export { colorFamily, grayMaxChroma, LIGHTNESS_STEPS, proposeColorPaths, stepsByFit } from "./naming.js";
 export {
   colorToken,
   JUST_NOTICEABLE_DELTA_E,
@@ -16,10 +16,11 @@ export {
   type ColorSuggestions,
   type ProposedColorToken,
 } from "./suggest.js";
+export { findNamedClassColors, type NamedColorMatch } from "./named.js";
 export { findArbitraryClassColors, findColors, normalizeColor } from "./normalize.js";
 export { extractScriptColors, isTailwindConfig } from "./script.js";
 export { extractStylesheetColors } from "./stylesheet.js";
-export { IGNORED_DIRS, listFiles } from "./walk.js";
+export { IGNORED_DIRS, listFiles, MAX_FILE_BYTES, readRepoFiles, type RepoFiles } from "./walk.js";
 
 /** Walks a repo and returns every color it uses. The only part of the extractor that touches the disk. */
 export async function extractColors(repoRoot: string): Promise<ColorExtraction> {

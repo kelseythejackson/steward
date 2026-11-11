@@ -102,6 +102,16 @@ describe("suggestSpacingScale", () => {
     expect(r.tokens.find((t) => t.path === "spacing.2")!.token.$extensions).toEqual({ "dev.steward": { uses: 1 } });
   });
 
+  it("keeps rejected values off a step even when a new value starts snapping to it", () => {
+    const decisions: MergeDecision[] = [
+      { suggestionId: suggestionId("spacing", ["7px", "8px", "9px"]), kind: "spacing", members: ["7px", "8px", "9px"], status: "rejected", decidedAt: "2026-11-01T00:00:00.000Z" },
+    ];
+    const later = [...collectSpacing(files).values, { px: 6.5, uses: 1, locations: [{ file: "src/New.tsx", line: 1, raw: "p-[6.5px]", property: "p", source: "tailwind-class" as const }] }];
+    const r = suggestSpacingScale(later, { decisions });
+    expect(r.suggestions.find((s) => s.proposed.path === "spacing.2")?.members).toEqual(["6.5px", "8px"]);
+    expect(r.kept.map((v) => v.px)).toEqual([7, 9]);
+  });
+
   it("takes a custom scale", () => {
     const r = suggestSpacingScale(values(), { scale: [6, 10, 14] });
     expect(r.scale).toEqual([6, 10, 14]);

@@ -1,5 +1,6 @@
 import { lineLocator } from "../colors/lines.js";
 import { blankComments } from "../colors/stylesheet.js";
+import type { TailwindVersion } from "../tailwind.js";
 import { parseSpacingClass } from "./classes.js";
 import type { FoundSpacing, SpacingCategory } from "./types.js";
 
@@ -27,7 +28,7 @@ export function cssLengths(value: string): number[] {
 }
 
 /** Finds padding, margin and gap values (and widths and heights, as sizes) in CSS and SCSS, plus `@apply` classes. */
-export function extractCssSpacing(code: string, file: string): FoundSpacing[] {
+export function extractCssSpacing(code: string, file: string, version: TailwindVersion = 3): FoundSpacing[] {
   const text = blankComments(code, file.endsWith(".scss"));
   const lineAt = lineLocator(code);
   const out: FoundSpacing[] = [];
@@ -41,7 +42,7 @@ export function extractCssSpacing(code: string, file: string): FoundSpacing[] {
 
     if (body.startsWith("@apply")) {
       for (const m of body.matchAll(/\S+/g)) {
-        const cls = parseSpacingClass(m[0]);
+        const cls = parseSpacingClass(m[0], version);
         if (cls) out.push({ file, line: lineAt(start + m.index), raw: m[0], property: cls.property, px: cls.px, category: cls.category, source: "css" });
       }
       continue;

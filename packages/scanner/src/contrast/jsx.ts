@@ -5,6 +5,7 @@ import { parse as parseColor, formatHex } from "culori";
 import { parseClassList, type ClassListStyle, type ResolvedColor, type StateStyle, type ThemeColors } from "./classes.js";
 import type { ContrastExtraction, ContrastSkip, FocusFinding, InteractionState, PairOccurrence } from "./types.js";
 import { isLargeText } from "./wcag.js";
+import { pushTo } from "../collections.js";
 
 type Node = Parameters<typeof traverse>[0];
 type N<T extends Node["type"]> = Extract<Node, { type: T }>;
@@ -253,7 +254,7 @@ export function extractJsxContrast(code: string, file: string, theme: ThemeColor
     JSXElement(path) {
       const parent = path.findParent((p) => p.node.type === "JSXElement");
       const key = parent?.node ?? null;
-      children.set(key, [...(children.get(key) ?? []), path]);
+      pushTo(children, key, path);
     },
   });
 

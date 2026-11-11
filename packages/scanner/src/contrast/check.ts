@@ -15,6 +15,7 @@ import { chooseFix, type Fix } from "./fix.js";
 import { TAILWIND_PALETTE } from "./palette.js";
 import type { ContrastExtraction, ContrastSkip, FocusFinding, InteractionState } from "./types.js";
 import { contrastRatio, floorTo, formatRatio, REQUIRED_RATIO, USE_STRICTNESS } from "./wcag.js";
+import { pushTo } from "../collections.js";
 
 export interface PairLocation {
   file: string;
@@ -215,7 +216,7 @@ export function checkContrast(extraction: ContrastExtraction, colors: ColorSugge
         },
       },
     });
-    if (tokenOf.has(original)) issues.set(original, [...(issues.get(original) ?? []), id]);
+    if (tokenOf.has(original)) pushTo(issues, original, id);
   }
 
   pairs.sort(

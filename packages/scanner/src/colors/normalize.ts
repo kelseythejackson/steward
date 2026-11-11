@@ -1,7 +1,22 @@
 import { formatHex, formatHex8, parse } from "culori";
 
-/** Hex (3, 4, 6 or 8 digits) or an rgb()/rgba()/hsl()/hsla() function. */
-const COLOR_PATTERN = /#[0-9a-fA-F]{3,8}(?![0-9a-zA-Z_-])|\b(?:rgba?|hsla?)\([^()]*\)/g;
+/** Hex (3, 4, 6 or 8 digits) or a color function: rgb(), hsl(), oklch(), oklab(), lab(), lch(), hwb(), color(). */
+const COLOR_PATTERN = /#[0-9a-fA-F]{3,8}(?![0-9a-zA-Z_-])|\b(?:rgba?|hsla?|oklch|oklab|lab|lch|hwb|color)\([^()]*\)/g;
+
+/** Bare HSL channels, as shadcn/ui writes them for Tailwind 3: `--primary: 222.2 47.4% 11.2%`. */
+const HSL_CHANNELS = /^(-?\d*\.?\d+)(?:deg)?\s+(\d*\.?\d+)%\s+(\d*\.?\d+)%(?:\s*\/\s*(\d*\.?\d+%?))?$/;
+
+/**
+ * A whole CSS value that is one color, including bare HSL channels, as a
+ * canonical key. Null for anything else (`var(--x)`, `1px solid #fff`).
+ */
+export function cssValueColor(value: string): string | null {
+  const v = value.trim();
+  const channels = HSL_CHANNELS.exec(v);
+  if (channels) return normalizeColor(`hsl(${channels[1]} ${channels[2]}% ${channels[3]}%${channels[4] ? ` / ${channels[4]}` : ""})`);
+  const found = findColors(v);
+  return found.length === 1 && found[0]!.raw.length === v.length ? found[0]!.value : null;
+}
 
 export interface ColorMatch {
   /** The color exactly as written, e.g. `#3B82F6` or `rgb(59 130 246)`. */

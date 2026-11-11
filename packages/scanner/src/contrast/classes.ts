@@ -22,7 +22,7 @@ export interface ClassListStyle {
   states: Partial<Record<InteractionState, StateStyle>>;
   fontSizePx?: number;
   fontWeight?: number;
-  /** True if the classes remove the outline (`outline-none`, `focus:outline-none`, `outline-0`). */
+  /** True if the classes remove the outline (`outline-none`, `outline-hidden`, `focus:outline-none`, `outline-0`). */
   removesOutline: boolean;
   /** The class that removed it, for explanations. */
   outlineClass?: string;
@@ -127,7 +127,8 @@ export function parseClassList(classes: string, theme: ThemeColors = {}): ClassL
       continue;
     }
 
-    if (utility === "outline-none" || utility === "outline-0") {
+    // Tailwind 4 renamed v3's `outline-none` to `outline-hidden`; both hide the focus outline.
+    if (utility === "outline-none" || utility === "outline-hidden" || utility === "outline-0") {
       if (state !== "hover") {
         out.removesOutline = true;
         out.outlineClass ??= cls;

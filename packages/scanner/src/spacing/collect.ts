@@ -1,9 +1,11 @@
 import { compareStrings } from "@steward/model";
 import { isColorSourceFile } from "../colors/collect.js";
 import type { SourceFile } from "../colors/types.js";
+import { tailwindVersion } from "../tailwind.js";
 import { extractCssSpacing } from "./css.js";
 import { extractScriptSpacing } from "./script.js";
 import type { ExtractedSpacing, FoundSpacing, SpacingExtraction, SpacingLocation } from "./types.js";
+import { pushTo } from "../collections.js";
 
 const isStylesheet = (p: string) => p.endsWith(".css") || p.endsWith(".scss");
 
@@ -12,7 +14,7 @@ const compareLocations = (a: SpacingLocation, b: SpacingLocation) =>
 
 function group(found: readonly FoundSpacing[]): ExtractedSpacing[] {
   const byPx = new Map<number, SpacingLocation[]>();
-  for (const { px, category: _category, ...loc } of found) byPx.set(px, [...(byPx.get(px) ?? []), loc]);
+  for (const { px, category: _category, ...loc } of found) pushTo(byPx, px, loc);
   return [...byPx]
     .map(([px, locations]) => ({ px, uses: locations.length, locations: locations.sort(compareLocations) }))
     .sort((a, b) => a.px - b.px);
@@ -27,11 +29,13 @@ export function collectSpacing(files: readonly SourceFile[]): SpacingExtraction 
   const found: FoundSpacing[] = [];
   const skipped: SpacingExtraction["skipped"] = [];
   let filesScanned = 0;
-  for (const f of [...files].sort((a, b) => compareStrings(a.path, b.path))) {
+  const sorted = [...files].sort((a, b) => compareStrings(a.path, b.path));
+  const version = tailwindVersion(sorted);
+  for (const f of sorted) {
     if (!isColorSourceFile(f.path)) continue;
     filesScanned++;
     try {
-      found.push(...(isStylesheet(f.path) ? extractCssSpacing(f.content, f.path) : extractScriptSpacing(f.content, f.path)));
+      found.push(...(isStylesheet(f.path) ? extractCssSpacing(f.content, f.path, version) : extractScriptSpacing(f.content, f.path, version)));
     } catch (err) {
       skipped.push({ file: f.path, reason: err instanceof Error ? err.message.split("\n")[0]! : String(err) });
     }

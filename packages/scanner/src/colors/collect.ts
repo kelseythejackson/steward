@@ -1,7 +1,8 @@
 import { compareStrings } from "@steward/model";
+import { tailwindSetup } from "../tailwind.js";
 import { extractScriptColors } from "./script.js";
 import { extractStylesheetColors } from "./stylesheet.js";
-import type { ColorExtraction, ColorLocation, ExtractedColor, FoundColor, SkippedFile, SourceFile } from "./types.js";
+import { DEFINITION_SOURCES, type ColorExtraction, type ColorLocation, type ExtractedColor, type FoundColor, type SkippedFile, type SourceFile } from "./types.js";
 
 export const SCRIPT_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts"] as const;
 export const STYLESHEET_EXTENSIONS = [".css", ".scss"] as const;
@@ -26,11 +27,13 @@ export function collectColors(files: readonly SourceFile[]): ColorExtraction {
   const skipped: SkippedFile[] = [];
   let filesScanned = 0;
 
-  for (const f of [...files].sort((a, b) => compareStrings(a.path, b.path))) {
+  const sorted = [...files].sort((a, b) => compareStrings(a.path, b.path));
+  const { theme } = tailwindSetup(sorted);
+  for (const f of sorted) {
     if (!isColorSourceFile(f.path)) continue;
     filesScanned++;
     try {
-      found.push(...(isStylesheet(f.path) ? extractStylesheetColors(f.content, f.path) : extractScriptColors(f.content, f.path)));
+      found.push(...(isStylesheet(f.path) ? extractStylesheetColors(f.content, f.path, theme) : extractScriptColors(f.content, f.path, theme)));
     } catch (err) {
       skipped.push({ file: f.path, reason: err instanceof Error ? err.message.split("\n")[0]! : String(err) });
     }
@@ -39,7 +42,7 @@ export function collectColors(files: readonly SourceFile[]): ColorExtraction {
   const byValue = new Map<string, { locations: ColorLocation[]; definitions: ColorLocation[] }>();
   for (const { value, ...loc } of found) {
     const entry = byValue.get(value) ?? { locations: [], definitions: [] };
-    (loc.source === "tailwind-config" ? entry.definitions : entry.locations).push(loc);
+    (DEFINITION_SOURCES.has(loc.source) ? entry.definitions : entry.locations).push(loc);
     byValue.set(value, entry);
   }
 

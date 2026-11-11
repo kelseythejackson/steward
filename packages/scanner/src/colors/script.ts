@@ -1,6 +1,8 @@
 import { parse } from "@babel/parser";
 import traverse from "@babel/traverse";
 import { lineLocator } from "./lines.js";
+import type { ThemeColors } from "../contrast/classes.js";
+import { findNamedClassColors } from "./named.js";
 import { findArbitraryClassColors, findColors } from "./normalize.js";
 import type { FoundColor } from "./types.js";
 
@@ -18,14 +20,16 @@ const isBareColor = (text: string) => {
 
 /**
  * Finds colors in a TS/TSX file:
- * - Tailwind arbitrary values in any string or template literal, which covers
- *   `className`, `clsx`/`cn` calls (including object keys) and class maps.
+ * - Tailwind arbitrary values (`bg-[#fff]`) and named color classes
+ *   (`text-gray-400`, theme names like `bg-brand`) in any string or template
+ *   literal, which covers `className`, `clsx`/`cn` calls (including object
+ *   keys) and class maps.
  * - Color values in inline `style={{ ... }}` objects.
  * - In a Tailwind config, color strings are recorded as definitions.
  *
  * Throws if the file can't be parsed.
  */
-export function extractScriptColors(code: string, file: string): FoundColor[] {
+export function extractScriptColors(code: string, file: string, theme: ThemeColors = {}): FoundColor[] {
   const isTsx = file.endsWith(".tsx");
   const ast = parse(code, {
     sourceType: "module",
@@ -40,6 +44,9 @@ export function extractScriptColors(code: string, file: string): FoundColor[] {
     const raw = code.slice(start, end);
     for (const m of findArbitraryClassColors(raw)) {
       out.push({ file, line: lineAt(start + m.index), raw: m.raw, value: m.value, source: "tailwind-class", snippet: m.className });
+    }
+    for (const m of findNamedClassColors(raw, theme)) {
+      out.push({ file, line: lineAt(start + m.index), raw: m.raw, value: m.value, source: "tailwind-name", snippet: m.className });
     }
   };
 

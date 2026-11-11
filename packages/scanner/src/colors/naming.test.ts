@@ -1,3 +1,4 @@
+import { TAILWIND_PALETTE } from "../contrast/palette.js";
 import { describe, expect, it } from "vitest";
 import { colorFamily, proposeColorPaths } from "./naming.js";
 
@@ -41,9 +42,31 @@ describe("proposeColorPaths", () => {
     expect(paths.get("#2563eb")).toBe("color.blue.600");
   });
 
+  it("puts every Tailwind palette color in the right family, including pale tints like red-50", () => {
+    const grayFamilies = new Set(["slate", "gray", "zinc", "neutral", "stone"]);
+    const wrong = Object.entries(TAILWIND_PALETTE)
+      .filter(([name]) => /^[a-z]+-\d+$/.test(name))
+      .filter(([name, hex]) => grayFamilies.has(name.split("-")[0]!) !== (colorFamily(hex) === "gray"))
+      .map(([name]) => name);
+    expect(wrong).toEqual([]);
+  });
+
+  it("keeps Tailwind's own step for a palette color", () => {
+    expect([...proposeColorPaths(["#dc2626", "#fef2f2", "#fca5a5"]).values()]).toEqual(["color.red.600", "color.red.50", "color.red.300"]);
+  });
+
   it("names white and black without a step", () => {
     const paths = proposeColorPaths(["#ffffff", "#000000"]);
     expect([...paths.values()]).toEqual(["color.white", "color.black"]);
+  });
+
+  it("names colors with opacity like Tailwind's black/40, never nesting under another token", () => {
+    const paths = proposeColorPaths(["#000000", "#00000066", "#00000080", "#9ca3af80"]);
+    expect([...paths.values()]).toEqual(["color.black", "color.black-40", "color.black-50", "color.gray.400-50"]);
+  });
+
+  it("gives a second white a sibling name, not one nested under color.white", () => {
+    expect(proposeColorPaths(["#ffffff"], ["color.white"]).get("#ffffff")).toBe("color.white-ffffff");
   });
 
   it("always returns unique paths", () => {

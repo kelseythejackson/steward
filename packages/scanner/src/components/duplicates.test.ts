@@ -91,8 +91,24 @@ describe("compareComponents", () => {
     expect(c.verdict).toBe("flag");
   });
 
-  it("doesn't match two bare <div> pages on root alone", () => {
-    expect(compareComponents(page, page2)).toMatchObject({ matched: ["root"], verdict: "different" });
+  it("doesn't count a bare <div> root as a signal without real shared styling", () => {
+    expect(compareComponents(page, page2)).toMatchObject({ matched: [], verdict: "different" });
+  });
+
+  it("never flags icon components, which share their shape on purpose", () => {
+    const icon = (n: string) => one(`export function ${n}Icon() { return <svg className="h-4 w-4 shrink-0 text-current"><path d="M0" /></svg>; }`, `src/${n}Icon.tsx`);
+    expect(compareComponents(icon("Arrow"), icon("Check"))).toMatchObject({ matched: [], verdict: "different" });
+  });
+
+  it("doesn't flag thin matches: a shared name and two shared classes isn't enough", () => {
+    const card = (n: string) => one(`export function ${n}Card() { return <div className="rounded p-4">{"${n}"}</div>; }`, `src/${n}Card.tsx`);
+    expect(compareComponents(card("User"), card("Pricing"))).toMatchObject({ matched: ["name"], verdict: "different" });
+  });
+
+  it("still counts a generic root when the styling really matches", () => {
+    const a = one(`export function InfoBox() { return <div className="rounded-lg border bg-white p-6 shadow-sm" />; }`, "src/InfoBox.tsx");
+    const b = one(`export function NoticeBox() { return <section className="rounded-xl border bg-white p-4 shadow" />; }`, "src/NoticeBox.tsx");
+    expect(compareComponents(a, b)).toMatchObject({ matched: ["name", "root", "classes"], verdict: "flag" });
   });
 });
 
@@ -139,6 +155,34 @@ describe("findDuplicates", () => {
       { suggestionId: suggestionId("component", ["Card", "Panel"]), kind: "component", members: ["Panel", "Card"], status: "rejected", decidedAt: "2026-11-01T00:00:00.000Z" },
     ];
     expect(findDuplicates(all, { decisions }).suggestions.map((s) => s.proposed.name)).toEqual(["Button"]);
+  });
+
+  it("keeps a rejected pair apart for good, even when a third component would join them", () => {
+    const decisions: MergeDecision[] = [
+      { suggestionId: suggestionId("component", ["Card", "Panel"]), kind: "component", members: ["Card", "Panel"], status: "rejected", decidedAt: "2026-11-01T00:00:00.000Z" },
+    ];
+    const box = one(`export function Box({ title }: { title?: string }) { return <div className="rounded-lg border border-[#e5e7eb] bg-white p-6 shadow-sm" />; }`, "src/Box.tsx", 1);
+    const groups = findDuplicates([card, panel, box], { decisions }).suggestions.map((s) => s.members);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toContain("Box");
+    expect(groups[0]!.includes("Card") && groups[0]!.includes("Panel")).toBe(false);
+  });
+
+  it("tells same-named components in different files apart", () => {
+    const legacy = { ...button, file: "src/legacy/Button.tsx", usages: 1 };
+    const s = findDuplicates([button, legacy]).suggestions[0]!;
+    expect(s.members).toEqual(["Button (src/Button.tsx)", "Button (src/legacy/Button.tsx)"]);
+    expect(s.proposed.name).toBe("Button (src/Button.tsx)");
+    expect(new Set(s.members).size).toBe(2);
+  });
+
+  it("never chains A≈B and B≈C into one group when A and C don't match", () => {
+    const save = one(`export function SaveButton() { return <button className="underline italic" />; }`, "src/SaveButton.tsx", 1);
+    const submit = one(`export function SubmitButton() { return <button className="rounded px-4 py-2 bg-white" />; }`, "src/SubmitButton.tsx", 2);
+    const toggle = one(`export function IconToggle() { return <button className="rounded px-4 py-2 bg-white" />; }`, "src/IconToggle.tsx", 1);
+    expect(compareComponents(save, toggle).verdict).toBe("different");
+    // SubmitButton matches IconToggle more strongly (root + classes) than SaveButton (name + root), so that pair wins.
+    expect(findDuplicates([save, submit, toggle]).suggestions.map((s) => s.members)).toEqual([["IconToggle", "SubmitButton"]]);
   });
 
   it("is deterministic", () => {

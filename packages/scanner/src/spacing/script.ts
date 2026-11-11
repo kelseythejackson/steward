@@ -2,6 +2,7 @@ import { parse } from "@babel/parser";
 import traverse from "@babel/traverse";
 import { lineLocator } from "../colors/lines.js";
 import { isTailwindConfig } from "../colors/script.js";
+import type { TailwindVersion } from "../tailwind.js";
 import { parseSpacingClass } from "./classes.js";
 import { cssCategory, cssLengths } from "./css.js";
 import type { FoundSpacing } from "./types.js";
@@ -18,7 +19,7 @@ const kebab = (s: string) => s.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
  *   Dynamic values like `${pct}%` are skipped.
  * Tailwind configs are skipped. Throws if the file can't be parsed.
  */
-export function extractScriptSpacing(code: string, file: string): FoundSpacing[] {
+export function extractScriptSpacing(code: string, file: string, version: TailwindVersion = 3): FoundSpacing[] {
   if (isTailwindConfig(file)) return [];
   const ast = parse(code, { sourceType: "module", plugins: file.endsWith(".tsx") ? ["typescript", "jsx"] : ["typescript"] });
   const lineAt = lineLocator(code);
@@ -29,7 +30,7 @@ export function extractScriptSpacing(code: string, file: string): FoundSpacing[]
     const raw = code.slice(start, end);
     for (const m of raw.matchAll(/\S+/g)) {
       if ((openLeft && m.index === 0) || (openRight && m.index + m[0].length === raw.length)) continue;
-      const cls = parseSpacingClass(m[0]);
+      const cls = parseSpacingClass(m[0], version);
       if (cls) out.push({ file, line: lineAt(start + m.index), raw: m[0], property: cls.property, px: cls.px, category: cls.category, source: "tailwind-class" });
     }
   };

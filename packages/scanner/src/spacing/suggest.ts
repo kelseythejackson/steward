@@ -9,6 +9,7 @@ import {
 } from "@steward/model";
 import { DEFAULT_SPACING_SCALE, normalizeScale, snapToScale, spacingTokenPath } from "./scale.js";
 import type { ExtractedSpacing, SpacingExtraction } from "./types.js";
+import { pushTo } from "../collections.js";
 
 export interface SpacingSuggestionOptions {
   /** Scale steps in px. Defaults to `DEFAULT_SPACING_SCALE`. */
@@ -40,12 +41,17 @@ const times = (n: number) => (n === 1 ? "once" : `${n} times`);
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const list = (xs: readonly string[]) => (xs.length <= 1 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 
-function isRejected(members: readonly string[], decisions: readonly MergeDecision[]): boolean {
-  const id = suggestionId("spacing", members);
-  const key = [...members].sort(compareStrings).join(",");
-  return decisions.some(
-    (d) => d.kind === "spacing" && d.status === "rejected" && (d.suggestionId === id || [...d.members].sort(compareStrings).join(",") === key),
-  );
+/**
+ * Values a person refused to snap to `step`. A rejection sticks to each value,
+ * so a new off-scale value joining the step later doesn't bring them back.
+ */
+function rejectedFor(step: number, decisions: readonly MergeDecision[]): Set<string> {
+  const out = new Set<string>();
+  for (const d of decisions) {
+    if (d.kind !== "spacing" || d.status !== "rejected" || !d.members.includes(px(step))) continue;
+    for (const m of d.members) if (m !== px(step)) out.add(m);
+  }
+  return out;
 }
 
 function dimensionToken(value: number, uses: number, mergedFrom: readonly string[]): DimensionToken {
@@ -94,7 +100,7 @@ export function suggestSpacingScale(values: readonly ExtractedSpacing[], options
     else {
       const s: Snapping = { value: v, distance: snap.distance };
       if (snap.halfway) s.halfwayFrom = v.px - snap.distance;
-      snapsTo.set(snap.step, [...(snapsTo.get(snap.step) ?? []), s]);
+      pushTo(snapsTo, snap.step, s);
     }
   }
 
@@ -104,12 +110,11 @@ export function suggestSpacingScale(values: readonly ExtractedSpacing[], options
   for (const step of scale) {
     const path = spacingTokenPath(step);
     const alreadyUsed = onScale.get(step) ?? 0;
-    let snapping = snapsTo.get(step) ?? [];
+    const rejected = rejectedFor(step, decisions);
+    const all = snapsTo.get(step) ?? [];
+    kept.push(...all.filter((s) => rejected.has(px(s.value.px))).map((s) => s.value));
+    const snapping = all.filter((s) => !rejected.has(px(s.value.px)));
     const members = [...snapping.map((s) => px(s.value.px)), px(step)].sort(compareStrings);
-    if (snapping.length > 0 && isRejected(members, decisions)) {
-      kept.push(...snapping.map((s) => s.value));
-      snapping = [];
-    }
     const snappedUses = snapping.reduce((n, s) => n + s.value.uses, 0);
     const mergedFrom = snapping.map((s) => px(s.value.px));
     tokens.push({ path, token: dimensionToken(step, alreadyUsed + snappedUses, mergedFrom) });

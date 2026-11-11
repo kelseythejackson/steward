@@ -6,13 +6,14 @@ a startup codebase that has drifted for a year. Every inconsistency below is
 deliberate. Tests in `packages/*` assert against the tables in this file, so
 **update this file whenever you change the fixture**.
 
-Counts were taken with `grep -ohE '#[0-9a-f]{6}\b' -r src` and similar. A hex
-value appearing in a `hover:` class counts once per occurrence, the same as
-the scanner will see it. Colors in `tailwind.config.ts` are **definitions**,
+Counts were taken with `grep -ohE '#[0-9a-f]{6}\b' -r src` and similar, plus
+named Tailwind color classes (`bg-white`, `text-red-600`, `bg-black/40`),
+which count as uses of the palette hex. A color appearing in a `hover:` class
+counts once per occurrence, the same as the scanner will see it. Colors in `tailwind.config.ts` are **definitions**,
 not uses, and are listed separately below.
 
 The color tables are machine-read by `packages/scanner` tests: keep the
-first two columns as `` `#hex` `` and a plain number.
+first two columns as `` `#hex` `` (6 digits, or 8 with alpha) and a plain number.
 
 It typechecks (`pnpm -F @steward/fixture-messy-app typecheck`) but is not
 meant to be run. There is no bundler and `/logo.svg` does not exist.
@@ -37,7 +38,7 @@ meant to be run. There is no bundler and `/logo.svg` does not exist.
 | `#f4f4f5` |    1 | styles.css `.sidebar`                                    | Near-duplicate of `#f3f4f6`                          |
 | `#f9fafb` |    1 | App page background                                      | Page background                                      |
 | `#fafafa` |    1 | styles.css `body`                                        | Near-duplicate of `#f9fafb`                          |
-| `#ffffff` |    1 | styles.css `.badge-blue`                                 | White, as a raw hex instead of `text-white`          |
+| `#ffffff` |   11 | styles.css `.badge-blue` (raw hex), plus `bg-white` ×7 and `text-white` ×3 in components | The one raw hex is white written as `#ffffff` instead of `text-white` |
 
 Expected merges (near-duplicate pairs the scanner should suggest):
 
@@ -77,11 +78,26 @@ pasted as arbitrary values instead.
 | `ink`      | `#1f2937` |          11 |
 | `muted`    | `#6b7280` |          12 |
 
+### Named palette colors (used as Tailwind classes, never as hex)
+
+| Hex         | Uses | Where                                              |
+|-------------|-----:|----------------------------------------------------|
+| `#dc2626`   |    1 | Settings.tsx:45 `text-red-600` (delete button)     |
+| `#fca5a5`   |    1 | Settings.tsx:45 `border-red-300`                   |
+| `#fef2f2`   |    1 | Settings.tsx:45 `hover:bg-red-50`                  |
+| `#00000066` |    1 | Modal.tsx:27 `bg-black/40` backdrop                |
+| `#00000080` |    1 | Dialog.tsx:47 `bg-black/50` backdrop               |
+
+Tailwind's own colors keep their Tailwind step as token names
+(`color.red.600`, `color.red.50`). Colors with opacity are named like
+Tailwind writes them: `color.black-40`, `color.black-50`.
+
 ### Where colors hide (extraction coverage)
 
 | Form                                   | Example in the fixture                                   |
 |----------------------------------------|----------------------------------------------------------|
 | Plain `className` string               | most components                                          |
+| Named palette class                    | `bg-white`, `text-red-600`, `bg-black/40`                |
 | Template literal `className`           | `Card.tsx`, `TextField.tsx`, `PrimaryBtn.tsx`            |
 | Class strings in a variable or map     | `Button.tsx` `variants`, `CTAButton.tsx` `base`          |
 | `cn()` call with object keys           | `Navbar.tsx` active and inactive link classes            |
@@ -204,7 +220,7 @@ Pairs that fail WCAG AA (every one should get a contrast suggestion):
 | `#3b82f6`  | `#ffffff`  | `#2563eb` | text       | 3.68:1 | Navbar.tsx:29 (active link), Billing.tsx:59                                                                                                                         |
 | `#3b82f6`  | `#f3f4f6`  | `#2563eb` | text       | 3.34:1 | Billing.tsx:59 (selected row), Dashboard.tsx:74 ("Extend trial")                                                                                                    |
 | `#6b7280`  | `#f3f4f6`  | `#f9fafb` | text       | 4.39:1 | Dashboard.tsx:72 (trial banner; the fix lightens the background)                                                                                                    |
-| `#dc2626`  | `#fef2f2`  | `#dc2626` | text       | 4.42:1 | Settings.tsx:45 (`hover:bg-red-50` on the delete button; neither color is a token yet, so the fix is a computed shade, not checked by hex)                           |
+| `#dc2626`  | `#fef2f2`  | `#dc2626` | text       | 4.42:1 | Settings.tsx:45 (`hover:bg-red-50` on the delete button; no other red token passes, so the fix is a computed darker red, not checked by hex)                         |
 | `#d1d5db`  | `#ffffff`  | `#6b7280` | ui         | 1.47:1 | TextField.tsx:18, Dashboard.tsx:28 (input borders, need 3:1)                                                                                                        |
 
 Fixes prefer a token already in the system in the same color family, then
@@ -226,8 +242,8 @@ focus outline.
 ## 6. Quick reference for tests
 
 ```
-distinct hex values used:    19 (14 grays + white + 3 near blues + #2563eb)
-color uses:                  78 (excludes 3 config definitions)
+distinct colors used:        24 (14 grays + white + 3 near blues + #2563eb + 3 reds + 2 translucent blacks)
+color uses:                  93 (excludes 3 config definitions)
 most-used gray:              #9ca3af (12 uses, fails AA)
 expected gray merges:        5 pairs
 expected blue merges:        2 → #3b82f6

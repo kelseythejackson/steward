@@ -1,5 +1,14 @@
 /** Where a color was found. */
-export type ColorSource = "tailwind-class" | "inline-style" | "css" | "tailwind-config";
+/**
+ * Where a color was found. `tailwind-class` is an arbitrary value (`bg-[#fff]`);
+ * `tailwind-name` is a palette or theme color class (`text-gray-400`, `bg-brand`).
+ * `tailwind-config` and `css-variable` (`--primary: 222 47% 11%`, `@theme`)
+ * are definitions, not uses.
+ */
+export type ColorSource = "tailwind-class" | "tailwind-name" | "inline-style" | "css" | "tailwind-config" | "css-variable";
+
+/** Sources that define a color rather than use it. */
+export const DEFINITION_SOURCES: ReadonlySet<ColorSource> = new Set(["tailwind-config", "css-variable"]);
 
 export interface ColorLocation {
   /** Path relative to the repo root, with forward slashes. */

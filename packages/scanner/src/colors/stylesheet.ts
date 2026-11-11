@@ -1,5 +1,7 @@
 import { lineLocator } from "./lines.js";
-import { findArbitraryClassColors, findColors } from "./normalize.js";
+import type { ThemeColors } from "../contrast/classes.js";
+import { findNamedClassColors } from "./named.js";
+import { cssValueColor, findArbitraryClassColors, findColors } from "./normalize.js";
 import type { FoundColor } from "./types.js";
 
 /** Replaces comments with spaces, keeping newlines so line numbers stay right. */
@@ -14,9 +16,10 @@ export function blankComments(code: string, scss: boolean): string {
 /**
  * Finds colors in CSS and SCSS. Only declaration values are scanned, so
  * selectors like `#fade { }` are never mistaken for colors. `@apply` lines
- * are scanned for Tailwind arbitrary values.
+ * are scanned for Tailwind arbitrary values and named color classes. Custom
+ * properties that hold a color are recorded as definitions, not uses.
  */
-export function extractStylesheetColors(code: string, file: string): FoundColor[] {
+export function extractStylesheetColors(code: string, file: string, theme: ThemeColors = {}): FoundColor[] {
   const text = blankComments(code, file.endsWith(".scss"));
   const lineAt = lineLocator(code);
   const out: FoundColor[] = [];
@@ -34,6 +37,9 @@ export function extractStylesheetColors(code: string, file: string): FoundColor[
       for (const m of findArbitraryClassColors(body)) {
         out.push({ file, line: lineAt(segStart + m.index), raw: m.raw, value: m.value, source: "css", snippet: m.className });
       }
+      for (const m of findNamedClassColors(body, theme)) {
+        out.push({ file, line: lineAt(segStart + m.index), raw: m.raw, value: m.value, source: "tailwind-name", snippet: m.className });
+      }
       continue;
     }
     if (trimmed.startsWith("@")) continue; // @import, @tailwind, @use…
@@ -41,6 +47,14 @@ export function extractStylesheetColors(code: string, file: string): FoundColor[
     const colon = body.indexOf(":");
     if (colon === -1) continue;
     const valueStart = colon + 1;
+    // A custom property that holds one color defines it (`--primary: 222 47% 11%`, `@theme { --color-brand: … }`).
+    if (trimmed.startsWith("--")) {
+      const raw = body.slice(valueStart).trim();
+      const value = cssValueColor(raw);
+      const offset = body.indexOf(raw, valueStart);
+      if (value) out.push({ file, line: lineAt(segStart + offset), raw, value, source: "css-variable", snippet });
+      continue;
+    }
     for (const m of findColors(body.slice(valueStart))) {
       out.push({ file, line: lineAt(segStart + valueStart + m.index), raw: m.raw, value: m.value, source: "css", snippet });
     }

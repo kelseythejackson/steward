@@ -1,5 +1,6 @@
 import { compareStrings } from "@steward/model";
 import { differenceEuclidean, parse } from "culori";
+import { keptApart } from "../collections.js";
 import type { ExtractedColor } from "./types.js";
 
 /**
@@ -40,6 +41,12 @@ export interface ColorCluster {
 export interface ClusterOptions {
   /** Merge threshold in ΔEOK × 100. Defaults to `DEFAULT_MAX_DELTA_E`. */
   maxDeltaE?: number;
+  /**
+   * Sets of colors a person decided to keep apart (rejected merges). No two
+   * colors from the same set ever end up in one group, however close they are
+   * and whatever other colors join later.
+   */
+  keepApart?: readonly (readonly string[])[];
 }
 
 const compareColors = (a: ExtractedColor, b: ExtractedColor) => b.uses - a.uses || compareStrings(a.value, b.value);
@@ -54,12 +61,14 @@ const compareColors = (a: ExtractedColor, b: ExtractedColor) => b.uses - a.uses 
  */
 export function clusterColors(colors: readonly ExtractedColor[], options: ClusterOptions = {}): ColorCluster[] {
   const threshold = options.maxDeltaE ?? DEFAULT_MAX_DELTA_E;
+  const apart = keptApart(options.keepApart ?? []);
   const sorted = [...colors].sort(compareColors);
   const n = sorted.length;
 
   // Pairwise distances, then group-to-group distances (complete linkage = max).
   const dist: number[][] = sorted.map((a) => sorted.map((b) => (a === b ? 0 : deltaE(a.value, b.value))));
-  const groupDist = dist.map((row) => [...row]);
+  // Kept-apart pairs are infinitely far for grouping, so complete linkage never joins them; `dist` keeps the real ΔE for reporting.
+  const groupDist = dist.map((row, i) => row.map((d, j) => (apart(sorted[i]!.value, sorted[j]!.value) ? Infinity : d)));
   const groups: (number[] | null)[] = sorted.map((_, i) => [i]);
 
   for (;;) {

@@ -55,13 +55,17 @@ describe("steward scan (end to end)", () => {
     expect(first.stderr).toBe("");
     expect(first.code).toBe(0);
     const lines = first.stdout.split("\n");
-    expect(lines[0]).toBe("Scanned 17 files");
-    expect(lines[1]).toBe("Colors: 14 grays → 9, 4 blues → 2");
-    expect(lines[2]).toMatch(/^Spacing: \d+ values → 8-step scale \(\d+ will snap\)$/);
-    expect(lines[3]).toBe("Components: 2 groups of likely duplicates (5 components)");
-    expect(lines[4]).toBe("Accessibility: 9 color pairs fail contrast (fixes suggested), 2 elements have no visible focus style");
-    expect(lines[5]).toMatch(/^ {2}These are static checks\. They catch some accessibility problems, not all\./);
-    expect(lines.slice(6)).toEqual([
+    expect(lines.slice(0, 8)).toEqual([
+      "Scanned 17 files",
+      "Colors: 24 colors → 17 tokens (14 grays → 9, 4 blues → 2)",
+      "Spacing: 16 values → 8-step scale (10 are off the scale and could snap to it)",
+      "Components: 13 components, 2 groups of likely duplicates (5 components)",
+      "Accessibility: 9 of 16 color pairs fail contrast (fixes suggested), 2 elements have no visible focus style",
+      "  3 of the failing pairs assume a white background in some places, because the real one is set by a parent component.",
+      "  10 places couldn't be checked because their text color comes from another file.",
+      "  These are static checks. They catch some accessibility problems, not all.",
+    ]);
+    expect(lines.slice(8)).toEqual([
       "Wrote messy-app/.steward/system.json",
       "Next: open that file to see the suggestions. The review screen is coming soon.",
       "",
@@ -101,7 +105,7 @@ describe("steward scan (end to end)", () => {
 
     const run = await steward(["scan", "messy-app"], work);
     expect(run.code).toBe(0);
-    expect(run.stdout).toContain("Components: 1 group of likely duplicates");
+    expect(run.stdout).toContain("Components: 13 components, 1 group of likely duplicates (3 components); 1 merge you declined stays separate\n");
     const after = parseSystemModel(await readFile(join(app, ".steward/system.json"), "utf8"), "system.json");
     expect(after.decisions).toEqual([decision]);
     expect(after.suggestions.map((s) => s.id)).not.toContain(merge.id);
