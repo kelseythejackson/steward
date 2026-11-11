@@ -1,6 +1,6 @@
 # Steward
 
-**The self-maintaining design system.** The design system team you don't have to hire.
+**The self-maintaining design system.**
 
 Product name: Steward. CLI command: `steward` (short alias `stew`). The four parts are **Setup**, **Brief**, **Review** and **Report**: always use these names in UI copy and docs.
 
@@ -25,6 +25,7 @@ Three parts that share one **system model** (tokens, components, usage rules):
 Plus **Steward Report**, a health dashboard, and a review screen (part of Setup) for accepting merge suggestions.
 
 ### In scope
+
 - React + Tailwind (and shadcn/ui-style) codebases only
 - TypeScript / TSX source files
 - Colors, spacing and component duplicates
@@ -33,6 +34,7 @@ Plus **Steward Report**, a health dashboard, and a review screen (part of Setup)
 - Running locally and in GitHub Actions
 
 ### Out of scope (roadmap, don't build)
+
 - Figma sync, URL/live-site scanning
 - Rendered accessibility testing (e.g. axe-core on live previews), keyboard-flow and screen reader testing
 - AI-based intent checks ("this looks like a destructive action")
@@ -59,6 +61,7 @@ pnpm monorepo, TypeScript throughout.
 ```
 
 ### The system model (single source of truth)
+
 - Stored at `.steward/system.json` in the target repo
 - Tokens follow the W3C Design Tokens Community Group (DTCG) format (`$value`, `$type`)
 - Also stores: component inventory (name, file path, variants), merge decisions (accepted/rejected, so we never re-suggest a rejected merge), and rules
@@ -116,7 +119,7 @@ Keep this section updated as commands are added.
 Every feature must follow these. If a task conflicts with one, stop and ask.
 
 1. **Local by default.** Scanning and checks run on the user's machine or in their own CI. No code is sent to any outside service. Any future AI feature is opt-in and states exactly what is sent.
-2. **Product, not people.** Never store or display names, emails, usernames or per-person metrics. History may record only the *source type* of code (`human`, `ai-agent` or `unknown`) and only in aggregate. The Report dashboard says so on the page: "Steward measures your UI, not your people."
+2. **Product, not people.** Never store or display names, emails, usernames or per-person metrics. History may record only the _source type_ of code (`human`, `ai-agent` or `unknown`) and only in aggregate. The Report dashboard says so on the page: "Steward measures your UI, not your people."
 3. **Explain every suggestion.** Each suggestion or flag states its reason and evidence (e.g. "ΔE 1.2, used 41 times", "contrast 2.8:1, needs 4.5:1").
 4. **Humans decide.** Suggestions never apply themselves. Review runs in warn-only mode by default, and every accepted change can be undone.
 5. **Raise the floor.** Never make an inaccessible value official. If a suggested token fails contrast, suggest the nearest shade that passes. Accessibility rules are included in `design.md` so AI tools follow them too. Be honest that static checks catch only part of accessibility; never claim a product is "accessible" because checks pass.
