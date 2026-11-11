@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
-import { extractComponents, findDuplicates, summarizeComponents, type ComponentInventory, type DuplicateReport } from "./index.js";
+import { extractComponents, findDuplicates, type ComponentInventory, type DuplicateReport } from "./index.js";
 
 const FIXTURE = fileURLToPath(new URL("../../../../fixtures/messy-app", import.meta.url));
 
@@ -50,11 +50,5 @@ describe("components on fixtures/messy-app", () => {
     expect(report.suggestions.flatMap((s) => s.members)).not.toContain("Modal");
     expect(report.similar.map((s) => s.members)).toEqual([["Dialog", "Modal"]]);
     expect(report.similar[0]!.reason).toContain("But they behave differently, so they aren't flagged as duplicates.");
-  });
-
-  it("prints a readable summary", () => {
-    expect(summarizeComponents(inv, report)).toBe(
-      "Found 13 components → 2 groups look like duplicates (5 components). 1 pair looks alike but behaves differently, so it isn't flagged.",
-    );
   });
 });

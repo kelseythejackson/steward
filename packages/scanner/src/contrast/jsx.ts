@@ -22,6 +22,11 @@ const FOCUSABLE_TAGS = new Set(["button", "a", "input", "select", "textarea", "s
 
 export const SKIP_SEMI_TRANSPARENT = "semi-transparent color; contrast depends on what's behind it";
 export const SKIP_UNKNOWN_TEXT = "text color is set outside this file";
+export const SKIP_TOO_MANY = `more than ${MAX_ALTERNATIVES} class combinations; only the first ${MAX_ALTERNATIVES} were checked`;
+export const SKIP_VARIANTS = "colors under variants like dark: or disabled: aren't checked yet";
+
+/** Color utilities, so an ignored `dark:bg-gray-900` is noted but `disabled:opacity-50` isn't. */
+const COLOR_UTILITY = /^!?(?:text|bg|border(?:-[xytrblse])?|ring|outline|divide|placeholder|fill|stroke)-/;
 
 /** What an element inherits from its ancestors in the same file. */
 interface Context {
@@ -38,8 +43,17 @@ const ROOT: Context = { text: undefined, bg: WHITE, bgAssumed: true, sizePx: 16,
 // Static class resolution: every class string an expression could produce
 // ---------------------------------------------------------------------------
 
-const dedupe = (xs: readonly string[]) => [...new Set(xs)].slice(0, MAX_ALTERNATIVES);
-const product = (a: readonly string[], b: readonly string[], sep = "") => dedupe(a.flatMap((x) => b.map((y) => x + sep + y)));
+/** Set when a class expression had more combinations than `MAX_ALTERNATIVES`, so some weren't checked. */
+export interface AlternativeLimits {
+  truncated: boolean;
+}
+
+function dedupe(xs: readonly string[], limits: AlternativeLimits): string[] {
+  const unique = [...new Set(xs)];
+  if (unique.length > MAX_ALTERNATIVES) limits.truncated = true;
+  return unique.slice(0, MAX_ALTERNATIVES);
+}
+const product = (a: readonly string[], b: readonly string[], limits: AlternativeLimits, sep = "") => dedupe(a.flatMap((x) => b.map((y) => x + sep + y)), limits);
 
 function unwrap(node: Node): Node {
   let n = node;
@@ -84,9 +98,9 @@ function resolveObject(node: Node, scope: Scope): N<"ObjectExpression"> | null {
  * (`variants[variant]`), conditionals, `&&`/`||`, and `cn()`/`clsx()` calls
  * with object arguments. Anything dynamic contributes nothing.
  */
-export function classAlternatives(node: Node, scope: Scope, depth = 0): string[] {
+export function classAlternatives(node: Node, scope: Scope, depth = 0, limits: AlternativeLimits = { truncated: false }): string[] {
   if (depth > 10) return [""];
-  const next = (n: Node, s: Scope = scope) => classAlternatives(n, s, depth + 1);
+  const next = (n: Node, s: Scope = scope) => classAlternatives(n, s, depth + 1, limits);
   const n = unwrap(node);
   switch (n.type) {
     case "StringLiteral":
@@ -94,7 +108,7 @@ export function classAlternatives(node: Node, scope: Scope, depth = 0): string[]
     case "TemplateLiteral": {
       let acc = [n.quasis[0]?.value.cooked ?? ""];
       n.expressions.forEach((expr, i) => {
-        acc = product(acc, next(expr as Node));
+        acc = product(acc, next(expr as Node), limits);
         acc = acc.map((a) => a + (n.quasis[i + 1]?.value.cooked ?? ""));
       });
       return acc;
@@ -114,22 +128,22 @@ export function classAlternatives(node: Node, scope: Scope, depth = 0): string[]
         if (wanted !== null && propertyKey(p.key) !== wanted) return [];
         return [p.value as Node];
       });
-      const out = dedupe(values.flatMap((v) => next(v)));
+      const out = dedupe(values.flatMap((v) => next(v)), limits);
       return out.length > 0 ? out : [""];
     }
     case "ConditionalExpression":
-      return dedupe([...next(n.consequent), ...next(n.alternate)]);
+      return dedupe([...next(n.consequent), ...next(n.alternate)], limits);
     case "LogicalExpression":
-      return n.operator === "&&" ? dedupe([...next(n.right), ""]) : dedupe([...next(n.left), ...next(n.right)]);
+      return n.operator === "&&" ? dedupe([...next(n.right), ""], limits) : dedupe([...next(n.left), ...next(n.right)], limits);
     case "CallExpression": {
       // cn(), clsx(), classnames(), twMerge(): each argument adds classes; object keys are optional.
       let acc = [""];
       for (const arg of n.arguments) {
         if (arg.type === "ObjectExpression") {
           const keys = arg.properties.flatMap((p) => (p.type === "ObjectProperty" && !p.computed ? [propertyKey(p.key)].filter((k): k is string => k !== null) : []));
-          acc = product(acc, ["", ...keys], " ");
+          acc = product(acc, ["", ...keys], limits, " ");
         } else if (arg.type !== "SpreadElement" && arg.type !== "ArgumentPlaceholder") {
-          acc = product(acc, next(arg as Node), " ");
+          acc = product(acc, next(arg as Node), limits, " ");
         }
       }
       return acc;
@@ -288,11 +302,12 @@ export function extractJsxContrast(code: string, file: string, theme: ThemeColor
     const line = (classAttr ?? opening).loc?.start.line ?? 0;
     const component = componentName(path);
     const classValue = classAttr?.value;
+    const limits: AlternativeLimits = { truncated: false };
     const classStrings =
       classValue?.type === "StringLiteral"
         ? [classValue.value]
         : classValue?.type === "JSXExpressionContainer" && classValue.expression.type !== "JSXEmptyExpression"
-          ? classAlternatives(classValue.expression as Node, path.scope)
+          ? classAlternatives(classValue.expression as Node, path.scope, 0, limits)
           : [""];
     const inline = inlineStyle(opening);
     const styles: ClassListStyle[] = classStrings.map((cls) => {
@@ -300,6 +315,8 @@ export function extractJsxContrast(code: string, file: string, theme: ThemeColor
       if (inline.text || inline.bg) s.states.base = { ...s.states.base, ...inline };
       return s;
     });
+
+    if (styles.some((st) => st.ignored.some((cls) => COLOR_UTILITY.test(cls.slice(cls.lastIndexOf(":") + 1))))) skip(line, SKIP_VARIANTS);
 
     const kind = contentKind(el, tag);
     const childContexts = new Map<string, Context>();
@@ -349,9 +366,14 @@ export function extractJsxContrast(code: string, file: string, theme: ThemeColor
 
         const child: Context = { text: baseText, bg: baseBg, bgAssumed: baseAssumed, sizePx, weight };
         const key = JSON.stringify(child);
-        if (childContexts.size < MAX_ALTERNATIVES && !childContexts.has(key)) childContexts.set(key, child);
+        if (!childContexts.has(key)) {
+          if (childContexts.size < MAX_ALTERNATIVES) childContexts.set(key, child);
+          else limits.truncated = true;
+        }
       }
     }
+
+    if (limits.truncated) skip(line, SKIP_TOO_MANY);
 
     const tabIndex = tabIndexOf(opening);
     const focusable =

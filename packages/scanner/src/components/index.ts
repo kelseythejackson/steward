@@ -18,7 +18,7 @@ export {
 export { collectComponents, inventoryFile, isComponentFile } from "./inventory.js";
 export { baseWord, nameWords } from "./names.js";
 export { classPattern, classPatterns, patternOverlap } from "./patterns.js";
-export { componentEntries, summarizeComponents } from "./summary.js";
+export { componentEntries } from "./summary.js";
 
 /** Walks a repo and lists its React components. The only part that touches the disk. */
 export async function extractComponents(repoRoot: string): Promise<ComponentInventory> {

@@ -9,10 +9,10 @@ import type { ContrastExtraction, InteractionState } from "./types.js";
 
 export * from "./types.js";
 export { parseClassList, resolveColorName, type ClassListStyle, type ResolvedColor, type StateStyle, type ThemeColors } from "./classes.js";
-export { checkContrast, contrastSuggestionId, summarizeContrast, tokenLabel, type CheckedPair, type ContrastOptions, type ContrastReport, type PairLocation } from "./check.js";
+export { checkContrast, contrastSuggestionId, tokenLabel, type CheckedPair, type ContrastOptions, type ContrastReport, type PairLocation } from "./check.js";
 export { extractCssContrast } from "./css.js";
 export { chooseFix, nearestPassingShade, type Fix, type Shade, type TokenRef } from "./fix.js";
-export { classAlternatives, extractJsxContrast, SKIP_SEMI_TRANSPARENT, SKIP_UNKNOWN_TEXT } from "./jsx.js";
+export { classAlternatives, extractJsxContrast, SKIP_SEMI_TRANSPARENT, SKIP_TOO_MANY, SKIP_UNKNOWN_TEXT, SKIP_VARIANTS, type AlternativeLimits } from "./jsx.js";
 export { TAILWIND_PALETTE } from "./palette.js";
 export { TAILWIND_V4_PALETTE } from "./palette-v4.js";
 export { themeColorsFromConfig, type ConfigColorResolver } from "./theme.js";

@@ -34,6 +34,13 @@ export function normalizeColor(raw: string): string | null {
   return (parsed.alpha ?? 1) < 1 ? formatHex8(parsed) : formatHex(parsed);
 }
 
+/** A canonical color with its alpha multiplied by `opacity` (Tailwind's `/50` modifier). */
+function withOpacity(value: string, opacity: number): string | null {
+  const parsed = parse(value);
+  if (!parsed) return null;
+  return normalizeColor(formatHex8({ ...parsed, alpha: (parsed.alpha ?? 1) * opacity }));
+}
+
 /** Finds every color literal in a piece of text (a CSS value, a style string). */
 export function findColors(text: string): ColorMatch[] {
   const out: ColorMatch[] = [];
@@ -52,7 +59,7 @@ export interface ClassColorMatch extends ColorMatch {
 /**
  * Finds colors inside Tailwind arbitrary values in a string of classes:
  * `bg-[#3b82f6]`, `hover:text-[rgb(59_130_246)]`, `[color:#fff]`,
- * `bg-[#3b82f6]/50`. Like Tailwind's own content scanner, any string is fair
+ * `bg-[#3b82f6]/50` (the opacity becomes the color's alpha). Like Tailwind's own content scanner, any string is fair
  * game, so class maps and variables are covered too. Prose such as
  * "see [#123]" is ignored: the bracket must follow a utility (`bg-[…]`) or
  * be an arbitrary property (`[color:…]`).
@@ -68,8 +75,13 @@ export function findArbitraryClassColors(text: string): ClassColorMatch[] {
       if (group[1] !== "-" && !/^[a-z-]+:/.test(content)) continue;
       // Tailwind uses `_` for spaces inside arbitrary values; same length, so offsets hold.
       const contentStart = token.index + group.index + group[0].indexOf("[") + 1;
+      // An opacity modifier right after the bracket, `bg-[#3b82f6]/50` or `/[0.25]`, sets the color's alpha.
+      const after = className.slice(group.index + group[0].length);
+      const modifier = /^\/(?:(\d+)|\[(\d*\.?\d+)\])(?![\w.])/.exec(after);
+      const opacity = modifier ? (modifier[1] !== undefined ? Number(modifier[1]) / 100 : Number(modifier[2])) : 1;
       for (const c of findColors(content.replaceAll("_", " "))) {
-        out.push({ ...c, raw: content.slice(c.index, c.index + c.raw.length), index: contentStart + c.index, className });
+        const value = opacity < 1 ? withOpacity(c.value, opacity) : c.value;
+        if (value) out.push({ ...c, value, raw: content.slice(c.index, c.index + c.raw.length), index: contentStart + c.index, className });
       }
     }
   }

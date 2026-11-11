@@ -7,12 +7,12 @@ import {
   type SpacingMergeSuggestion,
   type UsageLocation,
 } from "@steward/model";
-import { DEFAULT_SPACING_SCALE, normalizeScale, snapToScale, spacingTokenPath } from "./scale.js";
+import { deriveSpacingScale, normalizeScale, snapToScale, spacingTokenPath } from "./scale.js";
 import type { ExtractedSpacing, SpacingExtraction } from "./types.js";
 import { pushTo } from "../collections.js";
 
 export interface SpacingSuggestionOptions {
-  /** Scale steps in px. Defaults to `DEFAULT_SPACING_SCALE`. */
+  /** Scale steps in px. By default the scale is built from the repo's own values (see `deriveSpacingScale`). */
   scale?: readonly number[];
   /** Past decisions. A rejected snap is never suggested again. */
   decisions?: readonly MergeDecision[];
@@ -26,6 +26,11 @@ export interface ProposedSpacingToken {
 
 export interface SpacingSuggestions {
   scale: number[];
+  /**
+   * Where the scale came from: `repo` (the standard Tailwind values used 2+
+   * times), `default` (too few to build one) or `custom` (passed in).
+   */
+  scaleBasis: "repo" | "default" | "custom";
   /** One token per scale step, smallest first. */
   tokens: ProposedSpacingToken[];
   /** One per step that has off-scale values snapping to it, smallest step first. */
@@ -86,7 +91,8 @@ function reasonSummary(step: number, snapping: readonly Snapping[], uses: number
  * where they're used. Nothing is applied: a person accepts or rejects each one.
  */
 export function suggestSpacingScale(values: readonly ExtractedSpacing[], options: SpacingSuggestionOptions = {}): SpacingSuggestions {
-  const scale = normalizeScale(options.scale ?? DEFAULT_SPACING_SCALE);
+  const derived = options.scale ? { scale: [...options.scale], basis: "custom" as const } : deriveSpacingScale(values);
+  const scale = normalizeScale(derived.scale);
   const decisions = options.decisions ?? [];
   const sorted = [...values].sort((a, b) => a.px - b.px);
 
@@ -145,22 +151,5 @@ export function suggestSpacingScale(values: readonly ExtractedSpacing[], options
     });
   }
 
-  return { scale, tokens, suggestions, beyondScale, kept: kept.sort((a, b) => a.px - b.px) };
-}
-
-/** One plain-English line, e.g. "Found 24 spacing values used 61 times → suggest a scale of 8 steps. 15 values (31 uses) would snap to it." */
-export function summarizeSpacingSuggestions(extraction: SpacingExtraction, result: SpacingSuggestions): string {
-  const uses = extraction.values.reduce((n, v) => n + v.uses, 0);
-  const snapping = result.suggestions.flatMap((s) => s.members.filter((m) => m !== px(s.proposed.token.$value.value)));
-  const snappedUses = result.suggestions.reduce((n, s) => n + Number(s.reason.evidence.uses), 0);
-  let out = `Found ${plural(extraction.values.length, "spacing value")} used ${times(uses)} → suggest a scale of ${plural(result.scale.length, "step")}.`;
-  out += snapping.length === 0 ? " Every value is already on it." : ` ${plural(snapping.length, "value")} (${plural(snappedUses, "use")}) would snap to it.`;
-  if (result.beyondScale.length > 0) {
-    out += ` ${plural(result.beyondScale.length, "value")} ${result.beyondScale.length === 1 ? "is" : "are"} larger than the scale and ${result.beyondScale.length === 1 ? "is" : "are"} left as is.`;
-  }
-  if (result.kept.length > 0) out += ` ${plural(result.kept.length, "value")} stay${result.kept.length === 1 ? "s" : ""} off the scale by your decision.`;
-  if (extraction.sizes.length > 0) {
-    out += ` ${plural(extraction.sizes.length, "size")} (widths and heights) ${extraction.sizes.length === 1 ? "isn't" : "aren't"} checked yet.`;
-  }
-  return out;
+  return { scale, scaleBasis: derived.basis, tokens, suggestions, beyondScale, kept: kept.sort((a, b) => a.px - b.px) };
 }

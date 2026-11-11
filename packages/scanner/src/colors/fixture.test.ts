@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
-import { extractColors, summarizeColors, type ColorExtraction } from "./index.js";
+import { extractColors, type ColorExtraction } from "./index.js";
 
 const FIXTURE = fileURLToPath(new URL("../../../../fixtures/messy-app", import.meta.url));
 
@@ -74,11 +74,5 @@ describe("extractColors on fixtures/messy-app", () => {
 
   it("is deterministic", async () => {
     expect(JSON.stringify(await extractColors(FIXTURE))).toBe(JSON.stringify(result));
-  });
-
-  it("prints a readable summary", () => {
-    expect(summarizeColors(result)).toBe(
-      `Found 24 colors used 93 times across ${result.filesScanned} files. The Tailwind config defines 3 colors.`,
-    );
   });
 });

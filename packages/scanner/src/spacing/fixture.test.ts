@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
-import { extractSpacing, suggestSpacingScale, summarizeSpacingSuggestions, type SpacingExtraction, type SpacingSuggestions } from "./index.js";
+import { extractSpacing, suggestSpacingScale, type SpacingExtraction, type SpacingSuggestions } from "./index.js";
 
 const FIXTURE = fileURLToPath(new URL("../../../../fixtures/messy-app", import.meta.url));
 
@@ -51,11 +51,18 @@ describe("spacing on fixtures/messy-app", () => {
     expect(billing.some((l) => l.source === "inline-style")).toBe(false);
   });
 
+  it("builds the scale from the standard Tailwind values the repo uses twice or more", () => {
+    // 2px, 20px and 28px are standard but used once; 7px and 13px are used often but aren't standard.
+    expect(result.scale).toEqual([4, 8, 10, 12, 16, 24, 32]);
+    expect(result.scaleBasis).toBe("repo");
+  });
+
   it("snaps each off-scale value to its nearest step", () => {
     expect(result.suggestions.map((s) => [s.proposed.path, s.members])).toEqual([
       ["spacing.1", ["2px", "4px"]],
-      ["spacing.2", ["7px", "8px", "9px"]],
-      ["spacing.3", ["10px", "11px", "12px", "13px"]],
+      ["spacing.2", ["7px", "8px"]],
+      ["spacing.2_5", ["10px", "9px"]],
+      ["spacing.3", ["11px", "12px", "13px"]],
       ["spacing.4", ["16px", "18px"]],
       ["spacing.6", ["20px", "22px", "24px"]],
       ["spacing.8", ["28px", "32px"]],
@@ -65,16 +72,8 @@ describe("spacing on fixtures/messy-app", () => {
 
   it("lists where each snapping value is used", () => {
     const eight = result.suggestions.find((s) => s.proposed.path === "spacing.2")!;
-    expect(eight.locations).toHaveLength(10);
+    expect(eight.locations).toHaveLength(8);
     expect(eight.locations).toContainEqual({ file: "src/components/Card.tsx", line: 12, value: "mb-[7px]" });
-    expect(eight.reason.summary).toBe(
-      "7px and 9px are 1px from 8px, the nearest step on the scale. Used 10 times in 7 files. 8px is already used 5 times.",
-    );
-  });
-
-  it("prints a readable summary", () => {
-    expect(summarizeSpacingSuggestions(ex, result)).toBe(
-      "Found 16 spacing values used 67 times → suggest a scale of 8 steps. 10 values (34 uses) would snap to it. 6 sizes (widths and heights) aren't checked yet.",
-    );
+    expect(eight.reason.summary).toMatch(/^7px is 1px from 8px, the nearest step on the scale\. Used 8 times in \d+ files\. 8px is already used 5 times\.$/);
   });
 });

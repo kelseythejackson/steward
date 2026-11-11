@@ -58,8 +58,8 @@ describe("steward scan (end to end)", () => {
     expect(lines.slice(0, 8)).toEqual([
       "Scanned 17 files",
       "Colors: 24 colors → 17 tokens (14 grays → 9, 4 blues → 2)",
-      "Spacing: 16 values → 8-step scale (10 are off the scale and could snap to it)",
-      "Components: 13 components, 2 groups of likely duplicates (5 components)",
+      "Spacing: 16 values → 7-step scale from the Tailwind values you use most (9 are off the scale and could snap to it); 6 widths and heights not checked yet",
+      "Components: 13 components, 2 groups of likely duplicates (5 components); 1 pair looks alike but behaves differently, so it isn't flagged",
       "Accessibility: 9 of 16 color pairs fail contrast (fixes suggested), 2 elements have no visible focus style",
       "  3 of the failing pairs assume a white background in some places, because the real one is set by a parent component.",
       "  10 places couldn't be checked because their text color comes from another file.",
@@ -105,7 +105,7 @@ describe("steward scan (end to end)", () => {
 
     const run = await steward(["scan", "messy-app"], work);
     expect(run.code).toBe(0);
-    expect(run.stdout).toContain("Components: 13 components, 1 group of likely duplicates (3 components); 1 merge you declined stays separate\n");
+    expect(run.stdout).toContain("Components: 13 components, 1 group of likely duplicates (3 components); 1 pair looks alike but behaves differently, so it isn't flagged; 1 merge you declined stays separate\n");
     const after = parseSystemModel(await readFile(join(app, ".steward/system.json"), "utf8"), "system.json");
     expect(after.decisions).toEqual([decision]);
     expect(after.suggestions.map((s) => s.id)).not.toContain(merge.id);

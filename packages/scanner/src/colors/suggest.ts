@@ -124,8 +124,3 @@ export function suggestColorTokens(colors: readonly ExtractedColor[], options: C
 }
 
 const tokenUses = (t: ProposedColorToken) => t.token.$extensions?.[STEWARD_EXTENSION]?.uses ?? 0;
-
-/** One plain-English line, e.g. "Found 19 colors → suggest 13 tokens (6 merges)." */
-export function summarizeColorSuggestions(colorCount: number, result: ColorSuggestions): string {
-  return `Found ${plural(colorCount, "color")} → suggest ${plural(result.tokens.length, "token")} (${plural(result.suggestions.length, "merge")}).`;
-}

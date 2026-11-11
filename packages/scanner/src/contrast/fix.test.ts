@@ -1,4 +1,7 @@
+import { clampChroma, converter, formatHex, parse } from "culori";
 import { describe, expect, it } from "vitest";
+import { deltaE } from "../colors/cluster.js";
+import { TAILWIND_PALETTE } from "./palette.js";
 import { chooseFix, nearestPassingShade } from "./fix.js";
 import { contrastRatio, formatRatio, isLargeText, REQUIRED_RATIO } from "./wcag.js";
 
@@ -81,5 +84,35 @@ describe("chooseFix", () => {
     // #dc2626 isn't a token, so the gray-50 background must not be offered as a swap for red-50.
     const fix = chooseFix("#dc2626", "#fef2f2", 4.5, tokens)!;
     expect(fix.existing).toBe(false);
+  });
+});
+
+describe("nearestPassingShade matches a step-by-step search", () => {
+  const toOklch = converter("oklch");
+  /** The original search: try every 0.001 of lightness outward, nearest pass wins. */
+  function reference(color: string, against: string, required: number) {
+    const c = toOklch(parse(color)!);
+    const at = (l: number) => {
+      const hex = formatHex(clampChroma({ ...c, l }, "oklch"));
+      const ratio = contrastRatio(hex, against);
+      return ratio >= required ? { hex, ratio } : null;
+    };
+    for (let i = 1; ; i++) {
+      const down = c.l - i * 0.001;
+      const up = c.l + i * 0.001;
+      if (down < 0 && up > 1) return null;
+      const options = [down >= 0 ? at(down) : null, up <= 1 ? at(up) : null].filter((s) => s !== null);
+      if (options.length > 0) return options.sort((a, b) => deltaE(color, a.hex) - deltaE(color, b.hex))[0]!;
+    }
+  }
+
+  it("gives the same shade for every Tailwind color against white, black and mid gray", () => {
+    for (const fg of Object.values(TAILWIND_PALETTE)) {
+      for (const bg of ["#ffffff", "#000000", "#777777"]) {
+        for (const required of [3, 4.5]) {
+          expect(nearestPassingShade(fg, bg, required), `${fg} on ${bg} at ${required}`).toEqual(reference(fg, bg, required));
+        }
+      }
+    }
   });
 });

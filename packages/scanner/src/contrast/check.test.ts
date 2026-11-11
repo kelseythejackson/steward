@@ -22,6 +22,13 @@ const extraction = (pairs: PairOccurrence[]): ContrastExtraction => ({ pairs, fo
 const colors = () => suggestColorTokens([color("#9ca3af", 12), color("#6b7280", 8), color("#ffffff", 1), color("#9ca3ae", 1)]);
 
 describe("checkContrast", () => {
+  it("reports a color on itself as a 1:1 failure instead of skipping it", () => {
+    const report = checkContrast(extraction([occ("#ffffff", "#ffffff", "a.tsx", 3)]), colors());
+    expect(report.pairs).toMatchObject([{ foreground: "#ffffff", background: "#ffffff", ratio: 1, passes: false }]);
+    expect(report.suggestions).toHaveLength(1);
+    expect(report.suggestions[0]!.reason.summary).toMatch(/^white on white is 1\.0:1; normal text needs 4\.5:1\./);
+  });
+
   it("suggests the nearest passing token with a plain-English reason", () => {
     const report = checkContrast(
       extraction([occ("#9ca3af", "#ffffff", "a.tsx", 1), occ("#9ca3af", "#ffffff", "b.tsx", 2, { backgroundAssumed: true }), occ("#9ca3ae", "#ffffff", "b.tsx", 9)]),

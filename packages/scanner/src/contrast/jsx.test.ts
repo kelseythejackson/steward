@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractJsxContrast } from "./jsx.js";
+import { extractJsxContrast, SKIP_TOO_MANY, SKIP_VARIANTS } from "./jsx.js";
 import type { PairOccurrence } from "./types.js";
 
 const pairs = (code: string) =>
@@ -189,5 +189,24 @@ describe("extractJsxContrast: focus styles", () => {
     const code = `const v = { a: "outline-none", b: "outline-none text-sm" };
       const A = ({ k }) => <button className={v[k]}>x</button>;`;
     expect(focus(code)).toHaveLength(1);
+  });
+});
+
+describe("nothing is dropped silently", () => {
+  it("notes color classes under dark: and other unchecked variants", () => {
+    const r = extractJsxContrast(`export const A = () => <p className="text-gray-900 bg-white dark:bg-gray-900 dark:text-white">Hi</p>;`, "a.tsx");
+    expect(r.pairs.map((p) => `${p.foreground} on ${p.background}`)).toEqual(["#111827 on #ffffff"]);
+    expect(r.skipped).toEqual([{ file: "a.tsx", line: 1, reason: SKIP_VARIANTS }]);
+  });
+
+  it("doesn't note variants that don't change color", () => {
+    const r = extractJsxContrast(`export const A = () => <button className="text-gray-900 bg-white disabled:opacity-50">Go</button>;`, "a.tsx");
+    expect(r.skipped).toEqual([]);
+  });
+
+  it("says when an element had more class combinations than it checks", () => {
+    const flags = Array.from({ length: 7 }, (_, i) => `f${i} && "text-gray-${(i + 1) * 100}"`).join(", ");
+    const code = `export const A = (${Array.from({ length: 7 }, (_, i) => `f${i}`).join(", ")}) => <p className={cn("bg-white", ${flags})}>Hi</p>;`;
+    expect(extractJsxContrast(code, "a.tsx").skipped.map((s) => s.reason)).toContain(SKIP_TOO_MANY);
   });
 });

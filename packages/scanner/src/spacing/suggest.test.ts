@@ -1,7 +1,7 @@
 import { suggestionId, type MergeDecision } from "@steward/model";
 import { describe, expect, it } from "vitest";
 import { collectSpacing } from "./collect.js";
-import { suggestSpacingScale, summarizeSpacingSuggestions } from "./suggest.js";
+import { suggestSpacingScale } from "./suggest.js";
 
 const files = [
   {
@@ -121,15 +121,5 @@ describe("suggestSpacingScale", () => {
   it("is deterministic", () => {
     const a = suggestSpacingScale(collectSpacing([...files].reverse()).values);
     expect(a).toEqual(suggestSpacingScale(values()));
-  });
-});
-
-describe("summarizeSpacingSuggestions", () => {
-  it("prints one plain line", () => {
-    const extraction = collectSpacing(files);
-    expect(summarizeSpacingSuggestions(extraction, suggestSpacingScale(extraction.values))).toBe(
-      "Found 7 spacing values used 10 times → suggest a scale of 8 steps. 4 values (7 uses) would snap to it. " +
-        "1 value is larger than the scale and is left as is. 1 size (widths and heights) isn't checked yet.",
-    );
   });
 });

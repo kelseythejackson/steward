@@ -127,9 +127,13 @@ Raw CSS in `src/styles.css`: `padding: 9px 13px`, `padding: 11px 13px`,
 `padding: 2px 7px`, `width: 302px`.
 
 `h-[42px]` and `width: 302px` are sizes, not spacing: the scanner lists them
-but doesn't snap them to the spacing scale. Expected snaps on the default
-scale (4, 8, 12, 16, 24, 32, 48, 64; halfway values round up): 2→4, 7/9→8,
-10/11/13→12, 18→16, 20/22→24, 28→32.
+but doesn't snap them to the spacing scale.
+
+The suggested scale is built from the repo: every standard Tailwind spacing
+value used at least twice becomes a step. Here that's 4, 8, 10, 12, 16, 24
+and 32 (2px, 20px and 28px are standard but used once; 7px and 13px are used
+often but aren't standard, so they stay drift). Expected snaps (halfway values
+round up): 2→4, 7→8, 9→10, 11/13→12, 18→16, 20/22→24, 28→32.
 
 ## 3. Duplicate components
 

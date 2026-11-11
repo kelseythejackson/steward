@@ -1,6 +1,7 @@
 import {
   compareStrings,
   emptySystemModel,
+  STEWARD_EXTENSION,
   isToken,
   type MergeDecision,
   type Suggestion,
@@ -18,11 +19,12 @@ import { collectComponents, isComponentFile } from "./components/inventory.js";
 import { componentEntries } from "./components/summary.js";
 import type { ComponentInventory } from "./components/types.js";
 import { checkContrast, contrastSuggestionId, type ContrastReport } from "./contrast/check.js";
-import { SKIP_SEMI_TRANSPARENT, SKIP_UNKNOWN_TEXT } from "./contrast/jsx.js";
+import { SKIP_SEMI_TRANSPARENT, SKIP_TOO_MANY, SKIP_UNKNOWN_TEXT, SKIP_VARIANTS } from "./contrast/jsx.js";
 import { collectContrast } from "./contrast/index.js";
 import { collectSpacing } from "./spacing/collect.js";
 import { suggestSpacingScale, type SpacingSuggestions } from "./spacing/suggest.js";
 import type { SpacingExtraction } from "./spacing/types.js";
+import { tailwindSetup } from "./tailwind.js";
 
 export interface ScanOptions {
   /** Past decisions, so rejected suggestions are never made again. */
@@ -44,6 +46,31 @@ export interface ScanResult {
   duplicates: DuplicateReport;
   /** Contrast report. Its `tokens` and `colorSuggestions` are the color suggestions with contrast marks applied. */
   contrast: ContrastReport;
+  /**
+   * Stories and tests, scanned on their own. They never shape the system
+   * (tokens, merges, the scale, component usage); this says what in them
+   * isn't in it.
+   */
+  storiesAndTests: {
+    files: string[];
+    colors: ColorExtraction;
+    spacing: SpacingExtraction;
+    /** Colors used in stories and tests that aren't a token or merged into one. */
+    offSystemColors: string[];
+    /** Spacing values in stories and tests that aren't on the suggested scale, in px. */
+    offScaleSpacing: number[];
+  };
+}
+
+/** Storybook stories and tests: `*.stories.tsx`, `*.test.ts`, `*.spec.tsx`, and anything under `__tests__/` or `.storybook/`. */
+export function isStoryOrTest(path: string): boolean {
+  return /\.(?:stories|story|test|spec)\.[cm]?[jt]sx?$/.test(path) || /(?:^|\/)(?:__tests__|__stories__|\.storybook)\//.test(path);
+}
+
+/** A color token's canonical key, including alpha, so it compares with extracted values. */
+function tokenKey(t: { token: { $value: { hex: string; alpha?: number } } }): string {
+  const { hex, alpha } = t.token.$value;
+  return alpha === undefined ? hex : `${hex}${Math.round(alpha * 255).toString(16).padStart(2, "0")}`;
 }
 
 /** Counts behind the printed report, so the CLI and web app say the same thing. */
@@ -53,16 +80,17 @@ export interface ScanSummary {
   colorFamilies: { family: string; found: number; suggested: number }[];
   /** `keptApart`: rejected merges whose colors are still in the code, kept separate as decided. */
   colors: { found: number; suggested: number; merges: number; keptApart: number };
-  /** `kept`: off-scale values a person chose to keep. */
-  spacing: { found: number; scaleSteps: number; snapping: number; beyondScale: number; kept: number };
-  /** `keptApart`: rejected component merges still present, kept separate as decided. */
-  components: { found: number; duplicateGroups: number; duplicateComponents: number; keptApart: number };
+  /** `kept`: off-scale values a person chose to keep. `sizes`: distinct widths and heights, not checked yet. */
+  spacing: { found: number; scaleSteps: number; scaleBasis: SpacingSuggestions["scaleBasis"]; snapping: number; beyondScale: number; kept: number; sizes: number };
+  /** `similar`: pairs that look alike but behave differently, so aren't flagged. `keptApart`: rejected merges still present. */
+  components: { found: number; duplicateGroups: number; duplicateComponents: number; similar: number; keptApart: number };
   /**
    * Pairs are distinct foreground/background combinations, counted once even
    * if they pass in one place and fail in another. `fixDeclined`: failing
    * pairs whose fix a person rejected; they still fail. `assumedWhite`:
    * failing pairs where at least one place had no background in its file.
-   * `notCheckable` places split by why.
+   * `notCheckable` places split by why. `variantsNotChecked`: places whose
+   * base colors were checked but whose `dark:`/`disabled:` colors weren't.
    */
   accessibility: {
     pairsChecked: number;
@@ -72,8 +100,11 @@ export interface ScanSummary {
     noFixFound: number;
     assumedWhite: number;
     focusProblems: number;
-    notCheckable: { total: number; textSetElsewhere: number; semiTransparent: number; other: number };
+    notCheckable: { total: number; textSetElsewhere: number; semiTransparent: number; tooManyCombinations: number; other: number };
+    variantsNotChecked: number;
   };
+  /** Stories and tests: how many, and what in them isn't in the system. They never shape it. */
+  storiesAndTests: { files: number; offSystemColors: number; offScaleSpacing: number };
   /** Files at least one extractor couldn't parse. */
   skippedFiles: string[];
   /** Files left out before parsing because they're too big to be hand-written. */
@@ -85,24 +116,42 @@ const isScanned = (path: string) => isColorSourceFile(path) || isComponentFile(p
 /** Pure: runs every extractor and suggester over a set of files. */
 export function scanFiles(files: readonly SourceFile[], options: ScanOptions = {}): ScanResult {
   const decisions = options.decisions ?? [];
-  const sorted = [...files].sort((a, b) => compareStrings(a.path, b.path));
+  const all = [...files].sort((a, b) => compareStrings(a.path, b.path));
+  const sorted = all.filter((f) => !isStoryOrTest(f.path));
+  const stories = all.filter((f) => isStoryOrTest(f.path));
+  // Stories use the product's Tailwind config and CSS, so read the setup from every file.
+  const setup = tailwindSetup(all);
 
-  const colors = collectColors(sorted);
-  const spacing = collectSpacing(sorted);
+  const colors = collectColors(sorted, setup.theme);
+  const spacing = collectSpacing(sorted, setup.version);
   const components = collectComponents(sorted);
   const contrastPairs = collectContrast(sorted);
 
   const colorSuggestions = suggestColorTokens(colors.colors, { decisions });
+  const spacingSuggestions = suggestSpacingScale(spacing.values, { decisions });
+  const contrast = checkContrast(contrastPairs, colorSuggestions, { decisions });
+
+  const storyColors = collectColors(stories, setup.theme);
+  const storySpacing = collectSpacing(stories, setup.version);
+  const inSystem = new Set(contrast.tokens.flatMap((t) => [tokenKey(t), ...(t.token.$extensions?.[STEWARD_EXTENSION]?.mergedFrom ?? [])]));
+  const onScale = new Set(spacingSuggestions.scale);
   return {
     files: sorted.map((f) => f.path),
     notRead: [],
     decisions: [...decisions],
     colors,
     spacing,
-    spacingSuggestions: suggestSpacingScale(spacing.values, { decisions }),
+    spacingSuggestions,
     components,
     duplicates: findDuplicates(components.components, { decisions }),
-    contrast: checkContrast(contrastPairs, colorSuggestions, { decisions }),
+    contrast,
+    storiesAndTests: {
+      files: stories.map((f) => f.path),
+      colors: storyColors,
+      spacing: storySpacing,
+      offSystemColors: storyColors.colors.filter((c) => c.uses > 0 && !inSystem.has(c.value)).map((c) => c.value).sort(compareStrings),
+      offScaleSpacing: storySpacing.values.filter((v) => !onScale.has(v.px)).map((v) => v.px),
+    },
   };
 }
 
@@ -174,9 +223,11 @@ export function summarizeScan(result: ScanResult): ScanSummary {
   const failingKeys = new Set(failing.map(pairKey));
   const declinedIds = new Set(result.decisions.filter((d) => d.kind === "contrast" && d.status === "rejected").map((d) => d.suggestionId));
   const fixDeclined = [...failingKeys].filter((k) => declinedIds.has(contrastSuggestionId(...(k.split(" ") as [string, string])))).length;
-  const places = contrast.skipped.filter((s) => s.line !== 0);
+  const variantPlaces = contrast.skipped.filter((s) => s.reason === SKIP_VARIANTS).length;
+  const places = contrast.skipped.filter((s) => s.line !== 0 && s.reason !== SKIP_VARIANTS);
   const textSetElsewhere = places.filter((s) => s.reason === SKIP_UNKNOWN_TEXT).length;
   const semiTransparent = places.filter((s) => s.reason === SKIP_SEMI_TRANSPARENT).length;
+  const tooManyCombinations = places.filter((s) => s.reason === SKIP_TOO_MANY).length;
 
   // Rejected merges still relevant: at least two of their members are still in the code.
   const stillPresent = (kind: "color" | "component", present: Set<string>) =>
@@ -184,7 +235,7 @@ export function summarizeScan(result: ScanResult): ScanSummary {
   const componentLabels = new Set(components.components.flatMap((c) => [c.name, `${c.name} (${c.file})`]));
 
   const skippedFiles = [
-    ...new Set([...colors.skipped, ...spacing.skipped, ...components.skipped].map((s) => s.file).concat(
+    ...new Set([...colors.skipped, ...spacing.skipped, ...components.skipped, ...result.storiesAndTests.colors.skipped].map((s) => s.file).concat(
       contrast.skipped.filter((s) => s.line === 0).map((s) => s.file),
     )),
   ].sort(compareStrings);
@@ -201,14 +252,17 @@ export function summarizeScan(result: ScanResult): ScanSummary {
     spacing: {
       found: spacing.values.length,
       scaleSteps: spacingSuggestions.scale.length,
+      scaleBasis: spacingSuggestions.scaleBasis,
       snapping,
       beyondScale: spacingSuggestions.beyondScale.length,
       kept: spacingSuggestions.kept.length,
+      sizes: spacing.sizes.length,
     },
     components: {
       found: components.components.length,
       duplicateGroups: duplicates.suggestions.length,
       duplicateComponents: duplicates.suggestions.reduce((n, s) => n + s.members.length, 0),
+      similar: duplicates.similar.length,
       keptApart: stillPresent("component", componentLabels),
     },
     accessibility: {
@@ -219,7 +273,19 @@ export function summarizeScan(result: ScanResult): ScanSummary {
       noFixFound: failingKeys.size - contrast.suggestions.length - fixDeclined,
       assumedWhite: new Set(failing.filter((p) => p.backgroundAssumed > 0).map(pairKey)).size,
       focusProblems: contrast.focus.length,
-      notCheckable: { total: places.length, textSetElsewhere, semiTransparent, other: places.length - textSetElsewhere - semiTransparent },
+      notCheckable: {
+        total: places.length,
+        textSetElsewhere,
+        semiTransparent,
+        tooManyCombinations,
+        other: places.length - textSetElsewhere - semiTransparent - tooManyCombinations,
+      },
+      variantsNotChecked: variantPlaces,
+    },
+    storiesAndTests: {
+      files: result.storiesAndTests.files.length,
+      offSystemColors: result.storiesAndTests.offSystemColors.length,
+      offScaleSpacing: result.storiesAndTests.offScaleSpacing.length,
     },
     skippedFiles,
     tooLarge: result.notRead.map((s) => s.file),

@@ -126,17 +126,19 @@ export function checkContrast(extraction: ContrastExtraction, colors: ColorSugge
     const t = tokenOf.get(hex);
     return t ? tokenLabel(t.path) : (PALETTE_NAMES.get(hex) ?? hex);
   };
-  const tokenRefs = colors.tokens.map((t) => ({ path: t.path, hex: t.token.$value.hex }));
+  const tokenRefs = colors.tokens.map((t) => ({ path: t.path, hex: t.token.$value.hex, family: colorFamily(t.token.$value.hex) }));
 
   // Group occurrences by token pair, and by whether each use meets its own requirement:
   // a pair can fail as text (4.5:1) and still pass as a UI border (3:1) elsewhere.
   type Group = { fg: string; bg: string; ratio: number; passes: boolean; uses: Set<ContrastUse>; locations: Map<string, PairLocation> };
   const groups = new Map<string, Group>();
+  const ratios = new Map<string, number>(); // the same pair appears in many places; work out its ratio once
   for (const o of extraction.pairs) {
     const fg = canonical(o.foreground);
     const bg = canonical(o.background);
-    if (fg === bg) continue;
-    const ratio = contrastRatio(fg, bg);
+    // Same color on itself (`text-white bg-white`) is invisible: 1:1, reported like any other failure.
+    const ratioKey = `${fg} ${bg}`;
+    const ratio = ratios.get(ratioKey) ?? ratios.set(ratioKey, contrastRatio(fg, bg)).get(ratioKey)!;
     const passes = ratio >= REQUIRED_RATIO[o.use];
     const key = `${fg} ${bg} ${passes}`;
     const g = groups.get(key) ?? { fg, bg, ratio, passes, uses: new Set(), locations: new Map() };
@@ -233,13 +235,4 @@ export function checkContrast(extraction: ContrastExtraction, colors: ColorSugge
     tokens: colors.tokens.map((t) => ({ ...t, token: mark(t.token) })),
     colorSuggestions: colors.suggestions.map((s) => ({ ...s, proposed: { ...s.proposed, token: mark(s.proposed.token) } })),
   };
-}
-
-/** Plain-English summary, e.g. "Checked 31 color pairs: 9 fail WCAG AA. 2 elements have no visible focus style." */
-export function summarizeContrast(report: ContrastReport): string {
-  const failing = report.pairs.filter((p) => !p.passes).length;
-  let line = `Checked ${plural(report.pairs.length, "color pair")}: ${failing === 0 ? "all pass" : `${failing} ${failing === 1 ? "fails" : "fail"}`} WCAG AA.`;
-  if (report.focus.length > 0) line += ` ${plural(report.focus.length, "element")} ${report.focus.length === 1 ? "has" : "have"} no visible focus style.`;
-  if (report.skipped.length > 0) line += ` ${plural(report.skipped.length, "place")} couldn't be checked statically.`;
-  return line;
 }

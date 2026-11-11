@@ -1,7 +1,7 @@
 import { compareStrings } from "@steward/model";
 import { isColorSourceFile } from "../colors/collect.js";
 import type { SourceFile } from "../colors/types.js";
-import { tailwindVersion } from "../tailwind.js";
+import { tailwindVersion, type TailwindVersion } from "../tailwind.js";
 import { extractCssSpacing } from "./css.js";
 import { extractScriptSpacing } from "./script.js";
 import type { ExtractedSpacing, FoundSpacing, SpacingExtraction, SpacingLocation } from "./types.js";
@@ -25,17 +25,18 @@ function group(found: readonly FoundSpacing[]): ExtractedSpacing[] {
  * locations, smallest first. Widths and heights are kept apart as sizes.
  * Files that fail to parse are listed in `skipped` instead of stopping the scan.
  */
-export function collectSpacing(files: readonly SourceFile[]): SpacingExtraction {
+/** `version` defaults to the Tailwind version found in `files`; pass it when scanning a subset (like stories) without the CSS entry point. */
+export function collectSpacing(files: readonly SourceFile[], version?: TailwindVersion): SpacingExtraction {
   const found: FoundSpacing[] = [];
   const skipped: SpacingExtraction["skipped"] = [];
   let filesScanned = 0;
   const sorted = [...files].sort((a, b) => compareStrings(a.path, b.path));
-  const version = tailwindVersion(sorted);
+  const tw = version ?? tailwindVersion(sorted);
   for (const f of sorted) {
     if (!isColorSourceFile(f.path)) continue;
     filesScanned++;
     try {
-      found.push(...(isStylesheet(f.path) ? extractCssSpacing(f.content, f.path, version) : extractScriptSpacing(f.content, f.path, version)));
+      found.push(...(isStylesheet(f.path) ? extractCssSpacing(f.content, f.path, tw) : extractScriptSpacing(f.content, f.path, tw)));
     } catch (err) {
       skipped.push({ file: f.path, reason: err instanceof Error ? err.message.split("\n")[0]! : String(err) });
     }

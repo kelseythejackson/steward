@@ -7,11 +7,10 @@ export * from "./types.js";
 export { lengthPx, MIN_SPACING_PX, parseSpacingClass, type SpacingClass } from "./classes.js";
 export { collectSpacing } from "./collect.js";
 export { extractCssSpacing } from "./css.js";
-export { DEFAULT_SPACING_SCALE, normalizeScale, snapToScale, spacingTokenPath, type Snap } from "./scale.js";
+export { DEFAULT_SPACING_SCALE, deriveSpacingScale, MIN_STEP_USES, normalizeScale, snapToScale, spacingTokenPath, TAILWIND_SPACING_PX, type Snap } from "./scale.js";
 export { extractScriptSpacing } from "./script.js";
 export {
   suggestSpacingScale,
-  summarizeSpacingSuggestions,
   type ProposedSpacingToken,
   type SpacingSuggestionOptions,
   type SpacingSuggestions,

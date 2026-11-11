@@ -84,3 +84,59 @@ describe("clusterColors", () => {
     expect(clusterColors([])).toEqual([]);
   });
 });
+
+/** The original O(n³) complete-linkage loop, kept here as the reference the fast version must match exactly. */
+function referenceGroups(colors: readonly ExtractedColor[], threshold: number, keepApart: string[][] = []): string[][] {
+  const sorted = [...colors].sort((a, b) => b.uses - a.uses || (a.value < b.value ? -1 : a.value > b.value ? 1 : 0));
+  const n = sorted.length;
+  const apart = (a: string, b: string) => keepApart.some((set) => set.includes(a) && set.includes(b));
+  const groupDist = sorted.map((a) => sorted.map((b) => (a === b ? 0 : apart(a.value, b.value) ? Infinity : deltaE(a.value, b.value))));
+  const groups: (number[] | null)[] = sorted.map((_, i) => [i]);
+  for (;;) {
+    let best: [number, number] | null = null;
+    let bestD = Infinity;
+    for (let i = 0; i < n; i++) {
+      if (!groups[i]) continue;
+      for (let j = i + 1; j < n; j++) {
+        if (!groups[j]) continue;
+        if (groupDist[i]![j]! < bestD) {
+          bestD = groupDist[i]![j]!;
+          best = [i, j];
+        }
+      }
+    }
+    if (!best || !(bestD <= threshold)) break;
+    const [i, j] = best;
+    groups[i] = [...groups[i]!, ...groups[j]!];
+    groups[j] = null;
+    for (let k = 0; k < n; k++) {
+      const d = Math.max(groupDist[i]![k]!, groupDist[j]![k]!);
+      groupDist[i]![k] = d;
+      groupDist[k]![i] = d;
+    }
+  }
+  return groups.filter((g): g is number[] => g !== null).map((g) => g.map((i) => sorted[i]!.value).sort()).sort((a, b) => (a[0]! < b[0]! ? -1 : 1));
+}
+
+describe("clusterColors matches the reference algorithm", () => {
+  // Deterministic pseudo-random colors packed close together, so many groups compete and ties happen.
+  const rng = (seed: number) => () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
+  const hex = (n: number) => n.toString(16).padStart(2, "0");
+
+  it("gives exactly the same groups on 200 random palettes, with and without kept-apart pairs", () => {
+    let merged = 0;
+    for (let run = 0; run < 200; run++) {
+      const r = rng(run + 1);
+      const values = new Set<string>();
+      while (values.size < 25) values.add(`#${hex(120 + Math.floor(r() * 12))}${hex(120 + Math.floor(r() * 12))}${hex(120 + Math.floor(r() * 12))}`);
+      const colors = [...values].map((v) => color(v, 1 + Math.floor(r() * 3)));
+      const keepApart = run % 2 === 0 ? [] : [[...values].slice(0, 3)];
+      const actual = clusterColors(colors, { maxDeltaE: 2, keepApart })
+        .map((c) => c.members.map((m) => m.value).sort())
+        .sort((a, b) => (a[0]! < b[0]! ? -1 : 1));
+      expect(actual, `run ${run}`).toEqual(referenceGroups(colors, 2, keepApart));
+      merged += actual.filter((g) => g.length > 1).length;
+    }
+    expect(merged).toBeGreaterThan(500); // the palettes really do produce competing merges
+  });
+});

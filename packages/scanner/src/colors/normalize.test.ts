@@ -41,7 +41,7 @@ describe("findArbitraryClassColors", () => {
     expect(values("hover:bg-[#2563eb] md:!text-[#FFF] bg-[#3b82f6]/50 [color:#111827]")).toEqual([
       ["hover:bg-[#2563eb]", "#2563eb"],
       ["md:!text-[#FFF]", "#ffffff"],
-      ["bg-[#3b82f6]/50", "#3b82f6"],
+      ["bg-[#3b82f6]/50", "#3b82f680"],
       ["[color:#111827]", "#111827"],
     ]);
   });
@@ -60,5 +60,20 @@ describe("findArbitraryClassColors", () => {
     const text = "rounded bg-[#3b82f6]";
     const [m] = findArbitraryClassColors(text);
     expect(text.slice(m!.index, m!.index + 7)).toBe("#3b82f6");
+  });
+});
+
+describe("opacity modifiers on arbitrary values", () => {
+  it("turns /50 and /[0.25] into the color's alpha, like named classes", () => {
+    const found = (text: string) => findArbitraryClassColors(text).map((m) => `${m.className} ${m.value}`);
+    expect(found("bg-[#3b82f6]/50 hover:text-[#fff]/[0.25] border-[#000]")).toEqual([
+      "bg-[#3b82f6]/50 #3b82f680",
+      "hover:text-[#fff]/[0.25] #ffffff40",
+      "border-[#000] #000000",
+    ]);
+  });
+
+  it("keeps a solid color solid at /100", () => {
+    expect(findArbitraryClassColors("bg-[#3b82f6]/100").map((m) => m.value)).toEqual(["#3b82f6"]);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SPACING_SCALE, normalizeScale, snapToScale, spacingTokenPath } from "./scale.js";
+import { DEFAULT_SPACING_SCALE, deriveSpacingScale, normalizeScale, snapToScale, spacingTokenPath } from "./scale.js";
 
 describe("snapToScale", () => {
   it("defaults to 8 steps", () => {
@@ -58,5 +58,22 @@ describe("spacingTokenPath", () => {
 
   it("keeps fractional steps readable without adding a path level", () => {
     expect(spacingTokenPath(10)).toBe("spacing.2_5");
+  });
+});
+
+describe("deriveSpacingScale", () => {
+  const v = (px: number, uses: number) => ({ px, uses });
+
+  it("uses standard Tailwind values used at least twice, smallest first", () => {
+    expect(deriveSpacingScale([v(24, 9), v(7, 30), v(8, 2), v(20, 1), v(16, 5)])).toEqual({ scale: [8, 16, 24], basis: "repo" });
+  });
+
+  it("never makes drift official, however often it's used", () => {
+    expect(deriveSpacingScale([v(7, 100), v(13, 50), v(8, 2), v(16, 2)]).scale).toEqual([8, 16]);
+  });
+
+  it("falls back to the default scale when fewer than two values qualify", () => {
+    expect(deriveSpacingScale([v(16, 10), v(7, 9)])).toEqual({ scale: [...DEFAULT_SPACING_SCALE], basis: "default" });
+    expect(deriveSpacingScale([]).basis).toBe("default");
   });
 });

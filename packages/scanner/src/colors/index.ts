@@ -4,14 +4,13 @@ import { listFiles, readSourceFiles } from "./walk.js";
 
 export * from "./types.js";
 export { clusterColors, DEFAULT_MAX_DELTA_E, deltaE, type ClusterOptions, type ColorCluster } from "./cluster.js";
-export { collectColors, isColorSourceFile, summarizeColors } from "./collect.js";
+export { collectColors, isColorSourceFile } from "./collect.js";
 export { colorFamily, grayMaxChroma, LIGHTNESS_STEPS, proposeColorPaths, stepsByFit } from "./naming.js";
 export {
   colorToken,
   JUST_NOTICEABLE_DELTA_E,
   mergeReasonSummary,
   suggestColorTokens,
-  summarizeColorSuggestions,
   type ColorSuggestionOptions,
   type ColorSuggestions,
   type ProposedColorToken,
