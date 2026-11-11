@@ -1,6 +1,8 @@
 /**
- * @steward/cli — The steward command: scan, review, context, check
- *
- * Placeholder export so the package builds and tests before real code lands.
+ * @steward/cli: the `steward` command. Exports the pieces the web app and
+ * tests use; `bin.ts` is the executable.
  */
 export const PACKAGE_NAME = "@steward/cli" as const;
+export { main, type Io } from "./main.js";
+export { formatScanReport } from "./report.js";
+export { runScan, StewardError, type ScanOutput, type ScanRun } from "./scan.js";

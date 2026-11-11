@@ -6,3 +6,4 @@ export * from "./colors/index.js";
 export * from "./contrast/index.js";
 export * from "./spacing/index.js";
 export * from "./components/index.js";
+export { buildSystemModel, scanFiles, scanRepo, summarizeScan, type ScanOptions, type ScanResult, type ScanSummary } from "./scan.js";

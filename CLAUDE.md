@@ -84,10 +84,15 @@ pnpm test              # all packages (vitest projects)
 pnpm -F scanner test   # one package
 pnpm typecheck         # tsc -b across all packages via project references
 pnpm build             # compile every package to dist/
-pnpm steward           # run the CLI from source via tsx (currently a stub)
-pnpm steward scan fixtures/messy-app   # planned
+pnpm steward           # run the CLI via tsx (help)
+pnpm build && pnpm steward scan fixtures/messy-app          # writes fixtures/messy-app/.steward/system.json + prints the report
+pnpm build && pnpm steward scan fixtures/messy-app --json   # full result as JSON (summary, model, details)
+pnpm -F cli test       # includes the end-to-end scan test (builds first, runs dist/bin.js on a temp copy of the fixture)
 pnpm -F web dev                        # planned (apps/web is empty)
 ```
+
+Cross-package imports resolve to each package's `dist/`, so run `pnpm build` after
+changing a dependency package before running the CLI from source.
 
 Package names are scoped (`@steward/model`, `@steward/cli`, ...). `pnpm -F scanner`
 matches the unscoped part, so short filters work. New native build scripts must be
