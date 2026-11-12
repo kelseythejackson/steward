@@ -91,6 +91,8 @@ pnpm build             # compile every package to dist/
 pnpm steward           # run the CLI from source via tsx (help); no build needed
 pnpm steward scan fixtures/messy-app          # writes fixtures/messy-app/.steward/system.json + prints the report
 pnpm steward scan fixtures/messy-app --json   # full result as JSON (summary, model, details)
+pnpm steward review fixtures/messy-app        # lists suggestions still waiting for a decision
+pnpm steward review fixtures/messy-app --accept-all   # accepts them all and rebuilds rules (stand-in until the review screen)
 pnpm -F cli test       # includes the end-to-end scan test (builds first, runs dist/bin.js on a temp copy of the fixture)
 pnpm -F web dev                        # planned (apps/web is empty)
 ```

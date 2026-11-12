@@ -10,7 +10,11 @@ import {
   type Rule,
   type RuleTarget,
   type SpacingMergeSuggestion,
+  type Token,
   type Suggestion,
+  type SystemModel,
+  type TokenGroup,
+  isToken,
 } from "@steward/model";
 import { colorFamily } from "../colors/naming.js";
 import type { ProposedColorToken } from "../colors/suggest.js";
@@ -333,4 +337,33 @@ export function mergeRules(generated: readonly Rule[], previous: readonly Rule[]
     if (prev.basedOn && prev.basedOn.length > 0 && prev.basedOn.every((b) => accepted.has(b))) out.set(id, prev);
   }
   return [...out.values()].sort((a, b) => compareStrings(a.id, b.id));
+}
+
+/** Every token in a group with its dot path, in key order. */
+function flattenTokens(group: TokenGroup, prefix: string, out: { path: string; token: Token }[] = []): { path: string; token: Token }[] {
+  for (const key of Object.keys(group).sort(compareStrings)) {
+    const node = group[key]!;
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (isToken(node)) out.push({ path, token: node });
+    else flattenTokens(node, path, out);
+  }
+  return out;
+}
+
+/** Pure: the generator's inputs read back from a saved model, so rules can be rebuilt without scanning again. */
+export function ruleInputsFromModel(model: SystemModel): RuleInputs {
+  const tokens = flattenTokens(model.tokens, "");
+  const colorTokens: ProposedColorToken[] = [];
+  const spacingTokens: ProposedSpacingToken[] = [];
+  for (const { path, token } of tokens) {
+    if (token.$type === "color") colorTokens.push({ path, token });
+    else if (path.startsWith("spacing.")) spacingTokens.push({ path, token });
+  }
+  spacingTokens.sort((a, b) => a.token.$value.value - b.token.$value.value);
+  return { decisions: model.decisions, suggestions: model.suggestions, colorTokens, spacingTokens, components: model.components };
+}
+
+/** Pure: the model's rules after a change of decisions, merged the same way a scan merges them. */
+export function rulesForModel(model: SystemModel): Rule[] {
+  return mergeRules(generateRules(ruleInputsFromModel(model)), model.rules, model.decisions);
 }

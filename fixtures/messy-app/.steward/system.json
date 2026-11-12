@@ -179,7 +179,252 @@
       "variants": []
     }
   ],
-  "decisions": [],
+  "decisions": [
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "color",
+      "members": [
+        "#e4e4e7",
+        "#e5e7eb"
+      ],
+      "status": "accepted",
+      "suggestionId": "color-5e53f2b802e6"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "color",
+      "members": [
+        "#f9fafb",
+        "#fafafa"
+      ],
+      "status": "accepted",
+      "suggestionId": "color-957d47ab7464"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "color",
+      "members": [
+        "#f3f4f6",
+        "#f4f4f5"
+      ],
+      "status": "accepted",
+      "suggestionId": "color-957f8bba9d47"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "color",
+      "members": [
+        "#6b7280",
+        "#6b7380"
+      ],
+      "status": "accepted",
+      "suggestionId": "color-97ad0645bebc"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "color",
+      "members": [
+        "#3a81f5",
+        "#3b82f6",
+        "#3b83f7"
+      ],
+      "status": "accepted",
+      "suggestionId": "color-a0f6f4ba7b9d"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "color",
+      "members": [
+        "#334155",
+        "#374151"
+      ],
+      "status": "accepted",
+      "suggestionId": "color-c330aeba4f0c"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "component",
+      "members": [
+        "Card",
+        "Panel"
+      ],
+      "status": "accepted",
+      "suggestionId": "component-0f745c00ceee"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "component",
+      "members": [
+        "Button",
+        "CTAButton",
+        "PrimaryBtn"
+      ],
+      "status": "accepted",
+      "suggestionId": "component-e3e037724754"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "contrast",
+      "members": [
+        "#9ca3af",
+        "#f9fafb"
+      ],
+      "status": "accepted",
+      "suggestionId": "contrast-1a50427ccadc"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "contrast",
+      "members": [
+        "#6b7280",
+        "#f3f4f6"
+      ],
+      "status": "accepted",
+      "suggestionId": "contrast-38dca9cf517d"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "contrast",
+      "members": [
+        "#3b82f6",
+        "#ffffff"
+      ],
+      "status": "accepted",
+      "suggestionId": "contrast-39ce3336b139"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "contrast",
+      "members": [
+        "#9ca3af",
+        "#f3f4f6"
+      ],
+      "status": "accepted",
+      "suggestionId": "contrast-8898efe5b547"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "contrast",
+      "members": [
+        "#3b82f6",
+        "#ffffff"
+      ],
+      "status": "accepted",
+      "suggestionId": "contrast-b03dd2ad96c7"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "contrast",
+      "members": [
+        "#3b82f6",
+        "#f3f4f6"
+      ],
+      "status": "accepted",
+      "suggestionId": "contrast-c2b3ed775e7f"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "contrast",
+      "members": [
+        "#9ca3af",
+        "#ffffff"
+      ],
+      "status": "accepted",
+      "suggestionId": "contrast-dbe0b4d57b62"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "contrast",
+      "members": [
+        "#d1d5db",
+        "#ffffff"
+      ],
+      "status": "accepted",
+      "suggestionId": "contrast-e4ad27a69d29"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "contrast",
+      "members": [
+        "#dc2626",
+        "#fef2f2"
+      ],
+      "status": "accepted",
+      "suggestionId": "contrast-e963e2bd6808"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "spacing",
+      "members": [
+        "10px",
+        "9px"
+      ],
+      "status": "accepted",
+      "suggestionId": "spacing-3cdba63214d7"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "spacing",
+      "members": [
+        "16px",
+        "18px"
+      ],
+      "status": "accepted",
+      "suggestionId": "spacing-42c26ac990da"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "spacing",
+      "members": [
+        "28px",
+        "32px"
+      ],
+      "status": "accepted",
+      "suggestionId": "spacing-491f99fd851d"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "spacing",
+      "members": [
+        "20px",
+        "22px",
+        "24px"
+      ],
+      "status": "accepted",
+      "suggestionId": "spacing-5a2823f215ab"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "spacing",
+      "members": [
+        "2px",
+        "4px"
+      ],
+      "status": "accepted",
+      "suggestionId": "spacing-84a3a13d2a5d"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "spacing",
+      "members": [
+        "7px",
+        "8px"
+      ],
+      "status": "accepted",
+      "suggestionId": "spacing-8aa5d22a23d1"
+    },
+    {
+      "decidedAt": "2026-11-12T23:12:15.758Z",
+      "kind": "spacing",
+      "members": [
+        "11px",
+        "12px",
+        "13px"
+      ],
+      "status": "accepted",
+      "suggestionId": "spacing-be3401501fef"
+    }
+  ],
   "rules": [
     {
       "appliesTo": [
@@ -195,7 +440,7 @@
       "category": "accessibility",
       "enabled": true,
       "examples": {
-        "right": "<button onClick={openDetails}>Details</button>",
+        "right": "<Button onClick={openDetails}>Details</Button>",
         "wrong": "<div onClick={openDetails}>Details</div>"
       },
       "id": "a11y-click-target",
@@ -232,6 +477,10 @@
     {
       "appliesTo": [
         {
+          "kind": "component",
+          "name": "Button"
+        },
+        {
           "kind": "element",
           "name": "button"
         }
@@ -239,8 +488,8 @@
       "category": "accessibility",
       "enabled": true,
       "examples": {
-        "right": "<button aria-label=\"Close\"><XIcon /></button>",
-        "wrong": "<button><XIcon /></button>"
+        "right": "<Button aria-label=\"Close\"><XIcon /></Button>",
+        "wrong": "<Button><XIcon /></Button>"
       },
       "id": "a11y-icon-button-label",
       "severity": "warn",
@@ -308,6 +557,495 @@
       "severity": "warn",
       "source": "generated",
       "text": "Text needs at least 4.5:1 contrast with its background; large text (24px, or about 19px and bold), icons and form borders need 3:1. On white, body text uses `gray-500` or darker."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "token",
+          "path": "color.blue.500"
+        },
+        {
+          "kind": "token",
+          "path": "color.blue.600"
+        },
+        {
+          "kind": "token",
+          "path": "color.gray.100"
+        }
+      ],
+      "basedOn": [
+        "contrast-c2b3ed775e7f"
+      ],
+      "category": "accessibility",
+      "enabled": true,
+      "examples": {
+        "right": "<p className=\"text-blue-600 bg-gray-100\">Due today</p>",
+        "wrong": "<p className=\"text-blue-500 bg-gray-100\">Due today</p>"
+      },
+      "id": "contrast-blue-500-on-gray-100",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Text on `gray-100` uses `blue-600` or darker (needs 4.5:1)."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "token",
+          "path": "color.blue.500"
+        },
+        {
+          "kind": "token",
+          "path": "color.blue.600"
+        },
+        {
+          "kind": "token",
+          "path": "color.white"
+        }
+      ],
+      "basedOn": [
+        "contrast-b03dd2ad96c7"
+      ],
+      "category": "accessibility",
+      "enabled": true,
+      "examples": {
+        "right": "<p className=\"text-blue-600 bg-white\">Due today</p>",
+        "wrong": "<p className=\"text-blue-500 bg-white\">Due today</p>"
+      },
+      "id": "contrast-blue-500-on-white",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Text on `white` uses `blue-600` or darker (needs 4.5:1)."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "token",
+          "path": "color.gray.300"
+        },
+        {
+          "kind": "token",
+          "path": "color.gray.500"
+        },
+        {
+          "kind": "token",
+          "path": "color.white"
+        }
+      ],
+      "basedOn": [
+        "contrast-e4ad27a69d29"
+      ],
+      "category": "accessibility",
+      "enabled": true,
+      "examples": {
+        "right": "<input className=\"border border-gray-500 bg-white\" />",
+        "wrong": "<input className=\"border border-gray-300 bg-white\" />"
+      },
+      "id": "contrast-gray-300-on-white",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Icons and form borders on `white` use `gray-500` or darker (needs 3:1)."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "token",
+          "path": "color.gray.100"
+        },
+        {
+          "kind": "token",
+          "path": "color.gray.400"
+        },
+        {
+          "kind": "token",
+          "path": "color.gray.700"
+        }
+      ],
+      "basedOn": [
+        "contrast-8898efe5b547"
+      ],
+      "category": "accessibility",
+      "enabled": true,
+      "examples": {
+        "right": "<p className=\"text-gray-700 bg-gray-100\">Due today</p>",
+        "wrong": "<p className=\"text-gray-400 bg-gray-100\">Due today</p>"
+      },
+      "id": "contrast-gray-400-on-gray-100",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Text on `gray-100` uses `gray-700` or darker (needs 4.5:1)."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "token",
+          "path": "color.gray.400"
+        },
+        {
+          "kind": "token",
+          "path": "color.gray.50"
+        },
+        {
+          "kind": "token",
+          "path": "color.gray.500"
+        }
+      ],
+      "basedOn": [
+        "contrast-1a50427ccadc"
+      ],
+      "category": "accessibility",
+      "enabled": true,
+      "examples": {
+        "right": "<p className=\"text-gray-500 bg-gray-50\">Due today</p>",
+        "wrong": "<p className=\"text-gray-400 bg-gray-50\">Due today</p>"
+      },
+      "id": "contrast-gray-400-on-gray-50",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Text on `gray-50` uses `gray-500` or darker (needs 4.5:1)."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "token",
+          "path": "color.gray.400"
+        },
+        {
+          "kind": "token",
+          "path": "color.gray.500"
+        },
+        {
+          "kind": "token",
+          "path": "color.white"
+        }
+      ],
+      "basedOn": [
+        "contrast-dbe0b4d57b62"
+      ],
+      "category": "accessibility",
+      "enabled": true,
+      "examples": {
+        "right": "<p className=\"text-gray-500 bg-white\">Due today</p>",
+        "wrong": "<p className=\"text-gray-400 bg-white\">Due today</p>"
+      },
+      "id": "contrast-gray-400-on-white",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Text on `white` uses `gray-500` or darker (needs 4.5:1)."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "token",
+          "path": "color.gray.100"
+        },
+        {
+          "kind": "token",
+          "path": "color.gray.50"
+        },
+        {
+          "kind": "token",
+          "path": "color.gray.500"
+        }
+      ],
+      "basedOn": [
+        "contrast-38dca9cf517d"
+      ],
+      "category": "accessibility",
+      "enabled": true,
+      "examples": {
+        "right": "<p className=\"text-gray-500 bg-gray-50\">Due today</p>",
+        "wrong": "<p className=\"text-gray-500 bg-gray-100\">Due today</p>"
+      },
+      "id": "contrast-gray-500-on-gray-100",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Behind `gray-500` text, use a `gray-50` background or lighter (needs 4.5:1)."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "token",
+          "path": "color.red.50"
+        },
+        {
+          "kind": "token",
+          "path": "color.red.600"
+        }
+      ],
+      "basedOn": [
+        "contrast-e963e2bd6808"
+      ],
+      "category": "accessibility",
+      "enabled": true,
+      "examples": {
+        "right": "<p className=\"text-[#da2324] bg-red-50\">Due today</p>",
+        "wrong": "<p className=\"text-red-600 bg-red-50\">Due today</p>"
+      },
+      "id": "contrast-red-600-on-red-50",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Text on `red-50` uses `#da2324` or darker (needs 4.5:1)."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "token",
+          "path": "color.blue.500"
+        },
+        {
+          "kind": "token",
+          "path": "color.blue.600"
+        },
+        {
+          "kind": "token",
+          "path": "color.white"
+        }
+      ],
+      "basedOn": [
+        "contrast-39ce3336b139"
+      ],
+      "category": "accessibility",
+      "enabled": true,
+      "examples": {
+        "right": "<p className=\"text-white bg-blue-600\">Due today</p>",
+        "wrong": "<p className=\"text-white bg-blue-500\">Due today</p>"
+      },
+      "id": "contrast-white-on-blue-500",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Behind `white` text, use a `blue-600` background or darker (needs 4.5:1)."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "component",
+          "name": "Button"
+        },
+        {
+          "kind": "element",
+          "name": "button"
+        }
+      ],
+      "basedOn": [
+        "component-e3e037724754"
+      ],
+      "category": "component",
+      "enabled": true,
+      "examples": {
+        "right": "<Button variant=\"primary\">Save</Button>",
+        "wrong": "<button className=\"bg-blue-500 text-white px-4 py-2\">Save</button>"
+      },
+      "id": "no-raw-button",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Use `<Button variant=\"primary\">` for the main action on a page and `<Button>` for other actions; never a raw `<button>`."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "token-group",
+          "path": "spacing"
+        }
+      ],
+      "basedOn": [
+        "spacing-3cdba63214d7",
+        "spacing-42c26ac990da",
+        "spacing-491f99fd851d",
+        "spacing-5a2823f215ab",
+        "spacing-84a3a13d2a5d",
+        "spacing-8aa5d22a23d1",
+        "spacing-be3401501fef"
+      ],
+      "category": "spacing",
+      "enabled": true,
+      "examples": {
+        "right": "<div className=\"p-1\">",
+        "wrong": "<div className=\"p-[2px]\">"
+      },
+      "id": "spacing-tokens-only",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Only use spacing tokens (4, 8, 10, 12, 16, 24, 32px); no arbitrary values like `p-[2px]`."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "component",
+          "name": "Button"
+        },
+        {
+          "kind": "component",
+          "name": "CTAButton"
+        },
+        {
+          "kind": "component",
+          "name": "PrimaryBtn"
+        }
+      ],
+      "basedOn": [
+        "component-e3e037724754"
+      ],
+      "category": "component",
+      "enabled": true,
+      "examples": {
+        "right": "<Button>Save</Button>",
+        "wrong": "<CTAButton>Save</CTAButton>"
+      },
+      "id": "use-component-button",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Use `<Button>` instead of `<CTAButton>` or `<PrimaryBtn>`."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "component",
+          "name": "Card"
+        },
+        {
+          "kind": "component",
+          "name": "Panel"
+        }
+      ],
+      "basedOn": [
+        "component-0f745c00ceee"
+      ],
+      "category": "component",
+      "enabled": true,
+      "examples": {
+        "right": "<Panel>…</Panel>",
+        "wrong": "<Card>…</Card>"
+      },
+      "id": "use-component-panel",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Use `<Panel>` instead of `<Card>`."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "token",
+          "path": "color.blue.500"
+        }
+      ],
+      "basedOn": [
+        "color-a0f6f4ba7b9d"
+      ],
+      "category": "color",
+      "enabled": true,
+      "examples": {
+        "right": "<div className=\"bg-blue-500\">",
+        "wrong": "<div className=\"bg-[#3a81f5]\">"
+      },
+      "id": "use-token-blue-500",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Use `blue-500` (#3b82f6) instead of #3a81f5 or #3b83f7."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "token",
+          "path": "color.gray.100"
+        }
+      ],
+      "basedOn": [
+        "color-957f8bba9d47"
+      ],
+      "category": "color",
+      "enabled": true,
+      "examples": {
+        "right": "<div className=\"bg-gray-100\">",
+        "wrong": "<div className=\"bg-[#f4f4f5]\">"
+      },
+      "id": "use-token-gray-100",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Use `gray-100` (#f3f4f6) instead of #f4f4f5."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "token",
+          "path": "color.gray.200"
+        }
+      ],
+      "basedOn": [
+        "color-5e53f2b802e6"
+      ],
+      "category": "color",
+      "enabled": true,
+      "examples": {
+        "right": "<div className=\"bg-gray-200\">",
+        "wrong": "<div className=\"bg-[#e4e4e7]\">"
+      },
+      "id": "use-token-gray-200",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Use `gray-200` (#e5e7eb) instead of #e4e4e7."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "token",
+          "path": "color.gray.50"
+        }
+      ],
+      "basedOn": [
+        "color-957d47ab7464"
+      ],
+      "category": "color",
+      "enabled": true,
+      "examples": {
+        "right": "<div className=\"bg-gray-50\">",
+        "wrong": "<div className=\"bg-[#fafafa]\">"
+      },
+      "id": "use-token-gray-50",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Use `gray-50` (#f9fafb) instead of #fafafa."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "token",
+          "path": "color.gray.500"
+        }
+      ],
+      "basedOn": [
+        "color-97ad0645bebc"
+      ],
+      "category": "color",
+      "enabled": true,
+      "examples": {
+        "right": "<div className=\"bg-gray-500\">",
+        "wrong": "<div className=\"bg-[#6b7380]\">"
+      },
+      "id": "use-token-gray-500",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Use `gray-500` (#6b7280) instead of #6b7380."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "token",
+          "path": "color.gray.700"
+        }
+      ],
+      "basedOn": [
+        "color-c330aeba4f0c"
+      ],
+      "category": "color",
+      "enabled": true,
+      "examples": {
+        "right": "<div className=\"bg-gray-700\">",
+        "wrong": "<div className=\"bg-[#334155]\">"
+      },
+      "id": "use-token-gray-700",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Use `gray-700` (#374151) instead of #334155."
     }
   ],
   "suggestions": [

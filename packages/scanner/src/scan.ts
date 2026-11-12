@@ -81,6 +81,30 @@ function tokenKey(t: { token: { $value: { hex: string; alpha?: number } } }): st
   return alpha === undefined ? hex : `${hex}${Math.round(alpha * 255).toString(16).padStart(2, "0")}`;
 }
 
+/**
+ * `basics`: the accessibility rules every system starts with.
+ * `fromAccepted`: generated from suggestions a person accepted.
+ * `yours`: written by a person or learned. `off`: turned off by a person.
+ */
+export interface RuleSummary {
+  total: number;
+  basics: number;
+  fromAccepted: number;
+  yours: number;
+  off: number;
+}
+
+/** Pure: the counts behind the report's rules line. */
+export function summarizeRules(rules: readonly Rule[]): RuleSummary {
+  return {
+    total: rules.length,
+    basics: rules.filter((r) => r.source === "generated" && !r.basedOn?.length).length,
+    fromAccepted: rules.filter((r) => r.source === "generated" && (r.basedOn?.length ?? 0) > 0).length,
+    yours: rules.filter((r) => r.source !== "generated").length,
+    off: rules.filter((r) => !r.enabled).length,
+  };
+}
+
 /** Counts behind the printed report, so the CLI and web app say the same thing. */
 export interface ScanSummary {
   filesScanned: number;
@@ -111,12 +135,7 @@ export interface ScanSummary {
     notCheckable: { total: number; textSetElsewhere: number; semiTransparent: number; tooManyCombinations: number; other: number };
     variantsNotChecked: number;
   };
-  /**
-   * `basics`: the accessibility rules every system starts with.
-   * `fromAccepted`: generated from suggestions a person accepted.
-   * `yours`: written by a person or learned. `off`: turned off by a person.
-   */
-  rules: { total: number; basics: number; fromAccepted: number; yours: number; off: number };
+  rules: RuleSummary;
   /** Stories and tests: how many, and what in them isn't in the system. They never shape it. */
   storiesAndTests: { files: number; offSystemColors: number; offScaleSpacing: number };
   /** Files at least one extractor couldn't parse. */
@@ -308,13 +327,7 @@ export function summarizeScan(result: ScanResult): ScanSummary {
       },
       variantsNotChecked: variantPlaces,
     },
-    rules: {
-      total: result.rules.length,
-      basics: result.rules.filter((r) => r.source === "generated" && !r.basedOn?.length).length,
-      fromAccepted: result.rules.filter((r) => r.source === "generated" && (r.basedOn?.length ?? 0) > 0).length,
-      yours: result.rules.filter((r) => r.source !== "generated").length,
-      off: result.rules.filter((r) => !r.enabled).length,
-    },
+    rules: summarizeRules(result.rules),
     storiesAndTests: {
       files: result.storiesAndTests.files.length,
       offSystemColors: result.storiesAndTests.offSystemColors.length,

@@ -1,6 +1,7 @@
-import { isAbsolute, relative } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { formatScanReport } from "./report.js";
+import { formatReviewReport, runReview } from "./review.js";
 import { runScan, StewardError } from "./scan.js";
 
 export interface Io {
@@ -11,7 +12,7 @@ export interface Io {
 
 const COMMANDS = [
   ["scan [path]", "Steward Setup: scan a React + Tailwind repo and build the system model"],
-  ["review", "Steward Review: check code against the system model (coming soon)"],
+  ["review [path]", "Review the scan's suggestions (the review screen is coming soon)"],
   ["context", "Steward Brief: write design.md and start the MCP server (coming soon)"],
   ["check", "Run Review locally on the working tree (coming soon)"],
 ] as const;
@@ -19,7 +20,14 @@ const COMMANDS = [
 function help(): string {
   const lines = ["Usage: steward <command> [options]", "", "Commands:"];
   for (const [name, text] of COMMANDS) lines.push(`  ${name.padEnd(13)} ${text}`);
-  lines.push("", "Options for scan:", "  --json        Print the full result as JSON instead of the report");
+  lines.push(
+    "",
+    "Options for scan:",
+    "  --json        Print the full result as JSON instead of the report",
+    "",
+    "Options for review:",
+    "  --accept-all  Accept every suggestion that has no decision yet",
+  );
   return `${lines.join("\n")}\n`;
 }
 
@@ -47,6 +55,25 @@ async function scan(args: string[], io: Io): Promise<number> {
   return 0;
 }
 
+async function review(args: string[], io: Io): Promise<number> {
+  const { values, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    options: { "accept-all": { type: "boolean", default: false }, help: { type: "boolean", short: "h", default: false } },
+  });
+  if (values.help) {
+    io.stdout(help());
+    return 0;
+  }
+  if (positionals.length > 1) throw new StewardError(`review takes one folder, but got ${positionals.length}: ${positionals.join(" ")}`);
+
+  const target = positionals[0] ?? ".";
+  const run = await runReview(resolve(io.cwd, target), { acceptAll: values["accept-all"], shownAs: target });
+  const shown = run.writtenTo ? displayPath(io.cwd, run.writtenTo) : "";
+  io.stdout(formatReviewReport(run, shown, values["accept-all"]));
+  return 0;
+}
+
 /** Runs the CLI and returns the exit code. Kept apart from `bin.ts` so it can be tested in-process. */
 export async function main(argv: string[], io: Io): Promise<number> {
   const [command, ...rest] = argv;
@@ -56,7 +83,8 @@ export async function main(argv: string[], io: Io): Promise<number> {
       return 0;
     }
     if (command === "scan") return await scan(rest, io);
-    if (COMMANDS.some(([name]) => name === command)) {
+    if (command === "review") return await review(rest, io);
+    if (COMMANDS.some(([name]) => name.split(" ")[0] === command)) {
       io.stderr(`steward ${command} isn't built yet. For now, try \`steward scan <path>\`.\n`);
       return 1;
     }

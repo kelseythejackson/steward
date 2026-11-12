@@ -1,4 +1,4 @@
-import type { ScanSummary } from "./scan.js";
+import type { RuleSummary, ScanSummary } from "./scan.js";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -82,8 +82,9 @@ function accessibilityLines(s: ScanSummary): string[] {
   return lines;
 }
 
-function rulesLine(s: ScanSummary): string {
-  const { basics, fromAccepted, yours, off } = s.rules;
+/** e.g. "Rules: 8 starter rules (6 accessibility basics, 2 from changes you accepted)". Shared by `steward scan` and `steward review`. */
+export function describeRules(rules: RuleSummary): string {
+  const { basics, fromAccepted, yours, off } = rules;
   const starter = basics + fromAccepted;
   let line =
     fromAccepted === 0
@@ -106,7 +107,7 @@ export function describeScan(summary: ScanSummary): string[] {
     spacingLine(summary),
     componentsLine(summary),
     ...accessibilityLines(summary),
-    rulesLine(summary),
+    describeRules(summary.rules),
   ];
   const st = summary.storiesAndTests;
   if (st.files > 0) {

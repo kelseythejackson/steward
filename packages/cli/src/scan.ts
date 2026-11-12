@@ -24,7 +24,7 @@ export interface ScanRun {
   writtenTo: string;
 }
 
-async function assertDirectory(path: string, shown: string): Promise<void> {
+export async function assertDirectory(path: string, shown: string): Promise<void> {
   try {
     if ((await stat(path)).isDirectory()) return;
   } catch {

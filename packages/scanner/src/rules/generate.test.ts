@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { listFiles, readSourceFiles } from "../colors/walk.js";
 import type { SourceFile } from "../colors/types.js";
 import { buildSystemModel, scanFiles, type ScanResult } from "../scan.js";
-import { generateRules, mergeRules } from "./generate.js";
+import { generateRules, mergeRules, rulesForModel } from "./generate.js";
 
 const FIXTURE = fileURLToPath(new URL("../../../../fixtures/messy-app", import.meta.url));
 const DECIDED = "2026-11-12T10:00:00.000Z";
@@ -135,6 +135,12 @@ describe("starter rules on fixtures/messy-app", () => {
       { kind: "token", path: "color.red.50" },
       { kind: "token", path: "color.red.600" },
     ]);
+  });
+
+  it("rebuilds the same rules from a saved model as a full re-scan does", () => {
+    const all = suggestions.map((s) => decide(s));
+    const saved = { ...buildSystemModel(first), decisions: all };
+    expect(rulesForModel(saved)).toEqual(scanFiles(files, { decisions: all, rules: first.rules }).rules);
   });
 
   it("gives the same rules in the same order every time", () => {
