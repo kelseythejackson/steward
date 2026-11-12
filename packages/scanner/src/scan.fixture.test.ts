@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { emptySystemModel, isToken, parseSystemModel, serializeSystemModel, type MergeDecision, type SystemModel } from "@steward/model";
+import { emptySystemModel, isToken, parseSystemModel, serializeSystemModel, type MergeDecision, type Rule, type SystemModel } from "@steward/model";
 import { beforeAll, describe, expect, it } from "vitest";
 import { readSourceFiles } from "./colors/walk.js";
 import { buildSystemModel, listFiles, scanFiles, scanRepo, summarizeScan, type ScanResult } from "./index.js";
@@ -66,11 +66,22 @@ describe("scanRepo on fixtures/messy-app", () => {
   it("keeps decisions and rules from the previous model and honors rejections", async () => {
     const blue = model.suggestions.find((s) => s.kind === "color" && s.members.includes("#3a81f5"))!;
     const decision: MergeDecision = { suggestionId: blue.id, kind: "color", members: blue.members, status: "rejected", decidedAt: "2026-11-01T00:00:00.000Z" };
-    const previous: SystemModel = { ...emptySystemModel(), decisions: [decision], rules: [{ id: "no-raw-button", severity: "warn", enabled: true }] };
+    const own: Rule = {
+      id: "headings-sentence-case",
+      text: "Headings use sentence case.",
+      category: "component",
+      appliesTo: [{ kind: "element", name: "h2" }],
+      examples: { right: "<h2>Billing details</h2>", wrong: "<h2>Billing Details</h2>" },
+      source: "user",
+      severity: "warn",
+      enabled: true,
+    };
+    const previous: SystemModel = { ...emptySystemModel(), decisions: [decision], rules: [own] };
 
-    const rescanned = buildSystemModel(await scanRepo(FIXTURE, { decisions: previous.decisions }), previous);
+    const rescanned = buildSystemModel(await scanRepo(FIXTURE, { decisions: previous.decisions, rules: previous.rules }), previous);
     expect(rescanned.decisions).toEqual([decision]);
-    expect(rescanned.rules).toEqual(previous.rules);
+    expect(rescanned.rules).toContainEqual(own);
+    expect(rescanned.rules.filter((r) => r.source === "generated").every((r) => r.category === "accessibility" && !r.basedOn)).toBe(true);
     expect(rescanned.suggestions.map((s) => s.id)).not.toContain(blue.id);
   });
 

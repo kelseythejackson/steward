@@ -200,9 +200,43 @@ export interface MergeDecision {
 
 export type RuleSeverity = "warn" | "error";
 
-/** Placeholder for Steward Review rules; fleshed out with the guard package. */
+/**
+ * Where a rule came from: `generated` by a scan (from accepted suggestions,
+ * plus the accessibility basics), written by a `user`, or `learned` from
+ * review history. Scans rebuild generated rules and never touch the others.
+ */
+export type RuleSource = "generated" | "user" | "learned";
+
+export type RuleCategory = "color" | "spacing" | "component" | "accessibility";
+
+/** What a rule is about. */
+export type RuleTarget =
+  /** One token, e.g. `{ kind: "token", path: "color.blue.500" }`. */
+  | { kind: "token"; path: string }
+  /** Every token under a group, e.g. `{ kind: "token-group", path: "spacing" }`. */
+  | { kind: "token-group"; path: string }
+  /** A component in the inventory, e.g. `{ kind: "component", name: "Button" }`. */
+  | { kind: "component"; name: string }
+  /** A raw HTML element, e.g. `{ kind: "element", name: "button" }`. */
+  | { kind: "element"; name: string };
+
+/**
+ * A short, plain-English usage rule, e.g. "Icon-only buttons need an
+ * aria-label". Read by people, by Steward Brief (for AI tools) and by
+ * Steward Review.
+ */
 export interface Rule {
+  /** Stable and readable, e.g. `use-component-button` or `a11y-img-alt`. */
   id: string;
+  /** One or two sentences in Steward's voice. */
+  text: string;
+  category: RuleCategory;
+  appliesTo: RuleTarget[];
+  /** A short snippet of code that follows the rule, and one that doesn't. */
+  examples: { right: string; wrong: string };
+  source: RuleSource;
+  /** Ids of the accepted suggestions behind a generated rule, so it can explain itself. */
+  basedOn?: string[];
   severity: RuleSeverity;
   enabled: boolean;
 }

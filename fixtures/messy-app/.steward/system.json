@@ -180,7 +180,136 @@
     }
   ],
   "decisions": [],
-  "rules": [],
+  "rules": [
+    {
+      "appliesTo": [
+        {
+          "kind": "element",
+          "name": "div"
+        },
+        {
+          "kind": "element",
+          "name": "span"
+        }
+      ],
+      "category": "accessibility",
+      "enabled": true,
+      "examples": {
+        "right": "<button onClick={openDetails}>Details</button>",
+        "wrong": "<div onClick={openDetails}>Details</div>"
+      },
+      "id": "a11y-click-target",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Click handlers go on buttons and links, not on divs or spans, so keyboard and screen reader users can reach them."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "element",
+          "name": "a"
+        },
+        {
+          "kind": "element",
+          "name": "button"
+        },
+        {
+          "kind": "element",
+          "name": "input"
+        }
+      ],
+      "category": "accessibility",
+      "enabled": true,
+      "examples": {
+        "right": "<a className=\"outline-none focus-visible:ring-2\" href=\"/billing\">Billing</a>",
+        "wrong": "<a className=\"outline-none\" href=\"/billing\">Billing</a>"
+      },
+      "id": "a11y-focus-visible",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Keep a visible focus style. If you remove the outline, add a replacement such as `focus-visible:ring-2`."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "element",
+          "name": "button"
+        }
+      ],
+      "category": "accessibility",
+      "enabled": true,
+      "examples": {
+        "right": "<button aria-label=\"Close\"><XIcon /></button>",
+        "wrong": "<button><XIcon /></button>"
+      },
+      "id": "a11y-icon-button-label",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Icon-only buttons need an aria-label that says what they do."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "element",
+          "name": "img"
+        }
+      ],
+      "category": "accessibility",
+      "enabled": true,
+      "examples": {
+        "right": "<img src=\"/team.jpg\" alt=\"The team at the 2026 offsite\" />",
+        "wrong": "<img src=\"/team.jpg\" />"
+      },
+      "id": "a11y-img-alt",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Images need alt text that describes them. Use alt=\"\" for images that are only decoration."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "element",
+          "name": "input"
+        },
+        {
+          "kind": "element",
+          "name": "select"
+        },
+        {
+          "kind": "element",
+          "name": "textarea"
+        }
+      ],
+      "category": "accessibility",
+      "enabled": true,
+      "examples": {
+        "right": "<label htmlFor=\"email\">Email</label>\n<input id=\"email\" type=\"email\" />",
+        "wrong": "<input type=\"email\" placeholder=\"Email\" />"
+      },
+      "id": "a11y-input-label",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Every input needs a label. A placeholder isn't a label, because it disappears as soon as someone types."
+    },
+    {
+      "appliesTo": [
+        {
+          "kind": "token-group",
+          "path": "color"
+        }
+      ],
+      "category": "accessibility",
+      "enabled": true,
+      "examples": {
+        "right": "<p className=\"text-gray-500 bg-white\">Due today</p>",
+        "wrong": "<p className=\"text-gray-300 bg-white\">Due today</p>"
+      },
+      "id": "a11y-text-contrast",
+      "severity": "warn",
+      "source": "generated",
+      "text": "Text needs at least 4.5:1 contrast with its background; large text (24px, or about 19px and bold), icons and form borders need 3:1. On white, body text uses `gray-500` or darker."
+    }
+  ],
   "suggestions": [
     {
       "id": "color-5e53f2b802e6",

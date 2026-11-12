@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import {
   STEWARD_EXTENSION,
   SYSTEM_MODEL_VERSION,
+  type Rule,
   type Suggestion,
   type SuggestionKind,
   type SystemModel,
@@ -92,7 +93,14 @@ export function normalizeSystemModel(model: SystemModel): SystemModel {
     decisions: model.decisions
       .map((d) => ({ ...d, members: sortedStrings(d.members) }))
       .sort((a, b) => compareStrings(a.suggestionId, b.suggestionId) || compareStrings(a.decidedAt, b.decidedAt)),
-    rules: [...model.rules].sort((a, b) => compareStrings(a.id, b.id)),
+    rules: model.rules
+      .map((r) => {
+        const targetKey = (t: Rule["appliesTo"][number]) => `${t.kind} ${"path" in t ? t.path : t.name}`;
+        const out = { ...r, appliesTo: [...r.appliesTo].sort((a, b) => compareStrings(targetKey(a), targetKey(b))) };
+        if (r.basedOn) out.basedOn = sortedStrings(r.basedOn);
+        return out;
+      })
+      .sort((a, b) => compareStrings(a.id, b.id)),
   };
 }
 

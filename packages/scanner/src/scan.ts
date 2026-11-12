@@ -4,6 +4,7 @@ import {
   STEWARD_EXTENSION,
   isToken,
   type MergeDecision,
+  type Rule,
   type Suggestion,
   type SystemModel,
   type Token,
@@ -24,11 +25,14 @@ import { collectContrast } from "./contrast/index.js";
 import { collectSpacing } from "./spacing/collect.js";
 import { suggestSpacingScale, type SpacingSuggestions } from "./spacing/suggest.js";
 import type { SpacingExtraction } from "./spacing/types.js";
+import { generateRules, mergeRules } from "./rules/generate.js";
 import { tailwindSetup } from "./tailwind.js";
 
 export interface ScanOptions {
   /** Past decisions, so rejected suggestions are never made again. */
   decisions?: readonly MergeDecision[];
+  /** Rules already in the model. Generated ones are rebuilt; the rest are kept as they are. */
+  rules?: readonly Rule[];
 }
 
 /** Everything one scan found and suggested. Plain data, safe to print as JSON. */
@@ -48,6 +52,8 @@ export interface ScanResult {
   duplicates: DuplicateReport;
   /** Contrast report. Its `tokens` and `colorSuggestions` are the color suggestions with contrast marks applied. */
   contrast: ContrastReport;
+  /** The system's rules: starter rules from this scan merged with the ones already in the model. */
+  rules: Rule[];
   /**
    * Stories and tests, scanned on their own. They never shape the system
    * (tokens, merges, the scale, component usage); this says what in them
@@ -105,6 +111,12 @@ export interface ScanSummary {
     notCheckable: { total: number; textSetElsewhere: number; semiTransparent: number; tooManyCombinations: number; other: number };
     variantsNotChecked: number;
   };
+  /**
+   * `basics`: the accessibility rules every system starts with.
+   * `fromAccepted`: generated from suggestions a person accepted.
+   * `yours`: written by a person or learned. `off`: turned off by a person.
+   */
+  rules: { total: number; basics: number; fromAccepted: number; yours: number; off: number };
   /** Stories and tests: how many, and what in them isn't in the system. They never shape it. */
   storiesAndTests: { files: number; offSystemColors: number; offScaleSpacing: number };
   /** Files at least one extractor couldn't parse. */
@@ -139,6 +151,14 @@ export function scanFiles(files: readonly SourceFile[], options: ScanOptions = {
   const storySpacing = collectSpacing(stories, setup.version, setup.rootPx);
   const inSystem = new Set(contrast.tokens.flatMap((t) => [tokenKey(t), ...(t.token.$extensions?.[STEWARD_EXTENSION]?.mergedFrom ?? [])]));
   const onScale = new Set(spacingSuggestions.scale);
+  const duplicates = findDuplicates(components.components, { decisions });
+  const generated = generateRules({
+    decisions,
+    suggestions: [...contrast.colorSuggestions, ...spacingSuggestions.suggestions, ...duplicates.suggestions, ...contrast.suggestions],
+    colorTokens: contrast.tokens,
+    spacingTokens: spacingSuggestions.tokens,
+    components: componentEntries(components.components),
+  });
   return {
     files: sorted.map((f) => f.path),
     notRead: [],
@@ -148,8 +168,9 @@ export function scanFiles(files: readonly SourceFile[], options: ScanOptions = {
     spacing,
     spacingSuggestions,
     components,
-    duplicates: findDuplicates(components.components, { decisions }),
+    duplicates,
     contrast,
+    rules: mergeRules(generated, options.rules ?? [], decisions),
     storiesAndTests: {
       files: stories.map((f) => f.path),
       colors: storyColors,
@@ -182,9 +203,10 @@ function setToken(group: TokenGroup, path: string, token: Token): void {
 }
 
 /**
- * Pure: builds the system model from a scan. Tokens, components and
- * suggestions come from the scan; decisions and rules are kept from the
- * previous model, so a re-scan never forgets what a person decided.
+ * Pure: builds the system model from a scan. Tokens, components,
+ * suggestions and rules come from the scan (pass the previous rules to it
+ * as `options.rules`); decisions are kept from the previous model, so a
+ * re-scan never forgets what a person decided.
  */
 export function buildSystemModel(result: ScanResult, previous: SystemModel | null = null): SystemModel {
   const model = emptySystemModel();
@@ -198,10 +220,8 @@ export function buildSystemModel(result: ScanResult, previous: SystemModel | nul
     ...result.contrast.suggestions,
   ];
   model.suggestions = suggestions;
-  if (previous) {
-    model.decisions = previous.decisions;
-    model.rules = previous.rules;
-  }
+  model.rules = result.rules;
+  if (previous) model.decisions = previous.decisions;
   return model;
 }
 
@@ -287,6 +307,13 @@ export function summarizeScan(result: ScanResult): ScanSummary {
         other: places.length - textSetElsewhere - semiTransparent - tooManyCombinations,
       },
       variantsNotChecked: variantPlaces,
+    },
+    rules: {
+      total: result.rules.length,
+      basics: result.rules.filter((r) => r.source === "generated" && !r.basedOn?.length).length,
+      fromAccepted: result.rules.filter((r) => r.source === "generated" && (r.basedOn?.length ?? 0) > 0).length,
+      yours: result.rules.filter((r) => r.source !== "generated").length,
+      off: result.rules.filter((r) => !r.enabled).length,
     },
     storiesAndTests: {
       files: result.storiesAndTests.files.length,

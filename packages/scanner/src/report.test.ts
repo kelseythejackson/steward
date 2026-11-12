@@ -19,6 +19,7 @@ const clean: ScanSummary = {
     notCheckable: { total: 0, textSetElsewhere: 0, semiTransparent: 0, tooManyCombinations: 0, other: 0 },
     variantsNotChecked: 0,
   },
+  rules: { total: 6, basics: 6, fromAccepted: 0, yours: 0, off: 0 },
   storiesAndTests: { files: 0, offSystemColors: 0, offScaleSpacing: 0 },
   skippedFiles: [],
   tooLarge: [],
@@ -38,6 +39,7 @@ describe("describeScan", () => {
         "Components: 2 components, no likely duplicates",
         "Accessibility: 1 color pair passes contrast",
         "  These are static checks. They catch some accessibility problems, not all.",
+        "Rules: 6 starter rules for accessibility basics (more come as you accept suggestions)",
         "",
       ].join("\n"),
     );
@@ -120,5 +122,10 @@ describe("describeScan", () => {
     expect(r).toContain("Couldn't read 1 file, so it was skipped: src/Broken.tsx\n");
     expect(r).toContain("Skipped 1 file over 1 MB, probably generated: src/generated/graphql.ts\n");
     expect(report({ ...clean, linksOutside: ["shared"] })).toContain("Didn't follow 1 link that points outside the repo or is broken: shared\n");
+  });
+
+  it("says where the rules came from, and keeps people's own rules and choices visible", () => {
+    const r = report({ ...clean, rules: { total: 10, basics: 6, fromAccepted: 3, yours: 1, off: 2 } });
+    expect(lineOf(r, "Rules:")).toBe("Rules: 9 starter rules (6 accessibility basics, 3 from changes you accepted); 1 rule of your own kept as it is; 2 turned off");
   });
 });

@@ -48,7 +48,7 @@ export async function runScan(target: string): Promise<ScanRun> {
     );
   }
 
-  const details = await scanRepo(root, { decisions: previous?.decisions ?? [] });
+  const details = await scanRepo(root, { decisions: previous?.decisions ?? [], rules: previous?.rules ?? [] });
   const model = buildSystemModel(details, previous);
   const writtenTo = await writeSystemModel(root, model);
   return {

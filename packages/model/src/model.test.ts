@@ -101,8 +101,30 @@ function sampleModel(): SystemModel {
       },
     ],
     rules: [
-      { id: "no-raw-button", severity: "warn", enabled: true },
-      { id: "img-alt", severity: "warn", enabled: true },
+      {
+        id: "no-raw-button",
+        text: "Use <Button> instead of a raw <button>.",
+        category: "component",
+        appliesTo: [
+          { kind: "element", name: "button" },
+          { kind: "component", name: "Button" },
+        ],
+        examples: { right: "<Button>Save</Button>", wrong: "<button>Save</button>" },
+        source: "generated",
+        basedOn: ["component-b", "component-a"],
+        severity: "warn",
+        enabled: true,
+      },
+      {
+        id: "img-alt",
+        text: "Images need alt text.",
+        category: "accessibility",
+        appliesTo: [{ kind: "element", name: "img" }],
+        examples: { right: '<img src="/a.png" alt="Chart of sales" />', wrong: '<img src="/a.png" />' },
+        source: "user",
+        severity: "warn",
+        enabled: true,
+      },
     ],
   };
 }
@@ -152,6 +174,11 @@ describe("serializeSystemModel", () => {
     expect(out.components[0].variants).toEqual(["ghost", "primary", "secondary"]);
     expect(out.components[0].props).toEqual(["children", "className", "variant"]);
     expect(out.rules.map((r: { id: string }) => r.id)).toEqual(["img-alt", "no-raw-button"]);
+    expect(out.rules[1].basedOn).toEqual(["component-a", "component-b"]);
+    expect(out.rules[1].appliesTo).toEqual([
+      { kind: "component", name: "Button" },
+      { kind: "element", name: "button" },
+    ]);
     expect(out.decisions[0].members).toEqual(["12px", "13px"]);
     const ids = out.suggestions.map((s: { id: string }) => s.id);
     expect(ids).toEqual([...ids].sort());
@@ -237,6 +264,14 @@ describe("parseSystemModel", () => {
     ["a decision with an unknown status", (m) => (m.decisions[0].status = "maybe"), "decisions[0].status"],
     ["a decision with a bad date", (m) => (m.decisions[0].decidedAt = "yesterday"), "decisions[0].decidedAt"],
     ["a rule with a non-boolean enabled", (m) => (m.rules[0].enabled = "yes"), "rules[0].enabled"],
+    ["a rule with no text", (m) => (m.rules[0].text = " "), "rules[0].text"],
+    ["a rule with an unknown category", (m) => (m.rules[0].category = "motion"), "rules[0].category"],
+    ["a rule with an unknown source", (m) => (m.rules[1].source = "ai"), "rules[1].source"],
+    ["a rule target of an unknown kind", (m) => (m.rules[0].appliesTo[0].kind = "page"), "rules[0].appliesTo[0].kind"],
+    ["a token target with no path", (m) => (m.rules[0].appliesTo[0] = { kind: "token" }), "rules[0].appliesTo[0].path"],
+    ["a rule with no wrong example", (m) => delete m.rules[1].examples.wrong, "rules[1].examples.wrong"],
+    ["basedOn that isn't a list", (m) => (m.rules[0].basedOn = "component-a"), "rules[0].basedOn"],
+    ["two rules with the same id", (m) => (m.rules[1].id = "no-raw-button"), "rules[1].id"],
   ];
 
   it.each(broken)("points at the exact problem for %s", (_label, breakIt, path) => {

@@ -19,6 +19,7 @@ const summary: ScanSummary = {
     notCheckable: { total: 0, textSetElsewhere: 0, semiTransparent: 0, tooManyCombinations: 0, other: 0 },
     variantsNotChecked: 0,
   },
+  rules: { total: 6, basics: 6, fromAccepted: 0, yours: 0, off: 0 },
   storiesAndTests: { files: 0, offSystemColors: 0, offScaleSpacing: 0 },
   skippedFiles: [],
   tooLarge: [],

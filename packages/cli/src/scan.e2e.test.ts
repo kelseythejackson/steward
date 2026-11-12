@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { parseSystemModel, serializeSystemModel, type MergeDecision } from "@steward/model";
+import { parseSystemModel, serializeSystemModel, type MergeDecision, type Rule } from "@steward/model";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { ScanOutput } from "./scan.js";
 
@@ -55,7 +55,7 @@ describe("steward scan (end to end)", () => {
     expect(first.stderr).toBe("");
     expect(first.code).toBe(0);
     const lines = first.stdout.split("\n");
-    expect(lines.slice(0, 8)).toEqual([
+    expect(lines.slice(0, 9)).toEqual([
       "Scanned 17 files",
       "Colors: 24 colors → 17 tokens (14 grays → 9, 4 blues → 2)",
       "Spacing: 16 values → 7-step scale from the Tailwind values you use most (9 are off the scale and could snap to it); 6 widths and heights not checked yet",
@@ -64,8 +64,9 @@ describe("steward scan (end to end)", () => {
       "  3 of the failing pairs assume a white background in some places, because the real one is set by a parent component.",
       "  10 places couldn't be checked because their text color comes from another file.",
       "  These are static checks. They catch some accessibility problems, not all.",
+      "Rules: 6 starter rules for accessibility basics (more come as you accept suggestions)",
     ]);
-    expect(lines.slice(8)).toEqual([
+    expect(lines.slice(9)).toEqual([
       "Wrote messy-app/.steward/system.json",
       "Next: open that file to see the suggestions. The review screen is coming soon.",
       "",
@@ -109,6 +110,44 @@ describe("steward scan (end to end)", () => {
     const after = parseSystemModel(await readFile(join(app, ".steward/system.json"), "utf8"), "system.json");
     expect(after.decisions).toEqual([decision]);
     expect(after.suggestions.map((s) => s.id)).not.toContain(merge.id);
+  });
+
+  it("adds starter rules for accepted suggestions and keeps a person's own rule and choices", async () => {
+    const model = parseSystemModel(systemJson, "system.json");
+    const button = model.suggestions.find((s) => s.kind === "component" && s.members.includes("PrimaryBtn"))!;
+    const decision: MergeDecision = { suggestionId: button.id, kind: button.kind, members: button.members, status: "accepted", decidedAt: "2026-11-12T10:00:00.000Z" };
+    const own: Rule = {
+      id: "headings-sentence-case",
+      text: "Headings use sentence case.",
+      category: "component",
+      appliesTo: [{ kind: "element", name: "h2" }],
+      examples: { right: "<h2>Billing details</h2>", wrong: "<h2>Billing Details</h2>" },
+      source: "user",
+      severity: "warn",
+      enabled: true,
+    };
+    const imgAltOff = { ...model.rules.find((r) => r.id === "a11y-img-alt")!, enabled: false };
+    const rules = [...model.rules.filter((r) => r.id !== "a11y-img-alt"), imgAltOff, own];
+    await writeFile(join(app, ".steward/system.json"), serializeSystemModel({ ...model, decisions: [decision], rules }));
+
+    const run = await steward(["scan", "messy-app"], work);
+    expect(run.code).toBe(0);
+    expect(run.stdout).toContain("Rules: 8 starter rules (6 accessibility basics, 2 from changes you accepted); 1 rule of your own kept as it is; 1 turned off\n");
+    const after = parseSystemModel(await readFile(join(app, ".steward/system.json"), "utf8"), "system.json");
+    expect(after.rules.map((r) => r.id)).toEqual([
+      "a11y-click-target",
+      "a11y-focus-visible",
+      "a11y-icon-button-label",
+      "a11y-img-alt",
+      "a11y-input-label",
+      "a11y-text-contrast",
+      "headings-sentence-case",
+      "no-raw-button",
+      "use-component-button",
+    ]);
+    expect(after.rules.find((r) => r.id === "a11y-img-alt")!.enabled).toBe(false);
+    expect(after.rules.find((r) => r.id === "headings-sentence-case")).toEqual(own);
+    expect(after.rules.find((r) => r.id === "use-component-button")!.basedOn).toEqual([button.id]);
   });
 
   it("leaves a broken system.json alone and says how to fix it", async () => {

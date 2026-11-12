@@ -82,6 +82,18 @@ function accessibilityLines(s: ScanSummary): string[] {
   return lines;
 }
 
+function rulesLine(s: ScanSummary): string {
+  const { basics, fromAccepted, yours, off } = s.rules;
+  const starter = basics + fromAccepted;
+  let line =
+    fromAccepted === 0
+      ? `Rules: ${plural(starter, "starter rule")} for accessibility basics (more come as you accept suggestions)`
+      : `Rules: ${plural(starter, "starter rule")} (${basics} accessibility basics, ${fromAccepted} from changes you accepted)`;
+  if (yours > 0) line += `; ${plural(yours, "rule")} of your own kept as ${yours === 1 ? "it is" : "they are"}`;
+  if (off > 0) line += `; ${off} turned off`;
+  return line;
+}
+
 /**
  * Pure: the plain-English findings of a scan, one line per area, plus notes
  * on what static checks can't see. The single source of Steward Setup's
@@ -94,6 +106,7 @@ export function describeScan(summary: ScanSummary): string[] {
     spacingLine(summary),
     componentsLine(summary),
     ...accessibilityLines(summary),
+    rulesLine(summary),
   ];
   const st = summary.storiesAndTests;
   if (st.files > 0) {

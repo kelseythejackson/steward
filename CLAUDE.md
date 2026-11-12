@@ -65,6 +65,7 @@ pnpm monorepo, TypeScript throughout.
 - Stored at `.steward/system.json` in the target repo
 - Tokens follow the W3C Design Tokens Community Group (DTCG) format (`$value`, `$type`)
 - Also stores: component inventory (name, file path, variants), merge decisions (accepted/rejected, so we never re-suggest a rejected merge), and rules
+- Rules are short plain-English usage rules (`id`, `text`, `category`, `appliesTo`, right/wrong `examples`, `source`: `generated` | `user` | `learned`). Each scan regenerates the `generated` ones (`packages/scanner/src/rules/generate.ts`): accessibility basics always, plus one rule per accepted color, component and contrast suggestion and one spacing rule. It never touches `user`/`learned` rules, keeps a person's `enabled`/`severity`, and drops a generated rule once its decision is undone
 - Every package reads and writes the model only through `packages/model`
 
 ## Tech choices

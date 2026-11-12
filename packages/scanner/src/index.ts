@@ -10,3 +10,4 @@ export { buildSystemModel, isStoryOrTest, scanFiles, scanRepo, summarizeScan, ty
 export { cssVariableDeclarations, DEFAULT_ROOT_PX, resolveCssColor, rootFontSize, rootPxOf, tailwindSetup, tailwindVersion, type TailwindSetup, type TailwindVersion } from "./tailwind.js";
 export { parseCss, resolveNested, type CssDeclaration, type CssRule } from "./css.js";
 export { describeScan } from "./report.js";
+export { generateRules, mergeRules, type RuleInputs } from "./rules/generate.js";

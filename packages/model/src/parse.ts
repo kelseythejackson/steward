@@ -24,6 +24,9 @@ const CONTRAST_USES = new Set(["text", "large-text", "ui"]);
 const SIDES = new Set(["foreground", "background"]);
 const STATUSES = new Set(["accepted", "rejected"]);
 const SEVERITIES = new Set(["warn", "error"]);
+const RULE_SOURCES = new Set(["generated", "user", "learned"]);
+const RULE_CATEGORIES = new Set(["color", "spacing", "component", "accessibility"]);
+const TARGET_KINDS = new Set(["token", "token-group", "component", "element"]);
 const HEX = /^#[0-9a-f]{6}([0-9a-f]{2})?$/i;
 
 class Checker {
@@ -213,10 +216,27 @@ class Checker {
   }
 
   rules(v: unknown): void {
+    const ids = new Set<string>();
     this.list(v, "rules").forEach((item, i) => {
       const path = `rules[${i}]`;
       const r = this.record(item, path, "a rule");
       this.string(r, "id", path, { nonEmpty: true });
+      if (ids.has(r["id"] as string)) this.fail(`${path}.id`, `a second rule with the id "${r["id"] as string}"`);
+      ids.add(r["id"] as string);
+      this.string(r, "text", path, { nonEmpty: true });
+      this.oneOf(r, "category", path, RULE_CATEGORIES);
+      this.list(r["appliesTo"], `${path}.appliesTo`).forEach((t, j) => {
+        const at = `${path}.appliesTo[${j}]`;
+        const target = this.record(t, at, 'a target like { kind: "component", name: "Button" }');
+        this.oneOf(target, "kind", at, TARGET_KINDS);
+        const key = target["kind"] === "token" || target["kind"] === "token-group" ? "path" : "name";
+        this.string(target, key, at, { nonEmpty: true });
+      });
+      const ex = this.record(r["examples"], `${path}.examples`, "an object like { right, wrong }");
+      this.string(ex, "right", `${path}.examples`, { nonEmpty: true });
+      this.string(ex, "wrong", `${path}.examples`, { nonEmpty: true });
+      this.oneOf(r, "source", path, RULE_SOURCES);
+      if (r["basedOn"] !== undefined) this.stringArray(r, "basedOn", path);
       this.oneOf(r, "severity", path, SEVERITIES);
       if (typeof r["enabled"] !== "boolean") this.fail(`${path}.enabled`, "a value that should be true or false");
     });
