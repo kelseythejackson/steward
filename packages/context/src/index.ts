@@ -1,6 +1,5 @@
 /**
- * @steward/context — Steward Brief: design.md generator and MCP server
- *
- * Placeholder export so the package builds and tests before real code lands.
+ * @steward/context — Steward Brief: design.md generator (MCP server to come).
  */
 export const PACKAGE_NAME = "@steward/context" as const;
+export { contrastRatio, DESIGN_MD_MARKER, generateDesignMd, type DesignMdOptions } from "./design-md.js";

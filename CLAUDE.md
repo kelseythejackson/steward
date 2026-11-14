@@ -93,7 +93,10 @@ pnpm steward scan fixtures/messy-app          # writes fixtures/messy-app/.stewa
 pnpm steward scan fixtures/messy-app --json   # full result as JSON (summary, model, details)
 pnpm steward review fixtures/messy-app        # lists suggestions still waiting for a decision
 pnpm steward review fixtures/messy-app --accept-all   # accepts them all and rebuilds rules (stand-in until the review screen)
+pnpm steward context fixtures/messy-app       # prints design.md (Steward Brief) built from system.json
+pnpm steward context fixtures/messy-app --file   # writes fixtures/messy-app/design.md (only over a design.md Steward wrote)
 pnpm -F cli test       # includes the end-to-end scan test (builds first, runs dist/bin.js on a temp copy of the fixture)
+pnpm -F context test   # design.md snapshot: packages/context/src/__snapshots__/messy-app.design.md (update with `pnpm -F context test -u`)
 pnpm -F web dev                        # planned (apps/web is empty)
 ```
 

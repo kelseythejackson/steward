@@ -34,7 +34,8 @@ export interface ReviewOptions {
   shownAs?: string;
 }
 
-async function readModel(root: string, shown: string): Promise<SystemModel> {
+/** Reads the repo's system model, or explains calmly why it can't. */
+export async function readModel(root: string, shown: string): Promise<SystemModel> {
   let model: SystemModel | null;
   try {
     model = await readSystemModel(root);
@@ -42,7 +43,7 @@ async function readModel(root: string, shown: string): Promise<SystemModel> {
     if (!(err instanceof SystemModelError)) throw err;
     throw new StewardError(`I couldn't read ${STEWARD_DIR}/${SYSTEM_MODEL_FILE}, so I left it as is. ${err.message}`);
   }
-  if (!model) throw new StewardError(`There's no system to review in ${shown} yet. Run \`steward scan ${shown}\` first.`);
+  if (!model) throw new StewardError(`There's no Steward system in ${shown} yet. Run \`steward scan ${shown}\` first.`);
   return model;
 }
 

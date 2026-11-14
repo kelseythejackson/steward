@@ -33,7 +33,7 @@ describe("steward review", () => {
   it("asks for a scan first when there's no system yet", async () => {
     const r = await run(["review", "messy-app"], work);
     expect(r.code).toBe(1);
-    expect(r.stderr).toBe("There's no system to review in messy-app yet. Run `steward scan messy-app` first.\n");
+    expect(r.stderr).toBe("There's no Steward system in messy-app yet. Run `steward scan messy-app` first.\n");
   });
 
   it("without --accept-all, says what's waiting and changes nothing", async () => {

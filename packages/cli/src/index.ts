@@ -7,3 +7,4 @@ export { main, type Io } from "./main.js";
 export { formatScanReport } from "./report.js";
 export { runScan, StewardError, type ScanOutput, type ScanRun } from "./scan.js";
 export { formatReviewReport, runReview, type ReviewOptions, type ReviewRun } from "./review.js";
+export { DESIGN_MD_FILE, formatContextReport, runContext, type ContextRun } from "./context.js";
