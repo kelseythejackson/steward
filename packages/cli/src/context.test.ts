@@ -1,6 +1,7 @@
 import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { generateDesignMd } from "@steward/context";
 import { parseSystemModel } from "@steward/model";
@@ -72,5 +73,79 @@ describe("steward context", () => {
     const r = await run(["context", "messy-app"], work);
     expect(r.code).toBe(1);
     expect(r.stderr).toBe("There's no Steward system in messy-app yet. Run `steward scan messy-app` first.\n");
+  });
+
+  describe("--serve", () => {
+    it("speaks MCP over stdio until the AI tool hangs up, with messages on stderr only", async () => {
+      const stdin = new PassThrough();
+      const stdoutStream = new PassThrough();
+      let stdout = "";
+      let stderr = "";
+      let protocol = "";
+      stdoutStream.on("data", (chunk: Buffer) => (protocol += chunk.toString("utf8")));
+      const running = main(["context", "messy-app", "--serve"], {
+        stdout: (t) => (stdout += t),
+        stderr: (t) => (stderr += t),
+        cwd: work,
+        stdin,
+        stdoutStream,
+      });
+
+      const send = (msg: object) => stdin.write(`${JSON.stringify(msg)}\n`);
+      const reply = async (id: number) => {
+        for (let i = 0; i < 200; i++) {
+          const line = protocol.split("\n").find((l) => l.includes(`"id":${id}`));
+          if (line) return JSON.parse(line);
+          await new Promise((r) => setTimeout(r, 5));
+        }
+        throw new Error(`no reply to ${id}; got ${protocol}`);
+      };
+      send({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0" } } });
+      expect((await reply(1)).result.serverInfo.name).toBe("steward");
+      send({ jsonrpc: "2.0", method: "notifications/initialized" });
+      send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "find_component", arguments: { need: "primary call to action" } } });
+      expect((await reply(2)).result.structuredContent.matches[0].name).toBe("Button");
+
+      stdin.end();
+      expect(await running).toBe(0);
+      expect(stdout).toBe("");
+      expect(stderr).toBe(
+        "Steward Brief is serving messy-app's design system to AI tools over stdio. It reads only .steward/system.json, and nothing leaves this machine. Press Ctrl+C to stop.\n",
+      );
+    });
+
+    it("answers requests still in flight when the AI tool hangs up", async () => {
+      const stdin = new PassThrough();
+      const stdoutStream = new PassThrough();
+      let protocol = "";
+      stdoutStream.on("data", (chunk: Buffer) => (protocol += chunk.toString("utf8")));
+      const running = main(["context", "messy-app", "--serve"], { stdout: () => {}, stderr: () => {}, cwd: work, stdin, stdoutStream });
+      const init = { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0" } };
+      stdin.end(
+        [
+          { jsonrpc: "2.0", id: 1, method: "initialize", params: init },
+          { jsonrpc: "2.0", method: "notifications/initialized" },
+          { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "get_tokens", arguments: { type: "spacing" } } },
+        ]
+          .map((m) => `${JSON.stringify(m)}\n`)
+          .join(""),
+      );
+      expect(await running).toBe(0);
+      const ids = protocol.trim().split("\n").map((l) => JSON.parse(l).id);
+      expect(ids).toEqual([1, 2]);
+    });
+
+    it("asks for a scan first instead of starting with no system", async () => {
+      await rm(join(app, ".steward"), { recursive: true });
+      const r = await run(["context", "messy-app", "--serve"], work);
+      expect(r.code).toBe(1);
+      expect(r.stderr).toBe("There's no Steward system in messy-app yet. Run `steward scan messy-app` first.\n");
+    });
+
+    it("won't do --file and --serve at once", async () => {
+      const r = await run(["context", "messy-app", "--serve", "--file"], work);
+      expect(r.code).toBe(1);
+      expect(r.stderr).toBe("Use --file or --serve, not both: --file writes design.md, --serve starts the MCP server.\n");
+    });
   });
 });

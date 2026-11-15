@@ -13,13 +13,18 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -b",
     "typecheck": "tsc -b",
     "test": "vitest run"
   },
   "dependencies": {
-    "@steward/model": "workspace:*"
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "@steward/guard": "workspace:*",
+    "@steward/model": "workspace:*",
+    "zod": "^4.6.7"
   }
 }

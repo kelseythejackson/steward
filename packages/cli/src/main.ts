@@ -1,7 +1,8 @@
 import { isAbsolute, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { formatScanReport } from "./report.js";
-import { formatContextReport, runContext } from "./context.js";
+import type { Readable, Writable } from "node:stream";
+import { formatContextReport, runContext, runServe } from "./context.js";
 import { formatReviewReport, runReview } from "./review.js";
 import { runScan, StewardError } from "./scan.js";
 
@@ -9,12 +10,15 @@ export interface Io {
   stdout: (text: string) => void;
   stderr: (text: string) => void;
   cwd: string;
+  /** Raw streams for `context --serve`, which speaks MCP over stdio. Default to the process's own. */
+  stdin?: Readable;
+  stdoutStream?: Writable;
 }
 
 const COMMANDS = [
   ["scan [path]", "Steward Setup: scan a React + Tailwind repo and build the system model"],
   ["review [path]", "Review the scan's suggestions (the review screen is coming soon)"],
-  ["context [path]", "Steward Brief: print design.md for AI coding tools (the MCP server is coming soon)"],
+  ["context [path]", "Steward Brief: give AI coding tools your system (design.md or an MCP server)"],
   ["check", "Run Review locally on the working tree (coming soon)"],
 ] as const;
 
@@ -31,6 +35,7 @@ function help(): string {
     "",
     "Options for context:",
     "  --file        Write design.md to the repo root instead of printing it",
+    "  --serve       Start the MCP server over stdio for AI coding tools",
   );
   return `${lines.join("\n")}\n`;
 }
@@ -82,7 +87,11 @@ async function context(args: string[], io: Io): Promise<number> {
   const { values, positionals } = parseArgs({
     args,
     allowPositionals: true,
-    options: { file: { type: "boolean", default: false }, help: { type: "boolean", short: "h", default: false } },
+    options: {
+      file: { type: "boolean", default: false },
+      serve: { type: "boolean", default: false },
+      help: { type: "boolean", short: "h", default: false },
+    },
   });
   if (values.help) {
     io.stdout(help());
@@ -91,6 +100,11 @@ async function context(args: string[], io: Io): Promise<number> {
   if (positionals.length > 1) throw new StewardError(`context takes one folder, but got ${positionals.length}: ${positionals.join(" ")}`);
 
   const target = positionals[0] ?? ".";
+  if (values.serve) {
+    if (values.file) throw new StewardError("Use --file or --serve, not both: --file writes design.md, --serve starts the MCP server.");
+    await runServe(resolve(io.cwd, target), { shownAs: target, log: io.stderr, stdin: io.stdin, stdout: io.stdoutStream });
+    return 0;
+  }
   const run = await runContext(resolve(io.cwd, target), { file: values.file, shownAs: target });
   io.stdout(run.writtenTo ? formatContextReport(run, displayPath(io.cwd, run.writtenTo)) : run.markdown);
   return 0;
