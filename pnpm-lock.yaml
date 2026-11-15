@@ -179,6 +179,15 @@ importers:
         specifier: ^3.0.0
         version: 3.2.7(@types/node@22.20.5)(jiti@1.21.7)(tsx@4.23.15)
 
+  eval:
+    dependencies:
+      '@steward/guard':
+        specifier: workspace:*
+        version: link:../packages/guard
+      '@steward/model':
+        specifier: workspace:*
+        version: link:../packages/model
+
   fixtures/messy-app:
     dependencies:
       react:

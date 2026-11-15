@@ -100,6 +100,10 @@ pnpm -F cli test       # includes the end-to-end scan test (builds first, runs d
 pnpm -F guard test     # drift checks (packages/guard: checkCode, shared by check_snippet and, later, the Review action)
 pnpm -F context test   # design.md snapshot: packages/context/src/__snapshots__/messy-app.design.md (update with `pnpm -F context test -u`)
 pnpm -F web dev                        # planned (apps/web is empty)
+eval/setup.sh [dest]                   # before/after test: creates ~/steward-eval/{without,with} copies of the fixture (see eval/README.md)
+eval/reset.sh ~/steward-eval/with      # puts a copy back to its baseline between runs
+pnpm eval:score ~/steward-eval/with --label pricing-1   # runs the guard checks on lines the AI tool added; saves eval/results/<copy>/<label>.json
+pnpm eval:summary                      # compares conditions (add --json for every finding)
 ```
 
 Each package's `exports` has a `source` condition pointing at `src/index.ts`.

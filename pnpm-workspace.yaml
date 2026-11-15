@@ -2,6 +2,7 @@ packages:
   - packages/*
   - apps/*
   - fixtures/*
+  - eval
 
 # Build scripts pnpm may run during install (esbuild is vitest's bundler).
 allowBuilds:

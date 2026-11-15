@@ -7,9 +7,11 @@
   },
   "scripts": {
     "build": "tsc -b packages/cli",
-    "typecheck": "tsc -b packages/cli",
+    "typecheck": "tsc -b packages/cli eval",
     "test": "vitest run",
-    "steward": "tsx --conditions=source packages/cli/src/bin.ts"
+    "steward": "tsx --conditions=source packages/cli/src/bin.ts",
+    "eval:score": "tsx --conditions=source eval/src/main.ts score",
+    "eval:summary": "tsx --conditions=source eval/src/main.ts summary"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

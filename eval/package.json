@@ -1,0 +1,15 @@
+{
+  "name": "@steward/eval",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Before/after test: does Steward Brief reduce off-system code from AI tools?",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@steward/guard": "workspace:*",
+    "@steward/model": "workspace:*"
+  }
+}
