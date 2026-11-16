@@ -51,6 +51,12 @@ describe("no-hardcoded-color", () => {
     expect(only(`<p className="text-purple-500">Hi</p>`, "no-hardcoded-color")[0]!.message).toContain("from the Tailwind palette");
   });
 
+  it("treats Tailwind opacity classes for see-through tokens as in the system", () => {
+    // The fixture system has black-40 and black-50, which Tailwind writes as bg-black/40 and bg-black/50.
+    expect(only(`<div className="bg-black/40 hover:bg-black/50" />`, "no-hardcoded-color")).toEqual([]);
+    expect(only(`<div className="bg-black/20" />`, "no-hardcoded-color").map((f) => f.found)).toEqual(["bg-black/20"]);
+  });
+
   it("keeps variants and opacity when it swaps", () => {
     expect(only(`<a className="hover:bg-[#3a81f5]/50" />`, "no-hardcoded-color")[0]!.fix.replacement).toBe("hover:bg-blue-500/50");
     expect(only(`<a className="md:text-zinc-500/40" />`, "no-hardcoded-color")[0]!.fix.replacement).toBe("md:text-gray-500/40");

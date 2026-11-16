@@ -28,6 +28,12 @@ const opaqueHex = (value: string) => value.slice(0, 7);
 const alphaOf = (value: string) => (value.length === 9 ? parseInt(value.slice(7), 16) / 255 : 1);
 const round1 = (n: number) => (Math.round(n * 10) / 10).toFixed(1);
 
+/** A see-through color that is exactly a see-through token (opacity within 1%). */
+function isSeeThroughToken(ctx: CheckContext, value: string): boolean {
+  const alpha = alphaOf(value);
+  return alpha < 1 && ctx.colors.some((t) => t.alpha !== undefined && t.hex === opaqueHex(value).toLowerCase() && Math.abs(t.alpha - alpha) < 0.01);
+}
+
 /** The closest opaque token by ΔE, comparing color only; a see-through value keeps its opacity as a modifier. */
 function nearestToken(ctx: CheckContext, value: string): Nearest | null {
   let best: Nearest | null = null;
@@ -83,6 +89,8 @@ function checkClass(ctx: CheckContext, use: ClassUse): Hit[] {
   for (const m of findNamedClassColors(use.className, theme)) {
     const base = m.raw.replace(/\/.*$/, "");
     if (tokenNames.has(base) || base === "transparent" || base === "current" || base === "inherit") continue;
+    // `bg-black/40` is how Tailwind writes a see-through token like `black-40`: same color, same opacity.
+    if (isSeeThroughToken(ctx, m.value)) continue;
     const near = nearestToken(ctx, m.value);
     if (!near) continue;
     const swapped = use.className.slice(0, use.className.lastIndexOf(m.raw)) + near.token.name + m.raw.slice(base.length) + use.className.slice(use.className.lastIndexOf(m.raw) + m.raw.length);
