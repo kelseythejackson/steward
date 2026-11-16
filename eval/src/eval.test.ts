@@ -3,7 +3,6 @@ import { checkContext } from "@steward/guard";
 import { readSystemModel, type SystemModel } from "@steward/model";
 import { beforeAll, describe, expect, it } from "vitest";
 import { allLines, parseAddedLines } from "./diff.js";
-import { replacedComponents } from "./replaced.js";
 import { promptOf, scoreFile, totalsOf, type RunResult } from "./score.js";
 import { summarize } from "./summary.js";
 
@@ -50,17 +49,6 @@ describe("parseAddedLines", () => {
   });
 });
 
-describe("replacedComponents", () => {
-  it("maps merged-away components to the one the team kept", () => {
-    expect(Object.fromEntries(replacedComponents(model))).toEqual({ Card: "Panel", CTAButton: "Button", PrimaryBtn: "Button" });
-  });
-
-  it("ignores merges nobody accepted", () => {
-    const undecided = { ...model, decisions: model.decisions.filter((d) => d.kind !== "component") };
-    expect(replacedComponents(undecided).size).toBe(0);
-  });
-});
-
 describe("scoreFile", () => {
   const code = [
     'import { Card } from "../components/Card";', // 1
@@ -78,20 +66,20 @@ describe("scoreFile", () => {
   ].join("\n");
   const added = new Set([5, 6, 7, 8, 9, 10, 11, 12]);
 
-  it("counts guard findings and replaced components on added lines only", () => {
-    const score = scoreFile("src/pages/Billing.tsx", code, added, checkContext(model), replacedComponents(model));
+  it("counts guard findings, including merged-away components, on added lines only", () => {
+    const score = scoreFile("src/pages/Billing.tsx", code, added, checkContext(model));
     expect(score.parseError).toBeUndefined();
     expect(score.addedLines).toBe(8);
     expect(score.findings.map((f) => [f.line, f.check])).toEqual([
-      [7, "replaced-component"],
-      [7, "hardcoded-color"],
-      [8, "img-alt"],
-      [9, "raw-button"],
+      [7, "use-system-component"],
+      [7, "no-hardcoded-color"],
+      [8, "a11y-img-alt"],
+      [9, "use-system-component"],
     ]);
   });
 
   it("reports a file it can't read instead of failing the run", () => {
-    const score = scoreFile("src/broken.tsx", "export const X = () => <div>", allLines("x"), checkContext(model), new Map());
+    const score = scoreFile("src/broken.tsx", "export const X = () => <div>", allLines("x"), checkContext(model));
     expect(score.parseError).toBeDefined();
     expect(score.findings).toEqual([]);
     expect(totalsOf([score]).parseErrors).toBe(1);
@@ -104,7 +92,7 @@ describe("summarize", () => {
       {
         path: "src/x.tsx",
         addedLines: lines,
-        findings: Array.from({ length: problems }, (_, i) => ({ check: "raw-button" as const, line: i + 1, column: 1, found: "<button>", message: "" })),
+        findings: Array.from({ length: problems }, (_, i) => ({ check: "use-system-component" as const, line: i + 1, column: 1, found: "<button>", message: "" })),
       },
     ];
     return { condition, label, prompt: promptOf(label), files, totals: totalsOf(files) };

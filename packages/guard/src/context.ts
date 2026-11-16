@@ -1,5 +1,4 @@
 import { compareStrings, isToken, type ComponentEntry, type Rule, type SystemModel, type Token, type TokenGroup } from "@steward/model";
-import type { CheckId } from "./findings.js";
 
 /** A color token as checks see it: its Tailwind name and value. */
 export interface ColorRef {
@@ -18,35 +17,40 @@ export interface SpacingStep {
   px: number;
 }
 
-/** The shared component to use instead of a raw `<button>`. */
-export interface ButtonRef {
+/** A shared component a rule can point people to. */
+export interface ComponentRef {
   name: string;
+  /** Repo-relative, as in the system model, e.g. `src/components/Button.tsx`. */
+  filePath: string;
+  /** For people and AI tools: `import { Button } from "src/components/Button";`. */
   importLine: string;
-  hasPrimary: boolean;
 }
 
-/** Everything the checks need from the system model, built once per model. */
+/** The shared component to use instead of a raw `<button>`. */
+export interface ButtonRef extends ComponentRef {
+  hasPrimary: boolean;
+  /** Files where a raw `<button>` is expected: the button itself and components merged into it. Sorted. */
+  files: string[];
+}
+
+/** A component a person merged away, and the one they kept. */
+export interface ReplacedComponent {
+  keeper: ComponentRef;
+  /** Every component in the merge, keeper included, sorted. */
+  members: string[];
+  /** The `use-component-*` rule generated from the merge, so a person can turn it off. */
+  systemRule?: string;
+}
+
+/** Everything the rules need from the system model, built once per model. */
 export interface CheckContext {
   colors: ColorRef[];
   spacing: SpacingStep[];
   button: ButtonRef | null;
-  /** System rules by id, so a rule a person turned off skips its check. */
+  /** Merged-away component name → what replaced it. Accepted merges only. */
+  replaced: ReadonlyMap<string, ReplacedComponent>;
+  /** System rules by id, so a rule a person turned off is skipped and their severity is used. */
   rules: ReadonlyMap<string, Rule>;
-}
-
-/** Which system rule each check enforces. Colors have none of their own: the check runs whenever there are color tokens. */
-export const CHECK_RULES: Readonly<Record<CheckId, string | undefined>> = {
-  "hardcoded-color": undefined,
-  "arbitrary-spacing": "spacing-tokens-only",
-  "raw-button": "no-raw-button",
-  "img-alt": "a11y-img-alt",
-  "icon-button-label": "a11y-icon-button-label",
-};
-
-/** A check runs unless the system has its rule and a person turned it off. */
-export function isCheckOn(ctx: CheckContext, check: CheckId): boolean {
-  const id = CHECK_RULES[check];
-  return id === undefined || ctx.rules.get(id)?.enabled !== false;
 }
 
 function flatten(group: TokenGroup, prefix = ""): { path: string; node: Token }[] {
@@ -75,7 +79,31 @@ function findButton(model: SystemModel): ButtonRef | null {
   const c =
     (named && named.kind === "component" ? shared.find((x) => x.name === named.name) : undefined) ??
     shared.find((x) => x.name === "Button" && (x.rootElements ?? ["button"]).includes("button"));
-  return c ? { name: c.name, importLine: importLine(c), hasPrimary: c.variants.includes("primary") } : null;
+  return c ? { ...componentRef(c), hasPrimary: c.variants.includes("primary"), files: [c.filePath] } : null;
+}
+
+const componentRef = (c: ComponentEntry): ComponentRef => ({ name: c.name, filePath: c.filePath, importLine: importLine(c) });
+
+/**
+ * Components merged away by an accepted merge. Suggestions waiting for a
+ * decision aren't enforced: people decide what the system is.
+ */
+function findReplaced(model: SystemModel): Map<string, ReplacedComponent> {
+  const accepted = new Set(model.decisions.filter((d) => d.kind === "component" && d.status === "accepted").map((d) => d.suggestionId));
+  const out = new Map<string, ReplacedComponent>();
+  const merges = model.suggestions.filter((s) => s.kind === "component" && accepted.has(s.id)).sort((a, b) => compareStrings(a.id, b.id));
+  for (const s of merges) {
+    if (s.kind !== "component") continue;
+    const kept = model.components
+      .filter((c) => c.name === s.proposed.name)
+      .sort((a, b) => compareStrings(a.filePath, b.filePath))[0];
+    if (!kept) continue;
+    const rule = model.rules.find((r) => r.id.startsWith("use-component-") && (r.basedOn?.includes(s.id) ?? false));
+    const entry: ReplacedComponent = { keeper: componentRef(kept), members: [...s.members].sort(compareStrings) };
+    if (rule) entry.systemRule = rule.id;
+    for (const m of s.members) if (m !== kept.name) out.set(m, entry);
+  }
+  return out;
 }
 
 export function checkContext(model: SystemModel): CheckContext {
@@ -91,5 +119,11 @@ export function checkContext(model: SystemModel): CheckContext {
     }
   }
   spacing.sort((a, b) => a.px - b.px);
-  return { colors, spacing, button: findButton(model), rules: new Map(model.rules.map((r) => [r.id, r])) };
+  const button = findButton(model);
+  const replaced = findReplaced(model);
+  if (button) {
+    const merged = model.components.filter((c) => replaced.get(c.name)?.keeper.name === button.name).map((c) => c.filePath);
+    button.files = [...new Set([...button.files, ...merged])].sort(compareStrings);
+  }
+  return { colors, spacing, button, replaced, rules: new Map(model.rules.map((r) => [r.id, r])) };
 }

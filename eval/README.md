@@ -60,8 +60,7 @@ Results are saved in `eval/results/<copy>/<label>.json`. Scoring the same label 
 
 ## What gets counted
 
-- The five Steward Review checks: colors outside the system, spacing off the scale, raw `<button>` elements, images without alt text and icon-only buttons without a label.
-- **Replaced components** (this test only): uses of a component the team merged away, such as `<Card>` when the system says `Panel`.
+- Steward Review's rules: `no-hardcoded-color`, `no-arbitrary-spacing`, `use-system-component` (raw `<button>` elements, plus components the team merged away, such as `<Card>` when the system says `Panel`), `a11y-img-alt` and `a11y-icon-button-label`.
 - **Problems per 100 added lines**, so a run that writes more code isn't penalized for that alone.
 - **Unreadable files**: files that couldn't be parsed as JSX, so nothing in them was checked.
 

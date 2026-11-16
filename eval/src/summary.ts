@@ -1,15 +1,6 @@
 import { compareStrings } from "@steward/model";
 import { EVAL_CHECKS, emptyByCheck, type RunResult } from "./score.js";
 
-const SHORT: Record<string, string> = {
-  "hardcoded-color": "Color",
-  "arbitrary-spacing": "Spacing",
-  "raw-button": "Raw button",
-  "img-alt": "Alt text",
-  "icon-button-label": "Icon label",
-  "replaced-component": "Replaced",
-};
-
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 function table(head: string[], rows: string[][]): string {
@@ -58,7 +49,7 @@ export function summarize(results: readonly RunResult[]): string {
   return [
     `Scored ${results.length} run${results.length === 1 ? "" : "s"} across ${conditions.length} condition${conditions.length === 1 ? "" : "s"}. Only lines the AI tool added are counted.`,
     "",
-    table(["Condition", "Runs", "Lines added", "Problems", "Per 100 lines", ...EVAL_CHECKS.map((k) => SHORT[k.id] ?? k.id), "Unreadable files"], overall),
+    table(["Condition", "Runs", "Lines added", "Problems", "Per 100 lines", ...EVAL_CHECKS.map((k) => k.short), "Unreadable files"], overall),
     "",
     "Average problems per run, by prompt:",
     "",

@@ -117,7 +117,7 @@ Tailwind arbitrary values in TSX:
 | `px-[18px]`  |    3 | `px-4` (16px) or `px-5` (20px)           |
 | `p-[13px]`   |    2 | `p-3` (12px)                             |
 | `mb-[7px]`   |    2 | `mb-2` (8px)                             |
-| `py-[9px]`   |    1 | `py-2` (8px)                             |
+| `py-[9px]`   |    1 | `py-2.5` (10px); halfway rounds up       |
 | `py-[13px]`  |    1 | `py-3` (12px)                            |
 | `h-[42px]`   |    1 | `h-10` (40px) or `h-11` (44px)           |
 

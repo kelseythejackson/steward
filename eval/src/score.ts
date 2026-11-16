@@ -1,14 +1,18 @@
-import { CHECKS, checkCode, readSnippet, SnippetParseError, type CheckContext, type CheckId } from "@steward/guard";
-import { compareStrings } from "@steward/model";
-import { findReplacedUses } from "./replaced.js";
+import { checkFile, RULES, SnippetParseError, type CheckContext, type RuleId } from "@steward/guard";
 
-/** The guard's checks, plus the eval-only replaced-component count. */
-export type EvalCheck = CheckId | "replaced-component";
+/** Steward Review's rules, as the eval counts them. */
+export type EvalCheck = RuleId;
 
-export const EVAL_CHECKS: readonly { id: EvalCheck; label: string }[] = [
-  ...CHECKS.map((c) => ({ id: c.id, label: c.label })),
-  { id: "replaced-component", label: "replaced components" },
-];
+/** Short column names for the summary table. */
+const SHORT: Record<RuleId, string> = {
+  "no-hardcoded-color": "Color",
+  "no-arbitrary-spacing": "Spacing",
+  "use-system-component": "Component",
+  "a11y-img-alt": "Alt text",
+  "a11y-icon-button-label": "Icon label",
+};
+
+export const EVAL_CHECKS: readonly { id: EvalCheck; label: string; short: string }[] = RULES.map((r) => ({ id: r.id, label: r.id, short: SHORT[r.id] }));
 
 export interface EvalFinding {
   check: EvalCheck;
@@ -48,33 +52,13 @@ export interface RunResult {
 export const isScored = (path: string) =>
   /\.(tsx|jsx|ts|js)$/.test(path) && !path.endsWith(".d.ts") && !/(^|\/)(node_modules|dist|\.steward)\//.test(path);
 
-/** Pure: findings on the added lines of one file. */
-export function scoreFile(
-  path: string,
-  code: string,
-  added: ReadonlySet<number>,
-  ctx: CheckContext,
-  replaced: ReadonlyMap<string, string>,
-): FileScore {
+/** Pure: findings on the added lines of one file, in the guard's order (line, column, rule). */
+export function scoreFile(path: string, code: string, added: ReadonlySet<number>, ctx: CheckContext): FileScore {
   const score: FileScore = { path, addedLines: added.size, findings: [] };
   try {
-    const guard = checkCode(code, ctx).findings.map((f) => ({
-      check: f.check as EvalCheck,
-      line: f.line,
-      column: f.column,
-      found: f.found,
-      message: f.message,
-    }));
-    const swaps = findReplacedUses(readSnippet(code), replaced).map((u) => ({
-      check: "replaced-component" as const,
-      line: u.line,
-      column: u.column,
-      found: u.found,
-      message: `Uses a component that was merged into \`${u.keeper}\`.`,
-    }));
-    score.findings = [...guard, ...swaps]
-      .filter((f) => added.has(f.line))
-      .sort((a, b) => a.line - b.line || a.column - b.column || compareStrings(a.check, b.check));
+    score.findings = checkFile({ path, code }, ctx)
+      .findings.filter((f) => added.has(f.line))
+      .map((f) => ({ check: f.rule, line: f.line, column: f.column, found: f.found, message: f.message }));
   } catch (err) {
     if (!(err instanceof SnippetParseError)) throw err;
     score.parseError = err.message;

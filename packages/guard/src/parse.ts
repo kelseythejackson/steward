@@ -12,10 +12,18 @@ export interface Position {
   column: number;
 }
 
+/** A stretch of the code as the person gave it: 0-based offsets, `end` exclusive. */
+export interface Range {
+  start: number;
+  end: number;
+}
+
 /** One class in a `className`, with where it is. */
 export interface ClassUse extends Position {
   /** A single class, e.g. `hover:bg-[#3b82f6]`. */
   className: string;
+  /** Exactly the class's characters, so a fix can swap it. */
+  range: Range;
 }
 
 /** One inline style value, e.g. `style={{ color: "#3a81f5" }}`. */
@@ -27,6 +35,9 @@ export interface StyleUse extends Position {
 
 /** One JSX element, with what the checks ask about it. */
 export interface ElementUse extends Position {
+  /** Where the tag name is in the opening tag, and in the closing tag when there is one. */
+  nameRange: Range;
+  closingNameRange?: Range;
   /** `button`, `img`, `Button`, `Icons.Close`. */
   name: string;
   /** Attribute names present, e.g. `alt`, `aria-label`. */
@@ -47,6 +58,22 @@ export interface Snippet {
   classes: ClassUse[];
   styles: StyleUse[];
   elements: ElementUse[];
+}
+
+/**
+ * A parsed source file (or snippet) that rules check. `path` is relative to
+ * the repo root, with forward slashes, like the component paths in the
+ * system model; it's absent for a loose snippet.
+ */
+export interface ParsedFile extends Snippet {
+  path?: string;
+  code: string;
+  /** True when the code parsed as a module on its own, so imports can be added to it. */
+  isModule: boolean;
+  /** Imported names and where they come from: `Button` → `"../components/Button"`. */
+  imports: ReadonlyMap<string, string>;
+  /** Where a new import line goes: after the last import, or after any directives at the top. */
+  importAt: number;
 }
 
 export class SnippetParseError extends Error {
@@ -95,7 +122,13 @@ function mayHoldClasses(path: { parent: Node; findParent: (f: (p: { node: Node }
  * `<button>…</button><img />` (wrapped in a fragment to parse). Throws
  * `SnippetParseError` when it isn't JSX that can be read.
  */
-export function readSnippet(code: string): Snippet {
+export function readSnippet(code: string): ParsedFile {
+  return parseFile({ code });
+}
+
+/** Parses a file or snippet for the rules. `path` (repo-relative) is kept on the result. */
+export function parseFile(input: { path?: string | undefined; code: string }): ParsedFile {
+  const { code } = input;
   let source = code;
   let shift = 0;
   let ast = tryParse(code);
@@ -121,9 +154,10 @@ export function readSnippet(code: string): Snippet {
     return { line: lo + 1, column };
   };
 
+  const range = (start: number, end: number): Range => ({ start: start - shift, end: end - shift });
   const snippet: Snippet = { classes: [], styles: [], elements: [] };
   const addClasses = (text: string, start: number) => {
-    for (const m of text.matchAll(/\S+/g)) snippet.classes.push({ className: m[0], ...at(start + m.index) });
+    for (const m of text.matchAll(/\S+/g)) snippet.classes.push({ className: m[0], range: range(start + m.index, start + m.index + m[0].length), ...at(start + m.index) });
   };
   traverse(ast, {
     StringLiteral(path) {
@@ -165,7 +199,10 @@ export function readSnippet(code: string): Snippet {
           }
         }
       }
+      const closing = node.closingElement;
       snippet.elements.push({
+        nameRange: range(opening.name.start!, opening.name.end!),
+        ...(closing ? { closingNameRange: range(closing.name.start!, closing.name.end!) } : {}),
         name: nameOf(opening.name),
         attributes,
         values,
@@ -182,7 +219,20 @@ export function readSnippet(code: string): Snippet {
   snippet.classes.sort(byPosition);
   snippet.styles.sort(byPosition);
   snippet.elements.sort(byPosition);
-  return snippet;
+
+  const imports = new Map<string, string>();
+  let importAt = 0;
+  const program = ast.program;
+  const lastDirective = program.directives?.at(-1);
+  if (lastDirective) importAt = lastDirective.end! - shift;
+  for (const stmt of program.body) {
+    if (stmt.type !== "ImportDeclaration") continue;
+    importAt = stmt.end! - shift;
+    for (const spec of stmt.specifiers) imports.set(spec.local.name, stmt.source.value);
+  }
+  const file: ParsedFile = { ...snippet, code, isModule: shift === 0, imports, importAt };
+  if (input.path !== undefined) file.path = input.path;
+  return file;
 }
 
 /**

@@ -161,7 +161,7 @@ describe("getRules", () => {
 describe("checkSnippet", () => {
   it("runs Steward Review's checks and describes them", () => {
     const { text, data } = checkSnippet(fixture(), `<div className="gap-5"><img src="/a.png" /></div>`);
-    expect(data.findings.map((f) => f.check)).toEqual(["arbitrary-spacing", "img-alt"]);
+    expect(data.findings.map((f) => f.rule)).toEqual(["no-arbitrary-spacing", "a11y-img-alt"]);
     expect(text.startsWith("Found 2 things to change:")).toBe(true);
     expect(text.trimEnd().endsWith(STATIC_CHECKS_NOTE)).toBe(true);
   });

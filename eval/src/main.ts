@@ -12,7 +12,6 @@ import { fileURLToPath } from "node:url";
 import { checkContext } from "@steward/guard";
 import { compareStrings, readSystemModel } from "@steward/model";
 import { allLines, parseAddedLines } from "./diff.js";
-import { replacedComponents } from "./replaced.js";
 import { EVAL_CHECKS, isScored, promptOf, scoreFile, totalsOf, type FileScore, type RunResult } from "./score.js";
 import { summarize } from "./summary.js";
 
@@ -65,11 +64,10 @@ async function scoreCommand(args: string[]): Promise<number> {
   const paths = [...new Set([...added.keys(), ...untracked])].filter(isScored).sort(compareStrings);
 
   const ctx = checkContext(model);
-  const replaced = replacedComponents(model);
   const files: FileScore[] = [];
   for (const path of paths) {
     const code = await readFile(join(copy, path), "utf8");
-    files.push(scoreFile(path, code, added.get(path) ?? allLines(code), ctx, replaced));
+    files.push(scoreFile(path, code, added.get(path) ?? allLines(code), ctx));
   }
 
   const result: RunResult = { condition, label, prompt: promptOf(label), files, totals: totalsOf(files) };

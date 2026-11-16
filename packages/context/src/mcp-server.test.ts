@@ -78,8 +78,8 @@ describe("Steward Brief MCP server", () => {
     const r = await client.callTool({ name: "check_snippet", arguments: { code } });
     expect(r.isError).toBeFalsy();
     expect(textOf(r)).toBe(checkSnippet(fixture(), code).text);
-    const findings = (r.structuredContent as { findings: { check: string; fix: { replacement?: string } }[] }).findings;
-    expect(findings.map((f) => f.check)).toEqual(["raw-button", "icon-button-label", "arbitrary-spacing"]);
+    const findings = (r.structuredContent as { findings: { rule: string; fix: { replacement?: string } }[] }).findings;
+    expect(findings.map((f) => f.rule)).toEqual(["use-system-component", "a11y-icon-button-label", "no-arbitrary-spacing"]);
   });
 
   it("check_snippet says calmly when the code isn't JSX", async () => {

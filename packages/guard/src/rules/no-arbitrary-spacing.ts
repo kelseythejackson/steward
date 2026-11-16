@@ -1,7 +1,9 @@
 import { parseSpacingClass, snapToScale } from "@steward/scanner";
-import { CHECK_RULES, type CheckContext, type SpacingStep } from "../context.js";
-import type { Finding } from "../findings.js";
-import type { ClassUse, Snippet } from "../jsx.js";
+import type { CheckContext, SpacingStep } from "../context.js";
+import type { ClassUse, ParsedFile } from "../parse.js";
+import { replaceRange, type GuardRule, type Hit } from "../rule.js";
+
+const SYSTEM_RULE = "spacing-tokens-only";
 
 /** `md:-mt-[7px]!` with property `mt` and key `2` → `md:-mt-2!`. */
 function withKey(className: string, property: string, key: string): string {
@@ -12,7 +14,7 @@ function withKey(className: string, property: string, key: string): string {
 
 const stepText = (property: string, s: SpacingStep) => `\`${property}-${s.key}\` (${s.px}px)`;
 
-function checkClass(ctx: CheckContext, use: ClassUse): Finding | null {
+function checkClass(ctx: CheckContext, use: ClassUse): Hit | null {
   const parsed = parseSpacingClass(use.className);
   // Sizes (`w-[42px]`) aren't spacing; the scanner leaves them out of the scale too.
   if (!parsed || parsed.category !== "spacing") return null;
@@ -22,7 +24,7 @@ function checkClass(ctx: CheckContext, use: ClassUse): Finding | null {
 
   const { property, px } = parsed;
   const arbitrary = use.className.includes("[");
-  const base = { check: "arbitrary-spacing" as const, ruleId: CHECK_RULES["arbitrary-spacing"]!, category: "spacing" as const, line: use.line, column: use.column, found: use.className };
+  const base = { systemRule: SYSTEM_RULE, line: use.line, column: use.column, range: use.range, found: use.className };
   const scaleText = `your scale is ${scale.join(", ")}px`;
 
   if (snap.kind === "beyond-scale") {
@@ -60,9 +62,18 @@ function checkClass(ctx: CheckContext, use: ClassUse): Finding | null {
 /**
  * Spacing outside the team's scale: arbitrary values (`p-[13px]`) and
  * Tailwind steps the scale doesn't have (`p-5` when there's no 20px step).
- * Suggests the nearest step.
+ * Suggests the nearest step. Values bigger than the largest step get advice
+ * but no automatic fix.
  */
-export function checkArbitrarySpacing(snippet: Snippet, ctx: CheckContext): Finding[] {
-  if (ctx.spacing.length === 0) return [];
-  return snippet.classes.map((c) => checkClass(ctx, c)).filter((f): f is Finding => f !== null);
-}
+export const noArbitrarySpacing: GuardRule = {
+  id: "no-arbitrary-spacing",
+  description: "Use a step from the spacing scale instead of an arbitrary value or a step the scale doesn't have.",
+  category: "spacing",
+  severity: "warn",
+  covers: (ctx) => (ctx.spacing.length === 0 ? [] : [{ label: "spacing off the scale", systemRule: SYSTEM_RULE }]),
+  check(file: ParsedFile, ctx: CheckContext): Hit[] {
+    if (ctx.spacing.length === 0) return [];
+    return file.classes.map((c) => checkClass(ctx, c)).filter((h): h is Hit => h !== null);
+  },
+  fix: (_file, hit) => replaceRange(hit),
+};
