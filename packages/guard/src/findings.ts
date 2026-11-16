@@ -2,7 +2,16 @@ import type { RuleCategory, RuleSeverity } from "@steward/model";
 import type { Position, Range } from "./parse.js";
 
 /** The rules Steward Review runs. Each lives in `rules/`. */
-export type RuleId = "no-hardcoded-color" | "no-arbitrary-spacing" | "use-system-component" | "a11y-img-alt" | "a11y-icon-button-label";
+export type RuleId =
+  | "no-hardcoded-color"
+  | "no-arbitrary-spacing"
+  | "use-system-component"
+  | "a11y-img-alt"
+  | "a11y-accessible-name"
+  | "a11y-label-inputs"
+  | "a11y-interactive-element"
+  | "a11y-focus-visible"
+  | "a11y-text-contrast";
 
 export type Severity = RuleSeverity;
 

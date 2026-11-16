@@ -16,7 +16,7 @@ const withRuleOff = (id: string): SystemModel => ({ ...model, rules: model.rules
 describe("checkContext", () => {
   it("reads tokens, the spacing scale and the shared button from the model", () => {
     const ctx = checkContext(model);
-    expect(ctx.colors.find((c) => c.name === "blue-500")).toEqual({ name: "blue-500", hex: "#3b82f6" });
+    expect(ctx.colors.find((c) => c.name === "blue-500")).toEqual({ name: "blue-500", hex: "#3b82f6", path: "color.blue.500" });
     expect(ctx.spacing.map((s) => `${s.key}=${s.px}`)).toEqual(["1=4", "2=8", "2.5=10", "3=12", "4=16", "6=24", "8=32"]);
     expect(ctx.button).toEqual({ name: "Button", filePath: "src/components/Button.tsx", importLine: 'import { Button } from "src/components/Button";', hasPrimary: true, files: ["src/components/Button.tsx", "src/components/CTAButton.tsx", "src/components/PrimaryBtn.tsx"] });
     expect(Object.fromEntries([...ctx.replaced].map(([name, r]) => [name, `${r.keeper.name} (${r.systemRule})`]))).toEqual({
@@ -132,9 +132,9 @@ describe("a11y-img-alt", () => {
   });
 });
 
-describe("a11y-icon-button-label", () => {
+describe("a11y-accessible-name", () => {
   it("flags buttons and the shared Button whose only content is an icon", () => {
-    const found = only(`<><button onClick={close}><XIcon /></button><Button variant="ghost"><svg /></Button></>`, "a11y-icon-button-label");
+    const found = only(`<><button onClick={close}><XIcon /></button><Button variant="ghost"><svg /></Button></>`, "a11y-accessible-name");
     expect(found.map((f) => f.found)).toEqual(["<button onClick={close}>", '<Button variant="ghost">']);
     expect(found[0]!.fix.description).toBe('Add an aria-label that says what it does, like `aria-label="Close dialog"`.');
   });
@@ -149,11 +149,11 @@ describe("a11y-icon-button-label", () => {
       <button><img src="x.svg" alt="Close" /></button>
       <button {...props}><XIcon /></button>
     </>`;
-    expect(only(code, "a11y-icon-button-label")).toEqual([]);
+    expect(only(code, "a11y-accessible-name")).toEqual([]);
   });
 
   it('still flags an empty aria-label=""', () => {
-    expect(only(`<button aria-label=""><XIcon /></button>`, "a11y-icon-button-label")).toHaveLength(1);
+    expect(only(`<button aria-label=""><XIcon /></button>`, "a11y-accessible-name")).toHaveLength(1);
   });
 });
 
@@ -170,7 +170,7 @@ describe("checkCode", () => {
     const code = `import { X } from "x";\ntype P = { onClose: () => void };\nexport function Close({ onClose }: P) {\n  return <button onClick={onClose}><X /></button>;\n}\n`;
     expect(checkCode(code, model).findings.map((f) => [f.rule, f.line])).toEqual([
       ["use-system-component", 4],
-      ["a11y-icon-button-label", 4],
+      ["a11y-accessible-name", 4],
     ]);
   });
 
@@ -191,6 +191,7 @@ describe("checkCode", () => {
     const code = readFileSync(`${FIXTURE}/src/components/PrimaryBtn.tsx`, "utf8");
     expect(checkCode(code, model).findings.map((f) => `${f.rule}:${f.found}`)).toEqual([
       "use-system-component:<button\n    onClick={onClick}\n    disabled={disabled}\n    className={`rounded-md bg-[#3a81f5] px-[18px] py-[9px] text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 ${\n      fullWidth ? \"w-full\" : \"\"\n    }`}\n  >",
+      "a11y-text-contrast:white on blue-500",
       "no-hardcoded-color:bg-[#3a81f5]",
       "no-arbitrary-spacing:px-[18px]",
       "no-arbitrary-spacing:py-[9px]",
@@ -229,7 +230,7 @@ describe("describeCheck", () => {
     const text = describeCheck(checkCode(`<Button variant="primary">Save</Button>`, withRuleOff("no-raw-button")));
     expect(text).toBe(
       [
-        "No problems found. Checked colors outside the system, spacing off the scale, components merged into `Button`, components merged into `Panel`, image alt text and icon-only button labels.",
+        "No problems found. Checked colors outside the system, spacing off the scale, components merged into `Button`, components merged into `Panel`, image alt text, names for icon-only buttons and links, form field labels, click handlers on divs and spans, visible focus styles and color contrast.",
         "",
         "Not checked, because their rules are turned off: raw buttons.",
         "",

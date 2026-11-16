@@ -79,7 +79,7 @@ describe("Steward Brief MCP server", () => {
     expect(r.isError).toBeFalsy();
     expect(textOf(r)).toBe(checkSnippet(fixture(), code).text);
     const findings = (r.structuredContent as { findings: { rule: string; fix: { replacement?: string } }[] }).findings;
-    expect(findings.map((f) => f.rule)).toEqual(["use-system-component", "a11y-icon-button-label", "no-arbitrary-spacing"]);
+    expect(findings.map((f) => f.rule)).toEqual(["use-system-component", "a11y-accessible-name", "no-arbitrary-spacing"]);
   });
 
   it("check_snippet says calmly when the code isn't JSX", async () => {

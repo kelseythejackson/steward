@@ -97,7 +97,9 @@ export function createBriefServer(load: ModelLoader): McpServer {
       title: "Check a snippet",
       description:
         "Checks a piece of JSX against the project's design system and returns each problem with its line, the reason and a suggested fix. " +
-        "Covers colors outside the tokens, spacing off the scale, raw <button> elements and components the team merged away, <img> without alt text and icon-only buttons without an aria-label. " +
+        "Covers colors outside the tokens, spacing off the scale, raw <button> elements and components the team merged away, " +
+        "and accessibility basics: <img> without alt text, icon-only buttons and links without a name, form fields without a label, " +
+        "click handlers on divs and spans, removed focus outlines and color pairs that fail WCAG AA contrast. " +
         "Run it on UI you've just written, before handing it back.",
       inputSchema: { code: z.string().min(1).describe("The JSX to check: a component, a file or a piece of markup.") },
       annotations: readOnly,

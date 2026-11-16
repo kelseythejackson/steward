@@ -32,7 +32,17 @@ const at = (f: Finding) => `${f.file}:${f.line}`;
 
 describe("rule modules", () => {
   it("each has a unique id, a plain-English description, a category and a warn default", () => {
-    expect(RULES.map((r) => r.id)).toEqual(["no-hardcoded-color", "no-arbitrary-spacing", "use-system-component", "a11y-img-alt", "a11y-icon-button-label"]);
+    expect(RULES.map((r) => r.id)).toEqual([
+      "no-hardcoded-color",
+      "no-arbitrary-spacing",
+      "use-system-component",
+      "a11y-img-alt",
+      "a11y-accessible-name",
+      "a11y-label-inputs",
+      "a11y-interactive-element",
+      "a11y-focus-visible",
+      "a11y-text-contrast",
+    ]);
     for (const r of RULES) {
       expect(r.description).toMatch(/^[A-Z].+\.$/);
       expect(r.severity).toBe("warn");
@@ -41,7 +51,7 @@ describe("rule modules", () => {
   });
 
   it("offers automatic fixes only where there's one safe answer", () => {
-    expect(RULES.filter((r) => r.fix).map((r) => r.id)).toEqual(["no-hardcoded-color", "no-arbitrary-spacing", "use-system-component"]);
+    expect(RULES.filter((r) => r.fix).map((r) => r.id)).toEqual(["no-hardcoded-color", "no-arbitrary-spacing", "use-system-component", "a11y-focus-visible", "a11y-text-contrast"]);
   });
 });
 
@@ -147,16 +157,23 @@ describe("use-system-component on the fixture", () => {
 });
 
 describe("applyFixes", () => {
-  it("fixes every file in the fixture without breaking it, and fixed code passes a second check", () => {
+  it("fixes every file in the fixture without breaking it, settling within a few rounds", () => {
+    // Fixes can build on each other: `text-[#9ca3af]` becomes `text-gray-400` (its token), and the
+    // next round's contrast check moves that to `text-gray-500`. Each round must parse and nothing may clash.
     for (const f of files) {
-      const first = checkFile(f, model).findings;
-      const { code, fixed, notFixed } = applyFixes(f.code, first);
-      expect(() => parseFile({ path: f.path, code }), f.path).not.toThrow();
-      // Nothing with edits was dropped for clashing.
-      expect(notFixed.filter((x) => x.fix.edits), f.path).toEqual([]);
-      const again = checkFile({ path: f.path, code }, model).findings;
-      expect(again.filter((x) => x.fix.edits), f.path).toEqual([]);
-      expect(again.length, f.path).toBe(first.length - fixed.length);
+      let code = f.code;
+      let rounds = 0;
+      for (;;) {
+        const findings = checkFile({ path: f.path, code }, model).findings;
+        const fixable = findings.filter((x) => x.fix.edits);
+        if (fixable.length === 0) break;
+        const result = applyFixes(code, findings);
+        expect(result.notFixed.filter((x) => x.fix.edits), f.path).toEqual([]);
+        expect(() => parseFile({ path: f.path, code: result.code }), f.path).not.toThrow();
+        code = result.code;
+        rounds += 1;
+        expect(rounds, f.path).toBeLessThanOrEqual(3);
+      }
     }
   });
 

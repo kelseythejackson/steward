@@ -9,7 +9,11 @@ const SHORT: Record<RuleId, string> = {
   "no-arbitrary-spacing": "Spacing",
   "use-system-component": "Component",
   "a11y-img-alt": "Alt text",
-  "a11y-icon-button-label": "Icon label",
+  "a11y-accessible-name": "Name",
+  "a11y-label-inputs": "Label",
+  "a11y-interactive-element": "Click target",
+  "a11y-focus-visible": "Focus",
+  "a11y-text-contrast": "Contrast",
 };
 
 export const EVAL_CHECKS: readonly { id: EvalCheck; label: string; short: string }[] = RULES.map((r) => ({ id: r.id, label: r.id, short: SHORT[r.id] }));

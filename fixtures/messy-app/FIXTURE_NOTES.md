@@ -190,7 +190,7 @@ file plus a distinctive attribute over exact line numbers.
 | Button text contrast (secondary)       | Button, PrimaryBtn, CTAButton |      | White on `#3b82f6` is 3.68:1 at `text-sm`. Passes 3:1 for UI, fails 4.5:1 for normal text. |
 | `<img>` without `alt`                  | `src/components/Navbar.tsx`   |   20 | Logo image has `src`, `width`, `height`, no `alt`.                     |
 | Icon-only button with no accessible name | `src/components/Modal.tsx`  |   34 | Close button contains only an inline SVG. No `aria-label`, no text.    |
-| `<input>` without a label              | `src/pages/Dashboard.tsx`     |   22 | Search input has a `placeholder` but no `<label>`, `aria-label` or `aria-labelledby`. |
+| `<input>` without a label              | `src/pages/Dashboard.tsx`     |   23 | Search input has a `placeholder` but no `<label>`, `aria-label` or `aria-labelledby`. |
 | Click handler on non-interactive element | `src/pages/Billing.tsx`     |   59 | `<div onClick>` used to select an invoice. No `role`, `tabIndex` or key handler. |
 | Focus outline removed, no replacement  | `src/components/TextField.tsx`|   18 | `outline-none` with only `focus:border-[#3b82f6]`. Border color change alone is not a sufficient focus indicator. |
 | Focus outline removed, no replacement  | `src/styles.css`              |   40 | `.legacy-input:focus { outline: none; }` with nothing else. Applied to the Dashboard search input. |

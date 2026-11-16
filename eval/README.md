@@ -60,12 +60,12 @@ Results are saved in `eval/results/<copy>/<label>.json`. Scoring the same label 
 
 ## What gets counted
 
-- Steward Review's rules: `no-hardcoded-color`, `no-arbitrary-spacing`, `use-system-component` (raw `<button>` elements, plus components the team merged away, such as `<Card>` when the system says `Panel`), `a11y-img-alt` and `a11y-icon-button-label`.
+- Steward Review's rules: `no-hardcoded-color`, `no-arbitrary-spacing`, `use-system-component` (raw `<button>` elements, plus components the team merged away, such as `<Card>` when the system says `Panel`), and the accessibility rules `a11y-img-alt`, `a11y-accessible-name`, `a11y-label-inputs`, `a11y-interactive-element`, `a11y-focus-visible` and `a11y-text-contrast`.
 - **Problems per 100 added lines**, so a run that writes more code isn't penalized for that alone.
 - **Unreadable files**: files that couldn't be parsed as JSX, so nothing in them was checked.
 
 ## Limits
 
-- These are static checks. They don't count click handlers on `div`s or removed focus outlines (Review doesn't check those yet), and they say nothing about whether the UI works or looks right.
+- These are static checks. They catch some accessibility problems, not all, and they say nothing about whether the UI works or looks right. CSS files aren't checked.
 - If the AI tool rewrites an existing line, any old problem on that line counts as new.
 - Three runs per prompt is a small sample. Look for gaps that show up consistently across prompts, not a single run.

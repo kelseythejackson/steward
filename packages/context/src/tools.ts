@@ -343,7 +343,8 @@ export function getRules(model: SystemModel, topic?: string): ToolResult<RulesDa
 /**
  * Runs Steward Review's rules on a piece of JSX: colors outside the
  * system, spacing off the scale, raw buttons and merged-away components,
- * images without alt text and icon-only buttons without a label. Throws `SnippetParseError` for code that
+ * and the static accessibility checks (alt text, names, labels, click
+ * targets, focus styles and contrast). Throws `SnippetParseError` for code that
  * isn't JSX.
  */
 export function checkSnippet(model: SystemModel, code: string): ToolResult<CheckResult> {

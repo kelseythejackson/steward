@@ -44,6 +44,10 @@ export interface ElementUse extends Position {
   attributes: ReadonlySet<string>;
   /** Static string attribute values, e.g. `alt` → `""`. */
   values: ReadonlyMap<string, string>;
+  /** Expression attribute values as written, e.g. `htmlFor={id}` → `id`, so a label can be matched to its input. */
+  expressions: ReadonlyMap<string, string>;
+  /** Enclosing JSX element names in this file, nearest first, e.g. `["label", "form"]`. */
+  ancestors: readonly string[];
   /** Has `{...props}`, so any attribute might be set. */
   spread: boolean;
   /** The opening tag as written, e.g. `<button className="p-2">`. */
@@ -96,6 +100,17 @@ function nameOf(n: N<"JSXOpeningElement">["name"]): string {
   if (n.type === "JSXIdentifier") return n.name;
   if (n.type === "JSXNamespacedName") return `${n.namespace.name}:${n.name.name}`;
   return `${nameOf(n.object as N<"JSXOpeningElement">["name"])}.${n.property.name}`;
+}
+
+/** Names of the JSX elements around a path, nearest first. */
+function ancestorsOf(path: { parentPath: { node: Node; parentPath: unknown } | null }): string[] {
+  const out: string[] = [];
+  let p = path.parentPath as { node: Node; parentPath: unknown } | null;
+  while (p) {
+    if (p.node.type === "JSXElement") out.push(nameOf(p.node.openingElement.name));
+    p = p.parentPath as { node: Node; parentPath: unknown } | null;
+  }
+  return out;
 }
 
 /** Attributes whose strings are classes: `className`, `class`, and props like `inputClassName`. */
@@ -171,6 +186,7 @@ export function parseFile(input: { path?: string | undefined; code: string }): P
       const opening = node.openingElement;
       const attributes = new Set<string>();
       const values = new Map<string, string>();
+      const expressions = new Map<string, string>();
       let spread = false;
       for (const a of opening.attributes) {
         if (a.type === "JSXSpreadAttribute") {
@@ -184,6 +200,8 @@ export function parseFile(input: { path?: string | undefined; code: string }): P
         else if (v?.type === "JSXExpressionContainer" && v.expression.type === "StringLiteral") values.set(name, v.expression.value);
         else if (v?.type === "JSXExpressionContainer" && v.expression.type === "TemplateLiteral" && v.expression.expressions.length === 0) {
           values.set(name, v.expression.quasis[0]?.value.cooked ?? "");
+        } else if (v?.type === "JSXExpressionContainer" && v.expression.type !== "JSXEmptyExpression") {
+          expressions.set(name, source.slice(v.expression.start!, v.expression.end!));
         }
 
         if (name === "style" && v?.type === "JSXExpressionContainer" && v.expression.type === "ObjectExpression") {
@@ -206,6 +224,8 @@ export function parseFile(input: { path?: string | undefined; code: string }): P
         name: nameOf(opening.name),
         attributes,
         values,
+        expressions,
+        ancestors: ancestorsOf(path),
         spread,
         openingTag: source.slice(opening.start!, opening.end!),
         source: source.slice(node.start!, node.end!),
