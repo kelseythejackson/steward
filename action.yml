@@ -1,5 +1,5 @@
 name: Steward Review
-description: Comments on off-system colors, spacing and components, and on accessibility basics, in the lines a pull request changes, with one-click fixes.
+description: "Comments on off-system colors, spacing and components, and on accessibility basics, in the lines a pull request changes, with one-click fixes."
 author: Steward
 branding:
   icon: check-circle
@@ -7,11 +7,11 @@ branding:
 
 inputs:
   path:
-    description: The folder that holds .steward/system.json, relative to the repo root.
+    description: "The folder that holds .steward/system.json, relative to the repo root."
     required: false
     default: "."
   github-token:
-    description: Token used to post comments. Needs `pull-requests: write`.
+    description: "Token used to post comments. Needs `pull-requests: write`."
     required: false
     default: ${{ github.token }}
 
