@@ -19,13 +19,10 @@ if [ -e "$DEST" ]; then
   echo "$DEST already exists. Remove it first, or pass another folder." >&2
   exit 1
 fi
-if [ ! -f "$BIN" ]; then
-  echo "The MCP server isn't built yet. Run 'pnpm build' first." >&2
-  exit 1
-fi
-for f in design.md .steward/system.json; do
-  [ -f "$FIXTURE/$f" ] || { echo "Missing $FIXTURE/$f. Run 'pnpm steward scan' and 'pnpm steward context --file' on the fixture first." >&2; exit 1; }
-done
+[ -f "$FIXTURE/.steward/system.json" ] || { echo "Missing $FIXTURE/.steward/system.json. Run 'pnpm steward scan fixtures/messy-app' first." >&2; exit 1; }
+# The "with" copy's MCP server runs from packages/cli/dist, so build it from the current source every time.
+echo "Building Steward, so the MCP server runs the current code..."
+(cd "$REPO" && pnpm -s build)
 
 PROJECT_LINE="This is Acme Metrics, a React + Tailwind web app (TypeScript). Source is in src/."
 
@@ -48,9 +45,11 @@ make_copy without
 printf '# Acme Metrics\n\n%s\n' "$PROJECT_LINE" > "$DEST/without/CLAUDE.md"
 
 make_copy with
-cp "$FIXTURE/design.md" "$DEST/with/design.md"
 mkdir -p "$DEST/with/.steward"
 cp "$FIXTURE/.steward/system.json" "$DEST/with/.steward/system.json"
+# Written from the copy, not copied from the fixture: its title comes from the renamed package ("acme-metrics"),
+# so the AI tool isn't told the app is the "messy" fixture.
+node "$BIN" context "$DEST/with" --file > /dev/null
 printf '# Acme Metrics\n\n%s\n\n@design.md\n' "$PROJECT_LINE" > "$DEST/with/CLAUDE.md"
 node -e '
   const [bin, dir, out] = process.argv.slice(1);

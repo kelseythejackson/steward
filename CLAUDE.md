@@ -110,7 +110,7 @@ pnpm -F guard test     # Review rules engine (packages/guard: one module per rul
 pnpm -F context test   # design.md snapshot: packages/context/src/__snapshots__/messy-app.design.md (update with `pnpm -F context test -u`)
 pnpm steward history import <path>   # downloads the Action's steward-history artifacts (GitHub login: GITHUB_TOKEN, GH_TOKEN or gh auth) and appends new records to <path>/.steward/history.jsonl; --repo owner/name overrides the origin remote
 STEWARD_REPO=/path/to/app pnpm -F web dev   # web app (Setup, Brief, Review, Report) on http://127.0.0.1:3000, this computer only (it writes system.json); relative paths resolve from where you ran it. The committed fixture opens read-only (it has FIXTURE_NOTES.md): use `pnpm -F web demo` to try decisions
-pnpm -F web demo       # scans a fresh temp copy of the fixture (everything waiting) and starts the app on it; the committed fixture never changes
+pnpm -F web demo       # scans a fresh temp copy of the fixture (everything waiting), adds the Report's history from real test-repo PRs (apps/web/demo/history.jsonl, see its README) and starts the app on it; the committed fixture never changes
 # Brief's "See the difference" reads scored eval runs from eval/results/<with|without>/<label>.json (+ <label>.png screenshots); STEWARD_DEMO_DIR points elsewhere
 pnpm -F web theme      # regenerates apps/web/app/steward-theme.css from the fixture's tokens (the app uses only the system's colors and spacing)
 pnpm -F web test       # theme, repo loading, summaries, and the dogfood test: Steward Review must find nothing in the app's own TSX

@@ -72,14 +72,15 @@ takes about 15 minutes.
 
 ### 1. Put the action on GitHub
 
-The workflow loads the action from the Steward repo, so the action code has to
-be pushed first. Use a branch so `main` stays as it is:
+The workflow loads the action from the Steward repo's `main` branch
+(`kelseythejackson/steward@main`), so GitHub runs whatever is pushed there.
+Commit any local changes you want to test, then push `main` and check it's up
+to date:
 
 ```sh
 cd ~/Dev/projects/steward
-git switch -c github-action
-git add -A && git commit -m "Add the Steward Review GitHub Action"
-git push -u origin github-action
+git push origin main
+git status -sb   # should say "## main...origin/main" with nothing ahead
 ```
 
 ### 2. Make the throwaway repo from the fixture
@@ -98,8 +99,7 @@ This includes `.steward/system.json`, so the system is already set up.
 
 ```sh
 mkdir -p .github/workflows
-sed 's#kelseythejackson/steward@main#kelseythejackson/steward@github-action#' \
-  ~/Dev/projects/steward/docs/github-action/steward-review.yml > .github/workflows/steward-review.yml
+cp ~/Dev/projects/steward/docs/github-action/steward-review.yml .github/workflows/steward-review.yml
 git add .github && git commit -m "Add Steward Review" && git push
 ```
 

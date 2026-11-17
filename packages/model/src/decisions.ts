@@ -130,7 +130,9 @@ export function editColorGroups(model: SystemModel, groups: readonly ColorGroupE
   // The same between the groups being saved.
   for (const a of paths) for (const b of paths) if (a !== b && b.startsWith(`${a}.`)) throw new DecisionError(`${a} and ${b} can't both be names: one contains the other.`);
 
-  const touched = (d: MergeDecision) => d.kind === "color" && d.members.some((m) => seen.has(m.toLowerCase()));
+  // A new color accepted as a token (`kind: "token"`) is replaced too: left in place, it would pin the same color
+  // under its old name beside the new group, and the next scan would fail on two tokens for one color.
+  const touched = (d: MergeDecision) => (d.kind === "color" || d.kind === "token") && d.members.some((m) => seen.has(m.toLowerCase()));
   const added: MergeDecision[] = normalized.map((g) => ({
     suggestionId: suggestionId("color", g.members),
     kind: "color",

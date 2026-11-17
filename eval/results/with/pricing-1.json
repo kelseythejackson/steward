@@ -1,0 +1,28 @@
+{
+  "condition": "with",
+  "label": "pricing-1",
+  "prompt": "pricing",
+  "files": [
+    {
+      "path": "src/pages/Billing.tsx",
+      "addedLines": 52,
+      "findings": []
+    }
+  ],
+  "totals": {
+    "addedLines": 52,
+    "problems": 0,
+    "byCheck": {
+      "no-hardcoded-color": 0,
+      "no-arbitrary-spacing": 0,
+      "use-system-component": 0,
+      "a11y-img-alt": 0,
+      "a11y-accessible-name": 0,
+      "a11y-label-inputs": 0,
+      "a11y-interactive-element": 0,
+      "a11y-focus-visible": 0,
+      "a11y-text-contrast": 0
+    },
+    "parseErrors": 0
+  }
+}

@@ -13,9 +13,12 @@ Both copies are scored against the same reference: `fixtures/messy-app/.steward/
 
 ```sh
 pnpm install
-pnpm build                       # the MCP server runs from packages/cli/dist
-eval/setup.sh                    # creates ~/steward-eval/without and ~/steward-eval/with
+eval/setup.sh                    # builds Steward, then creates ~/steward-eval/without and ~/steward-eval/with
 ```
+
+The `with` copy's MCP server runs from `packages/cli/dist`. `setup.sh` builds it,
+but if you change Steward's code afterwards, run `pnpm build` again before the
+next run, or the server keeps the old behavior.
 
 The copies have to live outside this repo. Claude Code reads every `CLAUDE.md` in parent folders, and this repo registers its own Steward MCP server, so a copy inside it would get help in both conditions.
 
