@@ -9,11 +9,13 @@ import {
   type SystemModel,
   type Token,
   type TokenGroup,
+  type TokenSuggestion,
 } from "@steward/model";
 import { collectColors, isColorSourceFile } from "./colors/collect.js";
 import { colorFamily } from "./colors/naming.js";
+import { splitNewColors, suggestNewTokens } from "./colors/new-tokens.js";
 import { suggestColorTokens } from "./colors/suggest.js";
-import type { ColorExtraction, SkippedFile, SourceFile } from "./colors/types.js";
+import type { ColorExtraction, ExtractedColor, SkippedFile, SourceFile } from "./colors/types.js";
 import { listFiles, readRepoFiles } from "./colors/walk.js";
 import { findDuplicates, type DuplicateReport } from "./components/duplicates.js";
 import { collectComponents, isComponentFile } from "./components/inventory.js";
@@ -33,6 +35,12 @@ export interface ScanOptions {
   decisions?: readonly MergeDecision[];
   /** Rules already in the model. Generated ones are rebuilt; the rest are kept as they are. */
   rules?: readonly Rule[];
+  /**
+   * Colors already in the system (see `colorsInModel`). On a re-scan, other
+   * colors don't become tokens on their own: one used in 3+ places becomes a
+   * token suggestion instead. Leave out on a first scan.
+   */
+  knownColors?: readonly string[];
 }
 
 /** Everything one scan found and suggested. Plain data, safe to print as JSON. */
@@ -52,6 +60,8 @@ export interface ScanResult {
   duplicates: DuplicateReport;
   /** Contrast report. Its `tokens` and `colorSuggestions` are the color suggestions with contrast marks applied. */
   contrast: ContrastReport;
+  /** New colors since the last scan: held out of the tokens, and suggested as tokens when used in 3+ places. */
+  newColors: { held: ExtractedColor[]; suggestions: TokenSuggestion[] };
   /** The system's rules: starter rules from this scan merged with the ones already in the model. */
   rules: Rule[];
   /**
@@ -138,6 +148,13 @@ export interface ScanSummary {
   rules: RuleSummary;
   /** Stories and tests: how many, and what in them isn't in the system. They never shape it. */
   storiesAndTests: { files: number; offSystemColors: number; offScaleSpacing: number };
+  /**
+   * Review flags marked intentional with `steward-ignore` comments. Set by
+   * the caller that records them (the CLI), since Review's rules live in guard.
+   */
+  exceptions?: number;
+  /** New colors since the last scan, held out of the tokens; `suggested` of them are suggested as tokens. Absent on a first scan. */
+  newColors?: { held: number; suggested: number };
   /** Files at least one extractor couldn't parse. */
   skippedFiles: string[];
   /** Files left out before parsing because they're too big to be hand-written. */
@@ -162,7 +179,8 @@ export function scanFiles(files: readonly SourceFile[], options: ScanOptions = {
   const components = collectComponents(sorted);
   const contrastPairs = collectContrast(sorted);
 
-  const colorSuggestions = suggestColorTokens(colors.colors, { decisions });
+  const { kept, held } = splitNewColors(colors.colors, options.knownColors, decisions);
+  const colorSuggestions = suggestColorTokens(kept, { decisions });
   const spacingSuggestions = suggestSpacingScale(spacing.values, { decisions, rootPx: setup.rootPx });
   const contrast = checkContrast(contrastPairs, colorSuggestions, { decisions });
 
@@ -189,6 +207,7 @@ export function scanFiles(files: readonly SourceFile[], options: ScanOptions = {
     components,
     duplicates,
     contrast,
+    newColors: { held, suggestions: suggestNewTokens(held, contrast.tokens.map((t) => t.path), decisions) },
     rules: mergeRules(generated, options.rules ?? [], decisions),
     storiesAndTests: {
       files: stories.map((f) => f.path),
@@ -237,6 +256,7 @@ export function buildSystemModel(result: ScanResult, previous: SystemModel | nul
     ...result.spacingSuggestions.suggestions,
     ...result.duplicates.suggestions,
     ...result.contrast.suggestions,
+    ...result.newColors.suggestions,
   ];
   model.suggestions = suggestions;
   model.rules = result.rules;
@@ -286,6 +306,7 @@ export function summarizeScan(result: ScanResult): ScanSummary {
   ].sort(compareStrings);
 
   return {
+    ...(result.newColors.held.length > 0 ? { newColors: { held: result.newColors.held.length, suggested: result.newColors.suggestions.length } } : {}),
     filesScanned: result.files.length,
     colorFamilies,
     colors: {

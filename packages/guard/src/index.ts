@@ -8,8 +8,10 @@ export { applyFixes, checkFile, coverage, type CheckOptions, type CheckResult, t
 export { checkContext, importLine, type ButtonRef, type CheckContext, type ColorRef, type ComponentRef, type ContrastFix, type ReplacedComponent, type SpacingStep } from "./context.js";
 export { allLines, parseAddedLines, type AddedLines } from "./diff.js";
 export { fingerprintOf, lineComments, markdown, RULE_LABELS, SUMMARY_MARKER, summaryComment, summaryHeadline, type LineComment, type SummaryOptions } from "./github.js";
-export { formatReview, reviewFiles, rulesOff, unknownRules, type ReviewResult, type ReviewScope, type SourceFile } from "./review.js";
-export type { Finding, Fix, RuleId, Severity, TextEdit } from "./findings.js";
+export { formatReview, isReviewable, reviewFiles, rulesOff, unknownRules, type ReviewOptions, type ReviewResult, type ReviewScope, type SourceFile } from "./review.js";
+export type { Finding, Fix, IgnoredFinding, Note, RuleId, Severity, TextEdit } from "./findings.js";
+export { parseIgnores, type IgnoreComment } from "./ignore.js";
+export { countColorUses, hexOf, PATTERN_MIN_USES, splitPatterns, type ColorUse, type ColorUses } from "./patterns.js";
 export { hasTextContent, parseFile, readSnippet, SnippetParseError, type ClassUse, type ElementUse, type ParsedFile, type Position, type Range, type Snippet, type StyleUse } from "./parse.js";
 export type { Coverage, GuardRule, Hit } from "./rule.js";
 export {

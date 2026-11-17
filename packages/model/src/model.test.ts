@@ -169,7 +169,7 @@ describe("serializeSystemModel", () => {
 
   it("sorts keys, lists and member lists", () => {
     const out = JSON.parse(serializeSystemModel(sampleModel()));
-    expect(Object.keys(out)).toEqual(["components", "decisions", "rules", "suggestions", "tokens", "version"]);
+    expect(Object.keys(out)).toEqual(["components", "decisions", "exceptions", "rules", "suggestions", "tokens", "version"]);
     expect(out.components.map((c: { name: string }) => c.name)).toEqual(["Button", "Panel"]);
     expect(out.components[0].variants).toEqual(["ghost", "primary", "secondary"]);
     expect(out.components[0].props).toEqual(["children", "className", "variant"]);
@@ -272,6 +272,9 @@ describe("parseSystemModel", () => {
     ["a rule with no wrong example", (m) => delete m.rules[1].examples.wrong, "rules[1].examples.wrong"],
     ["basedOn that isn't a list", (m) => (m.rules[0].basedOn = "component-a"), "rules[0].basedOn"],
     ["two rules with the same id", (m) => (m.rules[1].id = "no-raw-button"), "rules[1].id"],
+    ["exceptions that aren't a list", (m) => (m.exceptions = {}), "exceptions"],
+    ["an exception with no reason", (m) => (m.exceptions = [{ rule: "use-system-component", file: "a.tsx", found: "<button>", reason: "", firstSeen: "2026-11-17" }]), "exceptions[0].reason"],
+    ["an exception with a bad date", (m) => (m.exceptions = [{ rule: "use-system-component", file: "a.tsx", found: "<button>", reason: "hero", firstSeen: "today" }]), "exceptions[0].firstSeen"],
   ];
 
   it.each(broken)("points at the exact problem for %s", (_label, breakIt, path) => {
@@ -326,5 +329,55 @@ describe("readSystemModel / writeSystemModel", () => {
     await mkdir(join(repo, ".steward"), { recursive: true });
     await writeFile(systemModelPath(repo), "[]", "utf8");
     await expect(readSystemModel(repo)).rejects.toThrow(".steward/system.json has a value that should be an object");
+  });
+});
+
+describe("exceptions", () => {
+  const exception = (file: string, rule: string, reason = "marketing hero needs a custom button") => ({ rule, file, found: "<button>", reason, firstSeen: "2026-11-17" });
+
+  it("reads a system.json written before exceptions existed as having none", () => {
+    const { exceptions, ...old } = sampleModel();
+    expect(parseSystemModel(JSON.stringify(old)).exceptions).toEqual([]);
+  });
+
+  it("keeps exceptions through a write and read, sorted by file, rule, found and reason", () => {
+    const model = { ...sampleModel(), exceptions: [exception("src/b.tsx", "use-system-component"), exception("src/a.tsx", "no-hardcoded-color"), exception("src/a.tsx", "a11y-img-alt")] };
+    const out = parseSystemModel(serializeSystemModel(model));
+    expect(out.exceptions.map((e) => `${e.file} ${e.rule}`)).toEqual(["src/a.tsx a11y-img-alt", "src/a.tsx no-hardcoded-color", "src/b.tsx use-system-component"]);
+    expect(out.exceptions[0]).toEqual(exception("src/a.tsx", "a11y-img-alt"));
+  });
+});
+
+describe("token suggestions", () => {
+  const violet: ColorToken = { $type: "color", $value: { colorSpace: "srgb", components: [0.4863, 0.2275, 0.9294], hex: "#7c3aed" } };
+  const suggestion = {
+    id: "token-abc",
+    kind: "token" as const,
+    members: ["#7c3aed"],
+    proposed: { path: "color.purple.600", token: violet },
+    reason: { summary: "#7c3aed isn't in your system yet, but it's used 3 times in 2 files, so it may belong there.", evidence: { uses: 3, files: 2 } },
+    locations: [
+      { file: "src/b.tsx", line: 4, value: "bg-[#7c3aed]" },
+      { file: "src/a.tsx", line: 9, value: "bg-[#7c3aed]" },
+    ],
+  };
+  const decision = { suggestionId: "token-abc", kind: "token" as const, members: ["#7c3aed"], status: "rejected" as const, decidedAt: "2026-11-17T10:00:00.000Z" };
+
+  it("round-trip with one member, locations sorted", () => {
+    const out = parseSystemModel(serializeSystemModel({ ...sampleModel(), suggestions: [suggestion], decisions: [decision] }));
+    expect(out.suggestions).toHaveLength(1);
+    const s = out.suggestions[0]!;
+    expect(s.kind === "token" && s.locations.map((l) => l.file)).toEqual(["src/a.tsx", "src/b.tsx"]);
+    expect(out.decisions[0]).toEqual(decision);
+  });
+
+  it("need their locations", () => {
+    const { locations, ...noLocations } = suggestion;
+    expect(() => parseSystemModel(JSON.stringify({ ...sampleModel(), suggestions: [noLocations] }))).toThrow(/suggestions\[0\]\.locations/);
+  });
+
+  it("other kinds still need two members", () => {
+    const bad = { ...decision, kind: "color" as const };
+    expect(() => parseSystemModel(JSON.stringify({ ...sampleModel(), decisions: [bad] }))).toThrow(/decisions\[0\]\.members/);
   });
 });

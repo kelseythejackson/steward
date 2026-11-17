@@ -97,7 +97,7 @@ export interface ComponentEntry {
 // Merge suggestions and decisions
 // ---------------------------------------------------------------------------
 
-export type SuggestionKind = "color" | "spacing" | "component" | "contrast";
+export type SuggestionKind = "color" | "spacing" | "component" | "contrast" | "token";
 
 /** Every suggestion explains itself: a plain-English summary plus the numbers behind it. */
 export interface SuggestionReason {
@@ -150,6 +150,20 @@ export interface ComponentMergeSuggestion extends SuggestionBase {
 export type MergeSuggestion = ColorMergeSuggestion | SpacingMergeSuggestion | ComponentMergeSuggestion;
 
 /**
+ * A color that isn't in the system yet but keeps turning up (3+ places),
+ * so it may belong there. Made by a re-scan instead of quietly adding the
+ * color as a token: a person accepts or rejects it. `members` holds the
+ * one color. Accepted, it becomes a token on the next scan; rejected, it
+ * stays off-system and Review keeps flagging it.
+ */
+export interface TokenSuggestion extends SuggestionBase {
+  kind: "token";
+  proposed: { path: string; token: ColorToken };
+  /** Where it's used, so a person can see what they're deciding on. */
+  locations: UsageLocation[];
+}
+
+/**
  * What a color pair is used for, which sets the WCAG AA minimum:
  * `text` 4.5:1, `large-text` 3:1 (24px+, or 20px+ bold), `ui` 3:1
  * (form control borders and icons).
@@ -176,7 +190,7 @@ export interface ContrastSuggestion extends SuggestionBase {
   };
 }
 
-export type Suggestion = MergeSuggestion | ContrastSuggestion;
+export type Suggestion = MergeSuggestion | ContrastSuggestion | TokenSuggestion;
 
 export type DecisionStatus = "accepted" | "rejected";
 
@@ -252,4 +266,26 @@ export interface SystemModel {
   suggestions: Suggestion[];
   decisions: MergeDecision[];
   rules: Rule[];
+  /** Flags people marked intentional in the code. Optional in the file; always present once read. */
+  exceptions: Exception[];
+}
+
+/**
+ * A Review flag a person marked intentional with a comment in the code:
+ * `// steward-ignore use-system-component: marketing hero needs a custom button`.
+ * The comment is the source of truth; `steward scan` keeps this list in
+ * step with it. Approved exceptions are healthy, never drift. No line
+ * number (it changes with every edit) and no person.
+ */
+export interface Exception {
+  /** The Review rule, e.g. `use-system-component`. */
+  rule: string;
+  /** Path relative to the repo root, with forward slashes. */
+  file: string;
+  /** What the rule found, e.g. `<button className="hero-cta">`. */
+  found: string;
+  /** Why, in the person's words. */
+  reason: string;
+  /** The day a scan first recorded it, `YYYY-MM-DD`. */
+  firstSeen: string;
 }

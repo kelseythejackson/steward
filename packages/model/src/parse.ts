@@ -19,7 +19,7 @@ const isFiniteNumber = (v: unknown): v is number => typeof v === "number" && Num
 
 const COLOR_SPACES = new Set(["srgb", "display-p3", "oklch"]);
 const DIMENSION_UNITS = new Set(["px", "rem"]);
-const KINDS = new Set(["color", "spacing", "component", "contrast"]);
+const KINDS = new Set(["color", "spacing", "component", "contrast", "token"]);
 const CONTRAST_USES = new Set(["text", "large-text", "ui"]);
 const SIDES = new Set(["foreground", "background"]);
 const STATUSES = new Set(["accepted", "rejected"]);
@@ -167,7 +167,7 @@ class Checker {
       const s = this.record(item, path, "a suggestion");
       this.string(s, "id", path, { nonEmpty: true });
       this.oneOf(s, "kind", path, KINDS);
-      this.stringArray(s, "members", path, 2);
+      this.stringArray(s, "members", path, s["kind"] === "token" ? 1 : 2);
       this.reason(s["reason"], `${path}.reason`);
       const p = this.record(s["proposed"], `${path}.proposed`, "an object");
       if (s["kind"] === "contrast") {
@@ -184,8 +184,9 @@ class Checker {
         this.string(p, "name", `${path}.proposed`, { nonEmpty: true });
       } else {
         this.string(p, "path", `${path}.proposed`, { nonEmpty: true });
-        this.token(p["token"], `${path}.proposed.token`, s["kind"] === "color" ? "color" : "dimension");
+        this.token(p["token"], `${path}.proposed.token`, s["kind"] === "spacing" ? "dimension" : "color");
         if (s["kind"] === "spacing" && s["locations"] !== undefined) this.locations(s["locations"], `${path}.locations`);
+        if (s["kind"] === "token") this.locations(s["locations"], `${path}.locations`);
       }
     });
   }
@@ -206,12 +207,22 @@ class Checker {
       const d = this.record(item, path, "a merge decision");
       this.string(d, "suggestionId", path, { nonEmpty: true });
       this.oneOf(d, "kind", path, KINDS);
-      this.stringArray(d, "members", path, 2);
+      this.stringArray(d, "members", path, d["kind"] === "token" ? 1 : 2);
       this.oneOf(d, "status", path, STATUSES);
       this.string(d, "decidedAt", path);
       if (Number.isNaN(Date.parse(d["decidedAt"] as string))) {
         this.fail(`${path}.decidedAt`, "a value that should be an ISO date like 2026-11-08T12:00:00.000Z");
       }
+    });
+  }
+
+  exceptions(v: unknown): void {
+    this.list(v, "exceptions").forEach((item, i) => {
+      const path = `exceptions[${i}]`;
+      const e = this.record(item, path, "an exception like { rule, file, found, reason, firstSeen }");
+      for (const key of ["rule", "file", "found", "reason"]) this.string(e, key, path, { nonEmpty: true });
+      this.string(e, "firstSeen", path);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(e["firstSeen"] as string)) this.fail(`${path}.firstSeen`, "a value that should be a date like 2026-11-17");
     });
   }
 
@@ -270,6 +281,8 @@ export function parseSystemModel(text: string, source = ".steward/system.json"):
   check.suggestions(root["suggestions"]);
   check.decisions(root["decisions"]);
   check.rules(root["rules"]);
+  if (root["exceptions"] === undefined) root["exceptions"] = [];
+  check.exceptions(root["exceptions"]);
 
   return root as unknown as SystemModel;
 }

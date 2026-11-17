@@ -66,6 +66,9 @@ pnpm monorepo, TypeScript throughout.
 - Tokens follow the W3C Design Tokens Community Group (DTCG) format (`$value`, `$type`)
 - Also stores: component inventory (name, file path, variants), merge decisions (accepted/rejected, so we never re-suggest a rejected merge), and rules
 - Rules are short plain-English usage rules (`id`, `text`, `category`, `appliesTo`, right/wrong `examples`, `source`: `generated` | `user` | `learned`). Each scan regenerates the `generated` ones (`packages/scanner/src/rules/generate.ts`): accessibility basics always, plus one rule per accepted color, component and contrast suggestion and one spacing rule. It never touches `user`/`learned` rules, keeps a person's `enabled`/`severity`, and drops a generated rule once its decision is undone
+- Also stores `exceptions`: Review flags a person marked intentional in the code with `// steward-ignore <rule>: <reason>` (or `{/* … */}` in JSX; covers the next line, or its own line after code; a reason is required). The comments are the source of truth: `steward check` honors them at once, and `steward scan` syncs the list (rule, file, found, reason, firstSeen; no line, no person)
+- New colors: the first scan makes every color in use a token. On a re-scan, a color that wasn't in the system (and isn't defined in the Tailwind config or a CSS variable) is held out of the tokens; one used in 3+ places becomes a `token` suggestion that a person accepts (it joins the system on the next scan) or rejects (it stays drift and is never suggested again) with `steward review`
+- Pattern detection (Review): a hex color with no matching token that's used in 3+ places across the repo is suggested as a token instead of flagged, pointing at `steward scan`/`steward review` (colors only; never fails error mode). Once its token suggestion is rejected, Review flags it again
 - Every package reads and writes the model only through `packages/model`
 
 ## Tech choices
