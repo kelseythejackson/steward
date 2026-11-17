@@ -110,6 +110,7 @@ pnpm -F guard test     # Review rules engine (packages/guard: one module per rul
 pnpm -F context test   # design.md snapshot: packages/context/src/__snapshots__/messy-app.design.md (update with `pnpm -F context test -u`)
 STEWARD_REPO=fixtures/messy-app pnpm -F web dev   # web app (Setup, Brief, Review, Report) on http://localhost:3000, reading that repo's .steward/; decisions on Setup write its system.json and re-scan (relative paths resolve from where you ran it)
 pnpm -F web demo       # scans a fresh temp copy of the fixture (everything waiting) and starts the app on it; the committed fixture never changes
+# Brief's "See the difference" reads scored eval runs from eval/results/<with|without>/<label>.json (+ <label>.png screenshots); STEWARD_DEMO_DIR points elsewhere
 pnpm -F web theme      # regenerates apps/web/app/steward-theme.css from the fixture's tokens (the app uses only the system's colors and spacing)
 pnpm -F web test       # theme, repo loading, summaries, and the dogfood test: Steward Review must find nothing in the app's own TSX
 eval/setup.sh [dest]                   # before/after test: creates ~/steward-eval/{without,with} copies of the fixture (see eval/README.md)

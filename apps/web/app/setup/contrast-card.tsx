@@ -25,6 +25,7 @@ export function ContrastCard({ data, names, busy, run }: { data: ReviewData["con
   return (
     <ReviewCard
       id={titleId}
+      anchor="contrast"
       title="Contrast"
       summary={`${plural(data.length, "pair")} below WCAG AA`}
       actions={

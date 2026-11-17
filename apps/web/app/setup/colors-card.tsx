@@ -31,6 +31,7 @@ export function ColorsCard({ data, busy, run }: { data: ReviewData["colors"]; bu
   return (
     <ReviewCard
       id={titleId}
+      anchor="colors"
       title="Colors"
       summary={`${plural(data.found.length, "color")} → ${plural(data.tokens.length, "token")}`}
       actions={

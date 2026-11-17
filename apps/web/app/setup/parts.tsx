@@ -2,9 +2,9 @@ import type { ReactNode } from "react";
 import type { Status } from "../../lib/review-data";
 
 /** A card on the review screen: title and summary, the before/after, then its actions. */
-export function ReviewCard({ id, title, summary, children, actions }: { id: string; title: string; summary: string; children: ReactNode; actions: ReactNode }) {
+export function ReviewCard({ id, anchor, title, summary, children, actions }: { id: string; anchor?: string; title: string; summary: string; children: ReactNode; actions: ReactNode }) {
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-6">
+    <section id={anchor} aria-labelledby={id} className="flex scroll-mt-6 flex-col gap-4 rounded-lg border border-gray-200 bg-white p-6">
       <header className="flex items-baseline justify-between gap-4">
         <h2 id={id} className="text-lg font-semibold text-gray-900">
           {title}

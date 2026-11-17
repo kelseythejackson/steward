@@ -18,6 +18,7 @@ export function SpacingCard({ data, busy, run }: { data: ReviewData["spacing"]; 
   return (
     <ReviewCard
       id={titleId}
+      anchor="spacing"
       title="Spacing"
       summary={`${plural(found, "value")} → ${data.scale.length}-step scale`}
       actions={

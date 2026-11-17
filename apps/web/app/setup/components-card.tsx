@@ -15,6 +15,7 @@ export function ComponentsCard({ data, busy, run }: { data: ReviewData["componen
   return (
     <ReviewCard
       id={titleId}
+      anchor="components"
       title="Components"
       summary={plural(data.length, "likely duplicate group")}
       actions={

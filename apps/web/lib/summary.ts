@@ -1,5 +1,5 @@
 /** Pure: the counts the pages show. Totals only: nothing per person, PR or author. */
-import { isToken, pendingSuggestions, type HistoryRecord, type SystemModel, type TokenGroup } from "@steward/model";
+import { isToken, pendingSuggestions, type SystemModel, type TokenGroup } from "@steward/model";
 
 function countTokens(group: TokenGroup, type: string): number {
   return Object.entries(group)
@@ -22,16 +22,5 @@ export function reviewSummary(model: SystemModel) {
     rulesOn: model.rules.filter((r) => r.enabled).length,
     rulesOff: model.rules.filter((r) => !r.enabled).length,
     exceptions: model.exceptions.length,
-  };
-}
-
-/** Checks recorded, the dates they span, and how many were on pull requests, all as totals. */
-export function reportSummary(history: readonly HistoryRecord[]) {
-  const dates = history.map((r) => r.date).sort();
-  return {
-    checks: history.length,
-    first: dates[0] ?? null,
-    latest: dates.at(-1) ?? null,
-    pullRequests: new Set(history.flatMap((r) => (r.pr === null ? [] : [r.pr]))).size,
   };
 }

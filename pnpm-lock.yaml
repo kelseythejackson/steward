@@ -184,6 +184,9 @@ importers:
       '@steward/cli':
         specifier: workspace:*
         version: link:../../packages/cli
+      '@steward/context':
+        specifier: workspace:*
+        version: link:../../packages/context
       '@steward/model':
         specifier: workspace:*
         version: link:../../packages/model
