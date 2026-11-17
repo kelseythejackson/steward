@@ -69,6 +69,16 @@ export interface CheckContext {
   contrastFixes: ReadonlyMap<string, ContrastFix>;
   /** System rules by id, so a rule a person turned off is skipped and their severity is used. */
   rules: ReadonlyMap<string, Rule>;
+  /** Where each new color's token suggestion stands, by lowercase hex. Colors with none aren't listed. */
+  tokenSuggestions: ReadonlyMap<string, "pending" | "accepted" | "rejected">;
+}
+
+/** From the model: token suggestions waiting for a decision, and decided ones (even if the suggestion is gone). */
+function findTokenSuggestions(model: SystemModel): Map<string, "pending" | "accepted" | "rejected"> {
+  const out = new Map<string, "pending" | "accepted" | "rejected">();
+  for (const s of model.suggestions) if (s.kind === "token") for (const m of s.members) out.set(m.toLowerCase(), "pending");
+  for (const d of model.decisions) if (d.kind === "token") for (const m of d.members) out.set(m.toLowerCase(), d.status);
+  return out;
 }
 
 export const contrastKey = (foreground: string, background: string, use: string) => `${foreground.toLowerCase()}|${background.toLowerCase()}|${use}`;
@@ -162,5 +172,13 @@ export function checkContext(model: SystemModel): CheckContext {
     const merged = model.components.filter((c) => replaced.get(c.name)?.keeper.name === button.name).map((c) => c.filePath);
     button.files = [...new Set([...button.files, ...merged])].sort(compareStrings);
   }
-  return { colors, spacing, button, replaced, contrastFixes: findContrastFixes(model), rules: new Map(model.rules.map((r) => [r.id, r])) };
+  return {
+    colors,
+    spacing,
+    button,
+    replaced,
+    contrastFixes: findContrastFixes(model),
+    rules: new Map(model.rules.map((r) => [r.id, r])),
+    tokenSuggestions: findTokenSuggestions(model),
+  };
 }

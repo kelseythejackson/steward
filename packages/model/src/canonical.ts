@@ -39,6 +39,7 @@ export function emptySystemModel(): SystemModel {
     suggestions: [],
     decisions: [],
     rules: [],
+    exceptions: [],
   };
 }
 
@@ -80,6 +81,10 @@ export function normalizeSystemModel(model: SystemModel): SystemModel {
         const members = sortedStrings(s.members);
         if (s.kind === "contrast") return { ...s, members, proposed: { ...s.proposed, token: normalizeToken(s.proposed.token) } };
         if (s.kind === "color") return { ...s, members, proposed: { ...s.proposed, token: normalizeToken(s.proposed.token) } };
+        if (s.kind === "token") {
+          const locations = [...s.locations].sort((a, b) => compareStrings(a.file, b.file) || a.line - b.line || compareStrings(a.value, b.value));
+          return { ...s, members, locations, proposed: { ...s.proposed, token: normalizeToken(s.proposed.token) } };
+        }
         if (s.kind === "spacing") {
           const out = { ...s, members, proposed: { ...s.proposed, token: normalizeToken(s.proposed.token) } };
           if (s.locations) {
@@ -101,6 +106,9 @@ export function normalizeSystemModel(model: SystemModel): SystemModel {
         return out;
       })
       .sort((a, b) => compareStrings(a.id, b.id)),
+    exceptions: [...(model.exceptions ?? [])].sort(
+      (a, b) => compareStrings(a.file, b.file) || compareStrings(a.rule, b.rule) || compareStrings(a.found, b.found) || compareStrings(a.reason, b.reason),
+    ),
   };
 }
 

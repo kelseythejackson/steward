@@ -77,6 +77,9 @@ describe("steward check", () => {
       findings: 4,
       exactFixes: 1,
       byRule: { "no-hardcoded-color": 1, "no-arbitrary-spacing": 1, "a11y-img-alt": 1, "a11y-text-contrast": 1 },
+      tokenSuggestions: 0,
+      exceptions: 0,
+      notes: 0,
     });
   });
 

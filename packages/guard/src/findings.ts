@@ -37,6 +37,8 @@ export interface Finding extends Position {
   category: RuleCategory;
   /** Repo-relative path, when the code came from a file. */
   file?: string;
+  /** Set when the value is used in enough places to suggest adding it to the system, rather than flag it. */
+  pattern?: { value: string; uses: number; files: number };
   /** The system rule this enforces, when the model has one (e.g. `spacing-tokens-only`), so a person can turn it off. */
   systemRule?: string;
   /** The code that was flagged, e.g. a class or an element's opening tag. */
@@ -46,4 +48,23 @@ export interface Finding extends Position {
   /** The facts behind it, e.g. "ΔE 0.6 from blue-500 (#3b82f6)". */
   evidence: string;
   fix: Fix;
+}
+
+/** A finding a person marked intentional with a `steward-ignore` comment. Healthy, not drift. */
+export interface IgnoredFinding {
+  finding: Finding;
+  /** The reason from the comment. */
+  reason: string;
+  /** The line the comment is on. */
+  commentLine: number;
+}
+
+/** Something to know about a `steward-ignore` comment: no reason, an unknown rule, or nothing to ignore. */
+export interface Note {
+  file?: string;
+  /** The comment's line. */
+  line: number;
+  /** The line the comment covers. */
+  covers: number;
+  message: string;
 }

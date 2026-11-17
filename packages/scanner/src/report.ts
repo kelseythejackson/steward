@@ -1,3 +1,4 @@
+import { NEW_TOKEN_MIN_USES } from "./colors/new-tokens.js";
 import type { RuleSummary, ScanSummary } from "./scan.js";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -109,6 +110,15 @@ export function describeScan(summary: ScanSummary): string[] {
     ...accessibilityLines(summary),
     describeRules(summary.rules),
   ];
+  if (summary.newColors) {
+    const { held, suggested } = summary.newColors;
+    const rest = held - suggested;
+    const parts = [`New colors since the last scan: ${plural(held, "color")} kept out of your system for now`];
+    if (suggested > 0) parts.push(`${suggested === 1 ? "1 is" : `${suggested} are`} used in ${NEW_TOKEN_MIN_USES}+ places, so ${suggested === 1 ? "it's" : "they're"} suggested as ${suggested === 1 ? "a token" : "tokens"} for you to accept or reject`);
+    if (rest > 0) parts.push(`${rest === held ? (rest === 1 ? "it stays" : "they stay") : rest === 1 ? "the other stays" : "the others stay"} off-system, and Review flags ${rest === 1 ? "it" : "them"}`);
+    lines.push(parts.join("; "));
+  }
+  if (summary.exceptions) lines.push(`Exceptions: ${plural(summary.exceptions, "flag")} marked intentional in the code, each with a reason (recorded in system.json)`);
   const st = summary.storiesAndTests;
   if (st.files > 0) {
     const off: string[] = [];

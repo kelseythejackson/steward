@@ -33,6 +33,10 @@ export function describeCheck(result: CheckResult): string {
       if (r && !r.includes("\n") && r.length <= MAX_INLINE_REPLACEMENT) lines.push(`   Replace with: \`${r}\``);
     });
   }
+  if (result.ignored.length > 0) {
+    lines.push("", `Marked intentional with steward-ignore: ${result.ignored.map((i) => `line ${i.finding.line} (${i.finding.rule}: ${i.reason})`).join("; ")}.`);
+  }
+  for (const n of result.notes) lines.push("", `Line ${n.line}: ${n.message}`);
   if (skipped.length > 0) lines.push("", `Not checked, because their rules are turned off: ${list(skipped)}.`);
   lines.push("", STATIC_CHECKS_NOTE);
   return `${lines.join("\n")}\n`;

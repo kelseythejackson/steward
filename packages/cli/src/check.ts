@@ -7,9 +7,11 @@ import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
-import { allLines, parseAddedLines, reviewFiles, RULES, unknownRules, type ReviewResult, type ReviewScope, type SourceFile } from "@steward/guard";
+import { allLines, countColorUses, isReviewable, parseAddedLines, reviewFiles, RULES, unknownRules, type ReviewResult, type ReviewScope, type SourceFile } from "@steward/guard";
 import { readStewardConfig, STEWARD_DIR, CONFIG_FILE, StewardConfigError, type StewardConfig } from "@steward/model";
 import { readModel } from "./review.js";
+
+export { isReviewable };
 import { assertDirectory, StewardError } from "./scan.js";
 
 export interface CheckOptions {
@@ -23,7 +25,16 @@ export interface CheckOptions {
 
 /** What `steward check --json` prints. */
 export interface CheckJson extends ReviewResult {
-  summary: { files: number; changedLines?: number; findings: number; exactFixes: number; byRule: Record<string, number> };
+  summary: {
+    files: number;
+    changedLines?: number;
+    findings: number;
+    exactFixes: number;
+    byRule: Record<string, number>;
+    tokenSuggestions: number;
+    exceptions: number;
+    notes: number;
+  };
 }
 
 const run = promisify(execFile);
@@ -40,12 +51,6 @@ async function gitOk(root: string, args: string[]): Promise<string | null> {
     return null;
   }
 }
-
-/** Files Review reads: TSX and JSX, but not stories and tests (kept out of the system, as in Setup) or build output. */
-export const isReviewable = (path: string) =>
-  /\.(?:tsx|jsx)$/.test(path) &&
-  !/\.(?:stories|story|test|spec)\.[jt]sx$/.test(path) &&
-  !/(?:^|\/)(?:__tests__|__stories__|\.storybook|node_modules|dist|build|\.next|\.steward)\//.test(path);
 
 const zList = (out: string) => out.split("\0").filter((p) => p !== "");
 
@@ -148,16 +153,19 @@ export async function runCheck(target: string, options: CheckOptions = {}): Prom
 
   let scope: ReviewScope;
   let files: SourceFile[];
+  // Every file, to count how often each off-system color is used across the repo.
+  const everything = await allSources(root);
   if (options.all) {
     scope = { kind: "all" };
-    files = await allSources(root);
+    files = everything;
   } else {
     const base = options.base ?? config.base ?? (await defaultBase(root));
     scope = { kind: "changes", base };
     files = await changedSources(root, base);
   }
+  const colorUses = countColorUses(everything, model);
   const gitPrefix = (await gitOk(root, ["rev-parse", "--show-prefix"])) ?? "";
-  return { result: reviewFiles(files, model, config, scope), files, gitPrefix };
+  return { result: reviewFiles(files, model, config, scope, { colorUses }), files, gitPrefix };
 }
 
 /** Pure: the `--json` output, with totals for scripts and CI. */
@@ -172,6 +180,9 @@ export function checkJson(result: ReviewResult): CheckJson {
     findings: result.findings.length,
     exactFixes: result.findings.filter((f) => (f.fix.edits?.length ?? 0) > 0).length,
     byRule,
+    tokenSuggestions: result.tokenSuggestions.length,
+    exceptions: result.exceptions.length,
+    notes: result.notes.length,
   };
   if (result.changedLines !== undefined) summary.changedLines = result.changedLines;
   return { ...result, summary };

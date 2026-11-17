@@ -66,12 +66,13 @@ export async function runReview(target: string, options: ReviewOptions = {}): Pr
   return { model: next, accepted: pending, pending: [], writtenTo };
 }
 
-const KIND_ORDER: readonly SuggestionKind[] = ["color", "spacing", "component", "contrast"];
+const KIND_ORDER: readonly SuggestionKind[] = ["color", "token", "spacing", "component", "contrast"];
 const KIND_NAMES: Readonly<Record<SuggestionKind, [string, string]>> = {
   color: ["color merge", "color merges"],
   spacing: ["spacing snap", "spacing snaps"],
   component: ["component merge", "component merges"],
   contrast: ["contrast fix", "contrast fixes"],
+  token: ["new color token", "new color tokens"],
 };
 
 function byKind(suggestions: readonly Suggestion[]): string {

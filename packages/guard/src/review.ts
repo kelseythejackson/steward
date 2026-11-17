@@ -7,8 +7,9 @@ import type { ReviewMode, StewardConfig, SystemModel } from "@steward/model";
 import { STATIC_CHECKS_NOTE } from "./check.js";
 import { checkContext, type CheckContext } from "./context.js";
 import { checkFile, coverage } from "./engine.js";
-import type { Finding, RuleId } from "./findings.js";
+import type { Finding, IgnoredFinding, Note, RuleId } from "./findings.js";
 import { SnippetParseError } from "./parse.js";
+import { PATTERN_MIN_USES, splitPatterns, type ColorUses } from "./patterns.js";
 import { RULES } from "./rules/index.js";
 
 /** A file to check. `lines` limits findings to those lines (the changed ones); without it, the whole file counts. */
@@ -28,8 +29,14 @@ export interface ReviewResult {
   files: string[];
   /** Changed lines in the checked files, when only changes were checked. */
   changedLines?: number;
-  /** Sorted by file, then line, column and rule. */
+  /** Flags: off-system values and accessibility problems. Sorted by file, then line, column and rule. */
   findings: Finding[];
+  /** Colors used in 3+ places across the repo: suggested as tokens instead of flagged. Never fail the build. */
+  tokenSuggestions: Finding[];
+  /** Flags marked intentional with a `steward-ignore` comment. Healthy, not drift. */
+  exceptions: IgnoredFinding[];
+  /** Problems with `steward-ignore` comments (no reason, unknown rule, nothing to ignore). */
+  notes: Note[];
   /** What ran, in plain English. */
   checked: string[];
   /** What didn't run because a person turned it off, in config.json or system.json. */
@@ -52,33 +59,56 @@ export function rulesOff(config: StewardConfig): RuleId[] {
   return RULES.map((r) => r.id).filter((id) => config.rules[id] === "off");
 }
 
+/** Files Review reads: TSX and JSX, but not stories and tests (kept out of the system, as in Setup) or build output. */
+export const isReviewable = (path: string) =>
+  /\.(?:tsx|jsx)$/.test(path) &&
+  !/\.(?:stories|story|test|spec)\.[jt]sx$/.test(path) &&
+  !/(?:^|\/)(?:__tests__|__stories__|\.storybook|node_modules|dist|build|\.next|\.steward)\//.test(path);
+
 const byPath = (a: { path: string }, b: { path: string }) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
 
+export interface ReviewOptions {
+  /**
+   * How often each off-system color is used across the whole repo (see
+   * `countColorUses`). Without it, no colors are suggested as tokens.
+   */
+  colorUses?: ColorUses;
+}
+
 /**
- * Pure: runs Review on each file and keeps findings on the given lines. A
+ * Pure: runs Review on each file and keeps what's on the given lines. A
  * rule runs only when the config leaves it on and its system rule is
  * enabled. Unknown rule ids should be caught first with `unknownRules`.
  */
-export function reviewFiles(files: readonly SourceFile[], model: SystemModel | CheckContext, config: StewardConfig, scope: ReviewScope): ReviewResult {
+export function reviewFiles(files: readonly SourceFile[], model: SystemModel | CheckContext, config: StewardConfig, scope: ReviewScope, reviewOptions: ReviewOptions = {}): ReviewResult {
   const ctx = "tokens" in model ? checkContext(model) : model;
   const options = { off: rulesOff(config) };
   const sorted = [...files].sort(byPath);
-  const findings: Finding[] = [];
+  const all: Finding[] = [];
+  const exceptions: IgnoredFinding[] = [];
+  const notes: Note[] = [];
   const unreadable: ReviewResult["unreadable"] = [];
   for (const file of sorted) {
     try {
-      const { findings: all } = checkFile({ path: file.path, code: file.code }, ctx, options);
-      findings.push(...(file.lines ? all.filter((f) => file.lines!.has(f.line)) : all));
+      const r = checkFile({ path: file.path, code: file.code }, ctx, options);
+      const on = (...lines: number[]) => !file.lines || lines.some((n) => file.lines!.has(n));
+      all.push(...r.findings.filter((f) => on(f.line)));
+      exceptions.push(...r.ignored.filter((i) => on(i.finding.line, i.commentLine)));
+      notes.push(...r.notes.filter((n) => on(n.line, n.covers)));
     } catch (err) {
       if (!(err instanceof SnippetParseError)) throw err;
       unreadable.push({ path: file.path, reason: "it isn't valid TSX or JSX; check that it compiles" });
     }
   }
+  const { flags: findings, suggestions: tokenSuggestions } = splitPatterns(all, reviewOptions.colorUses ?? new Map(), ctx.tokenSuggestions);
   const result: ReviewResult = {
     mode: config.mode,
     scope,
     files: sorted.map((f) => f.path),
     findings,
+    tokenSuggestions,
+    exceptions,
+    notes,
     ...coverage(ctx, options),
     unreadable,
     failed: config.mode === "error" && findings.length > 0,
@@ -94,6 +124,7 @@ export function reviewFiles(files: readonly SourceFile[], model: SystemModel | C
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const list = (xs: readonly string[]) => (xs.length <= 1 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 const MAX_INLINE_REPLACEMENT = 120;
+const PATTERN_LABEL = `${PATTERN_MIN_USES} or more`;
 
 function header(r: ReviewResult): string {
   if (r.scope.kind === "all") return r.files.length === 0 ? "There are no TSX or JSX files to check." : `Checked every file: ${plural(r.files.length, "file")}.`;
@@ -120,6 +151,17 @@ function verdict(r: ReviewResult): string {
   return "Mode: error. Nothing was found, so the build passes.";
 }
 
+/** Findings grouped under their file, with `line:column` lined up per file. */
+function byFile(findings: readonly Finding[]): string[] {
+  const out: string[] = [];
+  for (const file of [...new Set(findings.map((f) => f.file ?? ""))]) {
+    const here = findings.filter((f) => (f.file ?? "") === file);
+    const width = Math.max(...here.map((f) => atOf(f).length));
+    out.push("", file, ...here.flatMap((f) => findingLines(f, width)));
+  }
+  return out;
+}
+
 /** Pure: the short, calm report `steward check` prints. Never says the code is "accessible". */
 export function formatReview(r: ReviewResult): string {
   const out = [header(r)];
@@ -128,11 +170,7 @@ export function formatReview(r: ReviewResult): string {
       out.push("", `Nothing to change${r.scope.kind === "changes" ? " on the changed lines" : ""}. Checked ${list(r.checked)}.`);
     } else {
       const files = [...new Set(r.findings.map((f) => f.file ?? ""))];
-      for (const file of files) {
-        const here = r.findings.filter((f) => (f.file ?? "") === file);
-        const width = Math.max(...here.map((f) => atOf(f).length));
-        out.push("", file, ...here.flatMap((f) => findingLines(f, width)));
-      }
+      out.push(...byFile(r.findings));
       const exact = r.findings.filter((f) => (f.fix.edits?.length ?? 0) > 0).length;
       out.push(
         "",
@@ -140,6 +178,19 @@ export function formatReview(r: ReviewResult): string {
           (exact > 0 ? ` (${exact} with an exact fix).` : "."),
       );
     }
+  }
+  if (r.tokenSuggestions.length > 0) {
+    const colors = new Set(r.tokenSuggestions.map((f) => f.pattern?.value));
+    out.push("", `Could join your system: ${plural(colors.size, "color")} used in ${PATTERN_LABEL} places, so ${colors.size === 1 ? "it's suggested as a token" : "they're suggested as tokens"} instead of flagged:`);
+    out.push(...byFile(r.tokenSuggestions).slice(1));
+  }
+  if (r.exceptions.length > 0) {
+    out.push("", `Marked intentional with steward-ignore (${plural(r.exceptions.length, "flag")}):`);
+    for (const e of r.exceptions) out.push(`  ${e.finding.file ?? ""}:${e.finding.line}  ${e.finding.rule}: ${e.reason}`);
+  }
+  if (r.notes.length > 0) {
+    out.push("", `About ${r.notes.length === 1 ? "a steward-ignore comment" : "some steward-ignore comments"}:`);
+    for (const n of r.notes) out.push(`  ${n.file ?? ""}:${n.line}  ${n.message}`);
   }
   if (r.unreadable.length > 0) {
     out.push("", `Couldn't read ${plural(r.unreadable.length, "file")} as JSX, so ${r.unreadable.length === 1 ? "it wasn't" : "they weren't"} checked:`);
