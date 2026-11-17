@@ -85,6 +85,7 @@ export function reviewData(model: SystemModel): ReviewData {
   const tokens = groups.map((g) => ({ path: g.path, name: tokenName(g.path), hex: g.members[0]!, members: g.members }));
   const hexOf = (path: string) => tokens.find((t) => t.path === path)?.hex ?? "";
 
+  const paletteFixes = new Set(model.suggestions.flatMap((s) => (s.kind === "contrast" && !s.proposed.existing ? [s.proposed.token.$value.hex] : [])));
   const colors: ColorMerge[] = [];
   const spacing: SpacingSnap[] = [];
   const components: ComponentMerge[] = [];
@@ -123,7 +124,8 @@ export function reviewData(model: SystemModel): ReviewData {
 
   return {
     waiting: [...colors, ...spacing, ...components, ...contrast].filter((x) => x.status === "waiting").length,
-    colors: { found: [...new Set(tokens.flatMap((t) => t.members))], tokens, merges: colors },
+    // "Found in code" leaves out contrast fixes from Tailwind's palette: an accepted one is a token before any code uses it.
+    colors: { found: [...new Set(tokens.flatMap((t) => t.members))].filter((hex) => !paletteFixes.has(hex)), tokens, merges: colors },
     spacing: { scale: scale.sort((a, b) => a.px - b.px), snaps: spacing.sort((a, b) => a.step - b.step) },
     components,
     contrast,

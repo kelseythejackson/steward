@@ -1,7 +1,7 @@
 import { STEWARD_EXTENSION, suggestionId, type MergeDecision } from "@steward/model";
 import { describe, expect, it } from "vitest";
 import { color } from "./cluster.test.js";
-import { colorToken, suggestColorTokens } from "./suggest.js";
+import { colorToken, looksSame, suggestColorTokens } from "./suggest.js";
 
 const blues = () => [color("#3b82f6", 7, ["a.tsx", "b.tsx", "c.tsx"]), color("#3a81f5", 3, ["c.tsx", "d.tsx"]), color("#3b83f7", 2, ["e.css"])];
 
@@ -98,5 +98,15 @@ describe("suggestColorTokens", () => {
 
   it("is deterministic", () => {
     expect(suggestColorTokens([...blues()].reverse())).toEqual(suggestColorTokens(blues()));
+  });
+});
+
+describe("looksSame", () => {
+  it("needs both a tiny ΔE and the same color family", () => {
+    expect(looksSame("#3a81f5", "#3b82f6")).toBe(true); // ΔE 0.3, both blue
+    expect(looksSame("#e4e4e7", "#e5e7eb")).toBe(true); // ΔE 0.8, both gray
+    expect(looksSame("#eff6ff", "#f3f4f6")).toBe(false); // ΔE 1.2, but a pale blue next to a gray
+    expect(looksSame("#fef2f2", "#f9fafb")).toBe(false); // ΔE 2.0, a pale red next to a gray
+    expect(looksSame("#3b82f6", "#2563eb")).toBe(false); // same family, but a visible step apart
   });
 });

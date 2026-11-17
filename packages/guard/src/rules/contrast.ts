@@ -5,7 +5,7 @@ import {
   deltaE,
   extractJsxContrast,
   formatRatio,
-  JUST_NOTICEABLE_DELTA_E,
+  looksSame,
   REQUIRED_RATIO,
   type ContrastExtraction,
   type FocusFinding,
@@ -142,7 +142,8 @@ function named(ctx: CheckContext, hex: string): Named {
     const d = c.hex === hex ? 0 : deltaE(c.hex, hex);
     if (!best || d < best.d) best = { c, d };
   }
-  return best && best.d <= JUST_NOTICEABLE_DELTA_E ? { name: best.c.name, hex: best.c.hex } : { name: hex, hex };
+  // Only a color that really looks the same goes by the token's name: a pale blue isn't "gray-100".
+  return best && looksSame(hex, best.c.hex) ? { name: best.c.name, hex: best.c.hex } : { name: hex, hex };
 }
 
 interface Suggestion {

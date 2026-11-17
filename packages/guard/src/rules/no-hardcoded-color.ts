@@ -1,4 +1,4 @@
-import { deltaE, findArbitraryClassColors, findColors, findNamedClassColors, JUST_NOTICEABLE_DELTA_E } from "@steward/scanner";
+import { colorFamily, deltaE, findArbitraryClassColors, findColors, findNamedClassColors, JUST_NOTICEABLE_DELTA_E, looksSame } from "@steward/scanner";
 import type { CheckContext, ColorRef } from "../context.js";
 import type { ClassUse, ParsedFile, StyleUse } from "../parse.js";
 import { replaceRange, type GuardRule, type Hit } from "../rule.js";
@@ -22,6 +22,10 @@ interface Nearest {
   distance: number;
   /** The `/50` opacity modifier to keep a see-through color see-through, or "". */
   opacity: string;
+  /** Close enough and the same color family to look the same, so swapping in the token is safe. */
+  same: boolean;
+  /** The found color, opaque. */
+  hex: string;
 }
 
 const opaqueHex = (value: string) => value.slice(0, 7);
@@ -40,9 +44,10 @@ function nearestToken(ctx: CheckContext, value: string): Nearest | null {
   for (const token of ctx.colors) {
     if (token.alpha !== undefined) continue;
     const distance = deltaE(opaqueHex(value), token.hex);
-    if (!best || distance < best.distance) best = { token, distance, opacity: "" };
+    if (!best || distance < best.distance) best = { token, distance, opacity: "", same: false, hex: opaqueHex(value).toLowerCase() };
   }
   if (!best) return null;
+  best.same = looksSame(opaqueHex(value), best.token.hex);
   const alpha = alphaOf(value);
   if (alpha < 1) best.opacity = `/${Math.round(alpha * 100)}`;
   return best;
@@ -58,8 +63,18 @@ function describe(found: string, what: string, raw: string, near: Nearest, repla
   const evidence = exact ? `${raw} is the same color as ${t.name} (${t.hex})` : `ΔE ${round1(near.distance)} from ${t.name} (${t.hex})`;
   const withReplacement = replacement ? { replacement } : {};
   if (exact) return { message: `\`${found}\` ${what}, the same color as your \`${t.name}\` token.`, evidence, fix: { description: `Use ${useText} instead.`, ...withReplacement } };
-  if (near.distance <= JUST_NOTICEABLE_DELTA_E) {
+  if (near.same) {
     return { message: `\`${found}\` ${what}, which isn't one of your colors. It looks the same as \`${t.name}\`.`, evidence, fix: { description: `Use ${useText} instead.`, ...withReplacement } };
+  }
+  // Close, but a different hue (a pale blue next to a gray): swapping would change the design, so no swap is offered.
+  const hex = near.hex;
+  if (near.distance <= JUST_NOTICEABLE_DELTA_E) {
+    const [mine, theirs] = [colorFamily(hex), colorFamily(t.hex)];
+    return {
+      message: `\`${found}\` ${what}, which isn't one of your colors. It's close to \`${t.name}\`, but ${article(mine)} ${mine}, not ${article(theirs)} ${theirs}.`,
+      evidence: `${evidence}; ${mine}, not ${theirs}`,
+      fix: { description: `If this ${mine} is intentional, add it to the system. Otherwise use ${useText}.` },
+    };
   }
   return {
     message: `\`${found}\` ${what}, which isn't one of your colors.`,
@@ -69,6 +84,7 @@ function describe(found: string, what: string, raw: string, near: Nearest, repla
 }
 
 const at = (use: ClassUse | StyleUse) => ({ line: use.line, column: use.column });
+const article = (word: string) => (/^[aeiou]/.test(word) ? "an" : "a");
 
 function checkClass(ctx: CheckContext, use: ClassUse): Hit[] {
   const out: Hit[] = [];

@@ -14,6 +14,16 @@ import type { ExtractedColor } from "./types.js";
 /** Roughly the smallest ΔEOK × 100 people notice side by side. Below it we can honestly say "less than you can see". */
 export const JUST_NOTICEABLE_DELTA_E = 2;
 
+/**
+ * Pure: whether two colors look the same: within `JUST_NOTICEABLE_DELTA_E`, and the same color family.
+ * Very light tints have so little chroma that ΔE alone calls a pale blue (#eff6ff) the same as a
+ * neutral gray (#f3f4f6, ΔE 1.2), yet the tint shows on a large area. Swapping one for the other
+ * would change the design, so a different family never counts as "the same".
+ */
+export function looksSame(a: string, b: string): boolean {
+  return deltaE(a, b) <= JUST_NOTICEABLE_DELTA_E && colorFamily(a) === colorFamily(b);
+}
+
 const toRgb = converter("rgb");
 const round = (n: number, places: number) => Number(n.toFixed(places));
 

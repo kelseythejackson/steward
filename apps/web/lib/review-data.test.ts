@@ -24,6 +24,8 @@ describe("reviewData", () => {
     const d = reviewData(fresh);
     expect(d.colors.tokens).toHaveLength(18); // 17 from the code, plus red-700: an accepted contrast fix
     expect(d.colors.found.length).toBeGreaterThan(d.colors.tokens.length);
+    // red-700 is a token (an accepted contrast fix), but it isn't a color found in the code.
+    expect(reviewData(decided).colors.found).toHaveLength(24);
     expect(d.colors.tokens.find((t) => t.name === "gray-200")).toEqual({ path: "color.gray.200", name: "gray-200", hex: "#e5e7eb", members: ["#e5e7eb", "#e4e4e7"] });
   });
 

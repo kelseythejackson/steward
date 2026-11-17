@@ -10,6 +10,7 @@ export { colorFamily, grayMaxChroma, LIGHTNESS_STEPS, proposeColorPaths, stepsBy
 export {
   colorToken,
   JUST_NOTICEABLE_DELTA_E,
+  looksSame,
   mergeReasonSummary,
   suggestColorTokens,
   type ColorSuggestionOptions,

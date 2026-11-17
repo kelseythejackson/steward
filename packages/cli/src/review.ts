@@ -117,7 +117,7 @@ export function formatReviewReport(run: ReviewRun, shownPath: string, acceptAll:
   } else if (!acceptAll) {
     lines.push(
       `${plural(pending.length, "suggestion")} ${pending.length === 1 ? "is" : "are"} waiting for a decision: ${byKind(pending)}.`,
-      `Review them one by one on the Setup screen: from the Steward repo, run \`STEWARD_REPO=${root} pnpm -F web dev\` and open http://localhost:3000/setup.`,
+      `Decide on them one by one on the Setup screen: from the Steward repo, run \`STEWARD_REPO=${root} pnpm -F web dev\` and open http://127.0.0.1:3000/setup.`,
       "Or `steward decide --accept-all` accepts all of them.",
     );
   }

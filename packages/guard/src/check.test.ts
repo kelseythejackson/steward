@@ -34,6 +34,15 @@ describe("no-hardcoded-color", () => {
     expect(f!.message).toBe("`bg-[#3a81f5]` hardcodes #3a81f5, which isn't one of your colors. It looks the same as `blue-500`.");
   });
 
+  it("never calls a pale tint the same as a gray: no swap, and it says which hue it is", () => {
+    // #eff6ff (Tailwind's blue-50) is only ΔE 1.2 from gray-100, but it's visibly blue on a large area.
+    const [f] = only(`<div className="bg-[#eff6ff] p-4" />`, "no-hardcoded-color");
+    expect(f!.message).toBe("`bg-[#eff6ff]` hardcodes #eff6ff, which isn't one of your colors. It's close to `gray-100`, but a blue, not a gray.");
+    expect(f!.evidence).toBe("ΔE 1.2 from gray-100 (#f3f4f6); blue, not gray");
+    expect(f!.fix.replacement).toBeUndefined();
+    expect(f!.fix.description).toBe("If this blue is intentional, add it to the system. Otherwise use `bg-gray-100`.");
+  });
+
   it("names the token when a hex is exactly a token", () => {
     const [f] = only(`<p className="text-[#6b7280]">Hi</p>`, "no-hardcoded-color");
     expect(f!.message).toBe("`text-[#6b7280]` hardcodes #6b7280, the same color as your `gray-500` token.");
