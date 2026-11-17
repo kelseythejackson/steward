@@ -42,6 +42,7 @@ export {
   appendHistory,
   checkHistoryRecord,
   HISTORY_FIELDS,
+  HISTORY_RULE_IDS,
   HISTORY_FILE,
   HISTORY_VERSION,
   HistoryError,
@@ -55,3 +56,11 @@ export {
   type HistoryRecord,
   type SourceType,
 } from "./history.js";
+export {
+  HISTORY_IMPORTED_FILE,
+  historyImportedPath,
+  parseImportedArtifacts,
+  readImportedArtifacts,
+  serializeImportedArtifacts,
+  writeImportedArtifacts,
+} from "./history-imported.js";

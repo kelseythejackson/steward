@@ -6,10 +6,10 @@
   "type": "module",
   "scripts": {
     "predev": "pnpm run packages",
-    "dev": "next dev -H 127.0.0.1",
+    "dev": "NEXT_TELEMETRY_DISABLED=1 next dev -H 127.0.0.1",
     "prebuild": "pnpm run packages",
-    "build": "next build",
-    "start": "next start -H 127.0.0.1",
+    "build": "NEXT_TELEMETRY_DISABLED=1 next build",
+    "start": "NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
     "theme": "tsx --conditions=source scripts/theme.ts",
     "typecheck": "pnpm run packages && tsc --noEmit",
     "test": "vitest run",

@@ -38,16 +38,31 @@ describe("generateDesignMd on fixtures/messy-app", () => {
   it("lists shared components only, leaving out pages, the app shell and components merged away", () => {
     const names = [...section(md, "## Components").matchAll(/^### (.+)$/gm)].map((m) => m[1]);
     expect(names).toEqual(["Button", "Dialog", "Modal", "Navbar", "Panel", "TextField"]);
-    expect(md).toContain('`import { Button } from "src/components/Button";`');
+    expect(md).toContain("- File: `src/components/Button.tsx`");
+    // An import statement with a root path wouldn't resolve without a path alias, so none is given.
+    expect(md).not.toContain('from "src/components/');
     expect(md).toContain("- Use instead of `CTAButton` or `PrimaryBtn`");
+  });
+
+  it("gives examples with every required prop, so they compile as written", () => {
+    expect(md).toContain("- Required: `current`, `onNavigate`");
+    expect(md).toContain("- Example: `<Navbar current={…} onNavigate={…} />`");
   });
 
   it("marks colors that fail contrast in some pairs", () => {
     expect(md).toContain("| `gray-400` | #9ca3af | 12 | Not for text on gray-50, gray-100 or white. |");
   });
 
+  it("gives one contrast line per background, listing every passing token, and a go-to example that passes", () => {
+    const fixes = md.slice(md.indexOf("### Contrast fixes to follow"), md.indexOf("### Labels, focus and interaction"));
+    expect(fixes.match(/Text on `gray-100`/g)).toHaveLength(1);
+    expect(fixes).toContain("Text on `red-50`: use `blue-600`, `gray-700`, `gray-800`, `gray-900` or `red-700` (needs 4.5:1).");
+    expect(fixes).not.toMatch(/or darker|#[0-9a-f]{6}/);
+    expect(md).toContain("Use the name in Tailwind classes, e.g. `text-gray-500 bg-white`.");
+  });
+
   it("lists approved pairs from the tokens' own contrast", () => {
-    expect(md).toContain("| `white` | blue-600, gray-500, gray-700, gray-800, gray-900, red-600 | blue-500 |");
+    expect(md).toContain("| `white` | blue-600, gray-500, gray-700, gray-800, gray-900, red-600, red-700 | blue-500 |");
   });
 
   it("is honest that static checks aren't the whole story", () => {

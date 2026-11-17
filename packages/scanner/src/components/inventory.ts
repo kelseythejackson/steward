@@ -73,6 +73,7 @@ function rootsOf(p: NodePath, out: { tags: string[]; elements: NodePath<N<"JSXEl
 
 interface PropsShape {
   props: Set<string>;
+  required: Set<string>;
   extendsTypes: Set<string>;
   variantType: Node | null;
 }
@@ -86,6 +87,7 @@ function readType(type: Node, decls: Map<string, TypeDecl>, code: string, shape:
         const k = keyName(m.key as Node);
         if (!k) continue;
         shape.props.add(k);
+        if (!m.optional) shape.required.add(k);
         if (k === "variant" && m.type === "TSPropertySignature" && m.typeAnnotation) shape.variantType = m.typeAnnotation.typeAnnotation as Node;
       }
     }
@@ -215,7 +217,7 @@ function analyzeFile(code: string, file: string): FileAnalysis {
         }
         if (roots.tags.length === 0) return;
 
-        const shape: PropsShape = { props: new Set(), extendsTypes: new Set(), variantType: null };
+        const shape: PropsShape = { props: new Set(), required: new Set(), extendsTypes: new Set(), variantType: null };
         let spreadsRest = false;
         const param = fnPath.node.params[0] as Node | undefined;
         if (param?.type === "ObjectPattern") {
@@ -236,6 +238,7 @@ function analyzeFile(code: string, file: string): FileAnalysis {
           line,
           exported: exported || exportedNames.has(name),
           props: sorted(shape.props),
+          requiredProps: sorted(shape.required),
           spreadsRest,
           extendsTypes: sorted(shape.extendsTypes),
           variants: sorted(unionValues(shape.variantType, decls)),

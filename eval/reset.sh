@@ -4,7 +4,9 @@
 set -euo pipefail
 DIR="${1:?Usage: eval/reset.sh <copy folder>}"
 cd "$DIR"
-git rev-parse --verify --quiet 'baseline^{commit}' >/dev/null || { echo "$DIR has no baseline tag. Is this an eval copy?" >&2; exit 1; }
+git rev-parse --verify --quiet 'baseline^{commit}' >/dev/null 2>&1 || { echo "$DIR has no baseline tag. Is this an eval copy?" >&2; exit 1; }
 git reset -q --hard baseline
-git clean -q -fd
+# -x also removes ignored files (node_modules, .steward/history.jsonl), so every run starts from the same state.
+# .claude/ stays: it holds your approval of the copy's MCP server.
+git clean -q -fdx -e .claude
 echo "Reset $DIR to its baseline."

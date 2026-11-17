@@ -129,3 +129,22 @@ describe("describeScan", () => {
     expect(lineOf(r, "Rules:")).toBe("Rules: 9 starter rules (6 accessibility basics, 3 from changes you accepted); 1 rule of your own kept as it is; 2 turned off");
   });
 });
+
+describe("new colors held out of the system", () => {
+  it("names them on the Colors line instead of as families merged into nothing", () => {
+    const s: ScanSummary = {
+      ...clean,
+      colors: { found: 26, suggested: 17, merges: 6, keptApart: 0 },
+      colorFamilies: [{ family: "gray", found: 14, suggested: 9 }],
+      newColors: { held: 2, suggested: 2, families: [{ family: "orange", count: 1 }, { family: "purple", count: 1 }] },
+    };
+    const line = lineOf(report(s), "Colors:")!;
+    expect(line).toBe("Colors: 26 colors → 17 tokens (14 grays → 9); 2 new colors wait for a decision (1 orange, 1 purple)");
+    expect(line).not.toMatch(/→ 0/);
+  });
+
+  it("says they're held for now when some aren't used enough to be suggested", () => {
+    const s: ScanSummary = { ...clean, newColors: { held: 2, suggested: 1, families: [{ family: "teal", count: 2 }] } };
+    expect(lineOf(report(s), "Colors:")).toBe("Colors: 3 colors → 3 tokens, no near-duplicates; 2 new colors held for now (2 teal)");
+  });
+});

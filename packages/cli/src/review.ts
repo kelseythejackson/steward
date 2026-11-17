@@ -1,3 +1,4 @@
+import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
   decideSuggestions,
@@ -6,13 +7,14 @@ import {
   STEWARD_DIR,
   SYSTEM_MODEL_FILE,
   SystemModelError,
+  systemModelPath,
   writeSystemModel,
   type Suggestion,
   type SuggestionKind,
   type SystemModel,
 } from "@steward/model";
 import { describeRules, rulesForModel, summarizeRules } from "@steward/scanner";
-import { assertDirectory, StewardError } from "./scan.js";
+import { assertDirectory, runScan, StewardError } from "./scan.js";
 
 export interface ReviewRun {
   /** The model as written (or as it was, when nothing was pending). */
@@ -60,10 +62,19 @@ export async function runReview(target: string, options: ReviewOptions = {}): Pr
   const pending = pendingSuggestions(model);
   if (!options.acceptAll || pending.length === 0) return { model, accepted: [], pending, writtenTo: null };
 
-  const decided = decideSuggestions(model, pending, "accepted", options.now ?? new Date().toISOString());
-  const next = { ...decided, rules: rulesForModel(decided) };
-  const writtenTo = await writeSystemModel(root, next);
-  return { model: next, accepted: pending, pending: [], writtenTo };
+  const now = options.now ?? new Date().toISOString();
+  const decided = decideSuggestions(model, pending, "accepted", now);
+  const before = await readFile(systemModelPath(root), "utf8");
+  await writeSystemModel(root, { ...decided, rules: rulesForModel(decided) });
+  // Re-scan, as the Setup screen does, so accepted merges and new colors are in the tokens right away,
+  // not only after the next `steward scan`. If that fails, put system.json back exactly as it was.
+  try {
+    const { output, writtenTo } = await runScan(root, { now, shownAs: shown });
+    return { model: output.model, accepted: pending, pending: pendingSuggestions(output.model), writtenTo };
+  } catch (err) {
+    await writeFile(systemModelPath(root), before, "utf8");
+    throw err;
+  }
 }
 
 const KIND_ORDER: readonly SuggestionKind[] = ["color", "token", "spacing", "component", "contrast"];
@@ -102,7 +113,7 @@ export function formatReviewReport(run: ReviewRun, shownPath: string, acceptAll:
   } else if (pending.length === 0) {
     const acceptedCount = model.decisions.filter((d) => d.status === "accepted").length;
     const declined = model.decisions.length - acceptedCount;
-    lines.push(`Nothing to review: every suggestion has a decision (${acceptedCount} accepted, ${declined} declined).`);
+    lines.push(`Nothing waiting for a decision: every suggestion has one (${acceptedCount} accepted, ${declined} declined).`);
   } else if (!acceptAll) {
     lines.push(
       `${plural(pending.length, "suggestion")} ${pending.length === 1 ? "is" : "are"} waiting for a decision: ${byKind(pending)}.`,

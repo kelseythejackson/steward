@@ -47,7 +47,7 @@ export async function runContext(target: string, options: { file?: boolean; show
 /** Pure: what `steward context --file` prints after writing. */
 export function formatContextReport(run: ContextRun, shownPath: string): string {
   const lines = run.markdown.split("\n").length - 1;
-  return `Wrote ${shownPath} (${lines} lines) from .steward/system.json.\nNext: point your AI coding tool at it. Run this again after each scan or review to keep it current.\n`;
+  return `Wrote ${shownPath} (${lines} lines) from .steward/system.json.\nNext: point your AI coding tool at it. Run this again after each scan or decision to keep it current.\n`;
 }
 
 export interface ServeOptions {

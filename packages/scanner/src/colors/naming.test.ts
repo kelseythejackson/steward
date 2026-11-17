@@ -21,6 +21,14 @@ describe("colorFamily", () => {
 });
 
 describe("proposeColorPaths", () => {
+  it("never proposes a name that nests with a taken one: a token a person named color.blue has nothing under it", () => {
+    const [path] = [...proposeColorPaths(["#2563eb"], ["color.blue"]).values()];
+    expect(path).not.toMatch(/^color\.blue\./);
+    expect(path).not.toBe("color.blue");
+    // And the other way round: color.gray can't be proposed beside color.gray.500.
+    expect([...proposeColorPaths(["#ffffff"], ["color.white.soft"]).values()][0]).not.toBe("color.white");
+  });
+
   it("names Tailwind's own grays after their Tailwind step", () => {
     const grays = ["#f9fafb", "#f3f4f6", "#e5e7eb", "#d1d5db", "#9ca3af", "#6b7280", "#374151", "#1f2937", "#111827"];
     expect([...proposeColorPaths(grays).values()]).toEqual([

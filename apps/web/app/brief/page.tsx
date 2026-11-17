@@ -1,6 +1,6 @@
 import { RULE_LABELS, type RuleId } from "@steward/guard";
 import type { ReactNode } from "react";
-import { claudeMcpAdd, CURSOR_RULE, demoDir, loadComparison, mcpConfig, stewardBin, toolStatus, type PromptComparison, type Side, type ToolStatus } from "../../lib/brief";
+import { claudeMcpAdd, CURSOR_RULE, demoDir, mcpConfig, readComparison, serveCommand, stewardBin, toolStatus, unreadableNote, type PromptComparison, type Side, type ToolStatus } from "../../lib/brief";
 import { loadRepo } from "../../lib/steward";
 import { cli, FROM_STEWARD } from "../../lib/commands";
 import { Button } from "../button";
@@ -13,6 +13,8 @@ export const metadata = { title: "Brief" };
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600";
 const code = (text: string) => <code className="rounded-md bg-gray-100 px-1 font-mono text-sm text-gray-900">{text}</code>;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+/** Shown in place of the server's path until Steward's CLI is built. */
+const BIN_PLACEHOLDER = "<path to steward>/packages/cli/dist/bin.js";
 
 /** Review's messages mark code with backticks; show those parts as code. */
 const withCode = (text: string) => text.split(/`([^`]+)`/).map((part, i) => (i % 2 === 1 ? <code key={i} className="rounded-md bg-gray-100 px-1 font-mono text-xs text-gray-900">{part}</code> : part));
@@ -20,6 +22,7 @@ const withCode = (text: string) => text.split(/`([^`]+)`/).map((part, i) => (i %
 export default async function BriefPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const repo = await loadRepo();
   const chosen = (await searchParams)["prompt"];
+  const bin = repo.kind === "ready" ? await stewardBin(process.env, process.cwd()) : null;
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
@@ -31,8 +34,8 @@ export default async function BriefPage({ searchParams }: { searchParams: Promis
         <RepoProblem state={repo} />
       ) : (
         <>
-          <Tools repo={repo.path} />
-          <AnyOtherTool />
+          <Tools bin={bin} repo={repo.path} />
+          <AnyOtherTool bin={bin} repo={repo.path} />
         </>
       )}
       <Difference chosen={typeof chosen === "string" ? chosen : undefined} />
@@ -69,9 +72,8 @@ function ToolCard({ name, status, children }: { name: string; status: ToolStatus
   );
 }
 
-async function Tools({ repo }: { repo: string }) {
-  const bin = await stewardBin(process.env, process.cwd());
-  const config = mcpConfig(bin ?? "<path to steward>/packages/cli/dist/bin.js", repo);
+async function Tools({ bin, repo }: { bin: string | null; repo: string }) {
+  const config = mcpConfig(bin ?? BIN_PLACEHOLDER, repo);
   const status = await toolStatus(repo);
   return (
     <section aria-labelledby="tools-title" className="flex flex-col gap-4">
@@ -94,7 +96,7 @@ async function Tools({ repo }: { repo: string }) {
           <li>
             <CopyBlock
               label="Add Steward's MCP server, just for you: run this in your repo. It uses paths on this computer, so it stays out of git."
-              text={claudeMcpAdd(bin ?? "<path to steward>/packages/cli/dist/bin.js", repo)}
+              text={claudeMcpAdd(bin ?? BIN_PLACEHOLDER, repo)}
             />
           </li>
         </ToolCard>
@@ -117,20 +119,21 @@ async function Tools({ repo }: { repo: string }) {
   );
 }
 
-function AnyOtherTool() {
+function AnyOtherTool({ bin, repo }: { bin: string | null; repo: string }) {
   return (
     <section aria-labelledby="other-title" className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-6">
       <h2 id="other-title" className="text-lg font-semibold text-gray-900">
         Any other tool
       </h2>
       <p className="text-sm text-gray-700">
-        Steward&apos;s MCP server runs on your machine, so there&apos;s no web address to paste: any tool that supports MCP can start it with the command above. Or download design.md
-        and add it to your repo or the tool&apos;s instructions.
+        Steward&apos;s MCP server runs on your machine, so there&apos;s no web address to paste. Add this command to your tool&apos;s MCP settings, and it starts the server
+        when it needs it. Or download design.md and add it to your repo or the tool&apos;s instructions.
       </p>
+      <CopyBlock label="Start Steward's MCP server (any tool that supports MCP can run this)" text={serveCommand(bin ?? BIN_PLACEHOLDER, repo)} />
       <div>
+        {/* No `download` attribute: the route marks design.md as a download itself, so if there's no system to describe, its message opens as a page instead of being saved as design.md. */}
         <a
           href="/brief/design.md"
-          download="design.md"
           className={`inline-flex items-center justify-center rounded-md border border-gray-500 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 ${FOCUS}`}
         >
           Download design.md
@@ -146,7 +149,8 @@ function AnyOtherTool() {
 
 async function Difference({ chosen }: { chosen: string | undefined }) {
   const dir = await demoDir(process.env, process.cwd());
-  const comparisons = dir ? await loadComparison(dir) : [];
+  const { comparisons, unreadable } = dir ? await readComparison(dir) : { comparisons: [], unreadable: [] };
+  const note = unreadableNote(unreadable);
   const current = comparisons.find((c) => c.prompt === chosen) ?? comparisons[0];
   return (
     <section aria-labelledby="difference-title" className="flex flex-col gap-4">
@@ -170,6 +174,7 @@ async function Difference({ chosen }: { chosen: string | undefined }) {
           </form>
         )}
       </div>
+      {note && <p className="rounded-md bg-gray-100 p-3 text-sm text-gray-900">{note}</p>}
       {current ? <Comparison c={current} /> : <NoComparison />}
     </section>
   );

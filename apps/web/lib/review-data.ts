@@ -69,7 +69,20 @@ export function reviewData(model: SystemModel): ReviewData {
   const decisions = new Map(model.decisions.map((d) => [d.suggestionId, d]));
   const status = (id: string): Status => decisions.get(id)?.status ?? "waiting";
 
-  const tokens = colorTokenGroups(model).map((g) => ({ path: g.path, name: tokenName(g.path), hex: g.members[0]!, members: g.members }));
+  // The proposed system: the tokens as they are, with each merge still waiting folded in, so the card
+  // shows what accepting would make. (A merge applies to system.json only once it's accepted.)
+  let groups = colorTokenGroups(model).map((g) => ({ path: g.path, members: [...g.members] }));
+  for (const s of model.suggestions) {
+    if (s.kind !== "color" || decisions.has(s.id)) continue;
+    const into = groups.find((g) => g.path === s.proposed.path);
+    if (!into) continue;
+    const moving = s.members.filter((m) => !into.members.includes(m));
+    groups = groups
+      .map((g) => (g === into ? g : { ...g, members: g.members.filter((m) => !moving.includes(m)) }))
+      .filter((g) => g.members.length > 0);
+    into.members.push(...moving);
+  }
+  const tokens = groups.map((g) => ({ path: g.path, name: tokenName(g.path), hex: g.members[0]!, members: g.members }));
   const hexOf = (path: string) => tokens.find((t) => t.path === path)?.hex ?? "";
 
   const colors: ColorMerge[] = [];

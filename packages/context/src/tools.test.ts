@@ -14,10 +14,16 @@ describe("getTokens", () => {
 
   it("returns colors and spacing by default", () => {
     const { data, text } = getTokens(model);
-    expect(data.colors).toHaveLength(17);
+    expect(data.colors).toHaveLength(18); // 17 from the code, plus red-700: an accepted contrast fix
     expect(data.spacing?.map((s) => `${s.step}=${s.px}`)).toEqual(["1=4", "2=8", "2.5=10", "3=12", "4=16", "6=24", "8=32"]);
-    expect(text).toContain("Colors (17)");
+    expect(text).toContain("Colors (18)");
     expect(text).toContain("Spacing (7 steps)");
+  });
+
+  it("names a see-through token the way Tailwind writes it (black/40), not as a class that doesn't exist", () => {
+    const names = getTokens(model, "color").data.colors!.map((c) => c.name);
+    expect(names).toContain("black/40");
+    expect(names).not.toContain("black-40");
   });
 
   it("filters to colors, with Tailwind names, uses and contrast notes", () => {
@@ -53,13 +59,13 @@ describe("findComponent", () => {
     const { data, text } = findComponent(fixture(), "primary call to action");
     const [best] = data.matches;
     expect(best!.name).toBe("Button");
-    expect(best!.importLine).toBe('import { Button } from "src/components/Button";');
+    expect(best!.importLine).toBe("Button is exported from src/components/Button.tsx; import it with a path relative to your file.");
     expect(best!.example).toBe('<Button variant="primary">…</Button>');
     expect(best!.replaces).toEqual(["CTAButton", "PrimaryBtn"]);
     expect(best!.reasons).toContain('"call to action" usually means button');
     expect(best!.reasons).toContain('"button" is in its name');
     expect(best!.rules.some((r) => r.includes("never a raw `<button>`"))).toBe(true);
-    expect(text).toContain("Import paths are from the repo root");
+    expect(text).toContain("Files are given from the repo root");
   });
 
   it("widens everyday words with synonyms", () => {
@@ -159,6 +165,15 @@ describe("getRules", () => {
 });
 
 describe("checkSnippet", () => {
+  it("says nothing was checked for input with no JSX, instead of reporting a pass", () => {
+    for (const code of ["hello world", "   ", "const x: number = 1;"]) {
+      const { text, data } = checkSnippet(fixture(), code);
+      expect(text).toMatch(/^There's no JSX in this snippet, so nothing was checked\./);
+      expect(text).not.toContain("No problems found");
+      expect(data.findings).toEqual([]);
+    }
+  });
+
   it("runs Steward Review's checks and describes them", () => {
     const { text, data } = checkSnippet(fixture(), `<div className="gap-5"><img src="/a.png" /></div>`);
     expect(data.findings.map((f) => f.rule)).toEqual(["no-arbitrary-spacing", "a11y-img-alt"]);

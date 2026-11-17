@@ -5,10 +5,25 @@
 # Usage: eval/setup.sh [destination]   (default ~/steward-eval)
 set -euo pipefail
 
-REPO="$(cd "$(dirname "$0")/.." && pwd)"
+# Physical paths (pwd -P), so symlinks such as /tmp -> /private/tmp compare correctly below.
+REPO="$(cd "$(dirname "$0")/.." && pwd -P)"
 FIXTURE="$REPO/fixtures/messy-app"
-DEST="${1:-$HOME/steward-eval}"
 BIN="$REPO/packages/cli/dist/bin.js"
+
+# Make the destination absolute: .mcp.json stores it, and the MCP server starts from inside the copy.
+# The folder doesn't exist yet, so resolve its parent and add the last part back.
+DEST="${1:-$HOME/steward-eval}"
+DEST="${DEST%/}"
+[ -n "$DEST" ] || { echo "Pass a folder for the copies, not /." >&2; exit 1; }
+case "$DEST" in /*) ;; *) DEST="$PWD/$DEST" ;; esac
+DEST_NAME="$(basename "$DEST")"
+case "$DEST_NAME" in
+  .|..) echo "Pass a new folder for the copies, not '$DEST_NAME'." >&2; exit 1 ;;
+esac
+DEST_PARENT="$(dirname "$DEST")"
+[ -d "$DEST_PARENT" ] || { echo "$DEST_PARENT doesn't exist. Create it first, or pass another folder." >&2; exit 1; }
+DEST_PARENT="$(cd "$DEST_PARENT" && pwd -P)"
+DEST="${DEST_PARENT%/}/$DEST_NAME"
 
 case "$DEST" in
   "$REPO"|"$REPO"/*)

@@ -9,7 +9,7 @@ import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { decideSuggestions, parseSystemModel, serializeSystemModel, type SystemModel } from "@steward/model";
+import { decideSuggestions, parseSystemModel, pendingSuggestions, serializeSystemModel, undoDecision, type SystemModel } from "@steward/model";
 import { colorsInModel } from "@steward/scanner";
 import { colorTokenGroups as colorTokenGroupsOf } from "@steward/model";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -63,9 +63,11 @@ describe("token suggestions for new colors", () => {
     const s = m.suggestions.filter((x) => x.kind === "token");
     expect(s.map((x) => x.members)).toEqual([["#7c3aed"]]);
     expect(s[0]!.kind === "token" && s[0]!.locations.map((l) => l.file)).toEqual(["src/pages/Billing.tsx", "src/pages/Billing.tsx", "src/pages/Settings.tsx"]);
-    expect(run.output.summary.newColors).toEqual({ held: 1, suggested: 1 });
+    expect(run.output.summary.newColors).toEqual({ held: 1, suggested: 1, families: [{ family: "purple", count: 1 }] });
 
     const scan = await steward("scan", app);
+    expect(scan.stdout).toMatch(/^Colors: .*; 1 new color waits for a decision \(1 purple\)$/m);
+    expect(scan.stdout).not.toMatch(/purple → 0/);
     expect(scan.stdout).toContain("\nNew colors since the last scan: 1 color kept out of your system for now; 1 is used in 3+ places, so it's suggested as a token for you to accept or reject\n");
     expect((await steward("review", "app")).stdout).toMatch(/1 new color token/);
   });
@@ -85,10 +87,28 @@ describe("token suggestions for new colors", () => {
     expect(r.code).toBe(0);
     expect(r.stdout).toMatch(/Accepted 1 suggestion: 1 new color token\./);
 
+    // `decide --accept-all` re-scans, so it's a token at once; another scan keeps it.
+    expect(colorsInModel((await model()).tokens)).toContain("#7c3aed");
     await runScan(app, { now: NOW });
     const m = await model();
     expect(colorsInModel(m.tokens)).toContain("#7c3aed");
-    expect(m.suggestions.filter((x) => x.kind === "token")).toEqual([]);
+    // Its suggestion stays, decided, so it can be undone; nothing is waiting.
+    expect(pendingSuggestions(m).filter((x) => x.kind === "token")).toEqual([]);
+  });
+
+  it("accepted and then undone, it leaves the system and waits for a decision again", async () => {
+    await addLines("src/pages/Billing.tsx", 20, VIOLET, VIOLET, VIOLET);
+    await runScan(app, { now: NOW });
+    await steward("review", "app", "--accept-all");
+    const accepted = await model();
+    expect(colorsInModel(accepted.tokens)).toContain("#7c3aed");
+    const id = accepted.suggestions.find((x) => x.kind === "token" && x.members.includes("#7c3aed"))!.id;
+
+    await writeFile(join(app, ".steward/system.json"), serializeSystemModel(undoDecision(accepted, id)));
+    await runScan(app, { now: NOW });
+    const m = await model();
+    expect(colorsInModel(m.tokens)).not.toContain("#7c3aed");
+    expect(pendingSuggestions(m).map((x) => x.id)).toContain(id);
   });
 
   it("accepted, it keeps the name it was accepted as, even when it's close to another token", async () => {
@@ -104,8 +124,9 @@ describe("token suggestions for new colors", () => {
     const owner = (hex: string) => colorTokenGroupsOf(m).find((g) => g.members.includes(hex))?.path;
     expect(owner("#3c83f8")).toBe(suggestion.proposed.path);
     expect(owner("#3b82f6")).toBe("color.blue.500");
-    // No merge or token suggestion comes back for it. (A contrast fix may: it's used as text on white, below 4.5:1.)
-    expect(m.suggestions.filter((x) => (x.kind === "color" || x.kind === "token") && x.members.includes("#3c83f8"))).toEqual([]);
+    // Nothing about it waits again: no merge, and its token suggestion is kept as decided.
+    // (A contrast fix may: it's used as text on white, below 4.5:1.)
+    expect(pendingSuggestions(m).filter((x) => (x.kind === "color" || x.kind === "token") && x.members.includes("#3c83f8"))).toEqual([]);
   });
 
   it("rejected, it's never suggested again, and Review flags it as drift", async () => {

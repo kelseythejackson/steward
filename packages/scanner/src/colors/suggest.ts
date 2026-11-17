@@ -39,8 +39,17 @@ export interface ProposedColorToken {
 }
 
 export interface ColorSuggestions {
-  /** One token per group, merged or not. Sorted by uses (most first), then path. */
+  /**
+   * The tokens as decided: one per merged group a person accepted (or arranged), and one per color
+   * for merges still waiting or declined. Sorted by uses (most first), then path.
+   */
   tokens: ProposedColorToken[];
+  /**
+   * One token per group as if every waiting merge were accepted: the proposed system. Contrast is
+   * checked against this, so a pair's suggestion (and a person's decision on it) doesn't change
+   * when a merge is accepted later. Sorted like `tokens`.
+   */
+  preview: ProposedColorToken[];
   /** Only groups with two or more colors. Sorted by uses (most first), then id. */
   suggestions: ColorMergeSuggestion[];
 }
@@ -155,14 +164,53 @@ export function suggestColorTokens(colors: readonly ExtractedColor[], options: C
   const fresh = clustered.filter((c) => !kept.has(c.value)).map((c) => c.value);
   const paths = new Map([...chosen, ...kept, ...proposeColorPaths(fresh, [...chosen.values(), ...kept.values()])]);
 
+  // A merge applies only once a person accepts it (or arranged the group themselves). Until then each
+  // color in it stays its own token, and the suggestion shows the merged token as a preview.
+  const acceptedIds = new Set(decisions.filter((d) => d.kind === "color" && d.status === "accepted").map((d) => d.suggestionId));
+  const applies = (cluster: ColorCluster) =>
+    cluster.members.length < 2 || chosen.has(cluster.value) || acceptedIds.has(suggestionId("color", cluster.members.map((m) => m.value)));
+  const unmerged = clusters
+    .filter((c) => !applies(c))
+    .flatMap((c) => c.members.filter((m) => m.value !== c.value))
+    .sort((a, b) => b.uses - a.uses || compareStrings(a.value, b.value));
+  const ownNames = new Map<string, string>();
+  {
+    const taken = new Set(paths.values());
+    // A color keeps the name it had as its own token before, if that name is still free.
+    for (const m of unmerged) {
+      const before = options.previousNames?.get(m.value);
+      if (before && !taken.has(before)) {
+        ownNames.set(m.value, before);
+        taken.add(before);
+      }
+    }
+    // Otherwise its hex, not a nearby Tailwind step: `text-gray-600` renders Tailwind's own gray-600,
+    // which isn't this color. It's a name for the time being, until the merge is decided.
+    for (const m of unmerged.filter((x) => !ownNames.has(x.value))) {
+      const family = colorFamily(m.value);
+      const single = family === "white" || family === "black";
+      const nested = `color.${family}.${m.value.slice(1)}`;
+      const clashes = (p: string) => taken.has(p) || [...taken].some((t) => t.startsWith(`${p}.`) || p.startsWith(`${t}.`));
+      const path = !single && !clashes(nested) ? nested : `color.${family}-${m.value.slice(1)}`;
+      ownNames.set(m.value, path);
+      taken.add(path);
+    }
+  }
+
   const tokens: ProposedColorToken[] = [];
+  const preview: ProposedColorToken[] = [];
   const suggestions: ColorMergeSuggestion[] = [];
   for (const cluster of clusters) {
     const path = paths.get(cluster.value)!;
     const memberValues = cluster.members.map((m) => m.value);
     const mergedFrom = memberValues.filter((v) => v !== cluster.value);
     const token = colorToken(cluster.value, cluster.uses, mergedFrom);
-    tokens.push({ path, token });
+    preview.push({ path, token });
+    if (applies(cluster)) {
+      tokens.push({ path, token });
+    } else {
+      for (const m of cluster.members) tokens.push({ path: m.value === cluster.value ? path : ownNames.get(m.value)!, token: colorToken(m.value, m.uses) });
+    }
     if (cluster.members.length < 2) continue;
 
     const byPerson = chosen.has(cluster.value);
@@ -187,8 +235,9 @@ export function suggestColorTokens(colors: readonly ExtractedColor[], options: C
   }
 
   tokens.sort((a, b) => tokenUses(b) - tokenUses(a) || compareStrings(a.path, b.path));
+  preview.sort((a, b) => tokenUses(b) - tokenUses(a) || compareStrings(a.path, b.path));
   suggestions.sort((a, b) => Number(b.reason.evidence.uses) - Number(a.reason.evidence.uses) || compareStrings(a.id, b.id));
-  return { tokens, suggestions };
+  return { tokens, preview, suggestions };
 }
 
 const tokenUses = (t: ProposedColorToken) => t.token.$extensions?.[STEWARD_EXTENSION]?.uses ?? 0;

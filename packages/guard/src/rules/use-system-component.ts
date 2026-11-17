@@ -45,7 +45,7 @@ function rename(e: ElementUse, to: ComponentRef): Rename {
 }
 
 function rawButton(file: ParsedFile, e: ElementUse, button: NonNullable<CheckContext["button"]>): Hit {
-  const variantHint = button.hasPrimary ? `, with \`variant="primary"\` for the main action on the page` : "";
+  const variantHint = button.hasPrimary ? ` Add \`variant="primary"\` only if this is the page's main action.` : "";
   const importHint = file.imports.has(button.name) ? "" : ` Import it with \`${importLineFor(file, button)}\``;
   return {
     line: e.line,
@@ -55,7 +55,7 @@ function rawButton(file: ParsedFile, e: ElementUse, button: NonNullable<CheckCon
     systemRule: RAW_BUTTON_RULE,
     message: `This is a raw \`<button>\`. Your system has a shared \`${button.name}\` for this.`,
     evidence: `<button> element; ${button.name} is the shared component that renders buttons`,
-    fix: { description: `Use \`<${button.name}>\`${variantHint}.${importHint}`, replacement: renameElement(e.source, "button", button.name) },
+    fix: { description: `Use \`${button.name}\` from your system.${variantHint}${importHint}`, replacement: renameElement(e.source, "button", button.name) },
     data: rename(e, button),
   };
 }

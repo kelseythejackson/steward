@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { cp, mkdtemp, readFile, rm } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -75,7 +75,7 @@ const record = (pr: number, date: string): HistoryRecord => ({
 const line = (r: HistoryRecord) => `${serializeHistoryRecord(r)}\n`;
 
 /** GitHub's artifacts API, in memory: two pages, one expired artifact, and the zips. */
-function fakeGithub(artifacts: { name: string; expired?: boolean; files?: Record<string, string>; method?: 0 | 8 }[], status = 200) {
+function fakeGithub(artifacts: { name: string; expired?: boolean; files?: Record<string, string>; method?: 0 | 8; raw?: string }[], status = 200) {
   const calls: string[] = [];
   const fetch = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(String(input));
@@ -84,14 +84,15 @@ function fakeGithub(artifacts: { name: string; expired?: boolean; files?: Record
     if (status !== 200) return new Response("{}", { status });
     if (url.pathname === "/repos/acme/app/actions/artifacts") {
       const page = Number(url.searchParams.get("page"));
-      const all = artifacts.map((a, i) => ({ name: a.name, expired: a.expired ?? false, archive_download_url: `https://api.github.test/download/${i}` }));
+      const all = artifacts.map((a, i) => ({ id: 1000 + i, name: a.name, expired: a.expired ?? false, archive_download_url: `https://api.github.test/download/${i}` }));
       // Page 1 holds 100 unrelated artifacts, so paging is exercised; page 2 holds ours.
-      const body = page === 1 ? Array.from({ length: 100 }, (_, i) => ({ name: `build-${i}`, expired: false, archive_download_url: "x" })) : page === 2 ? all : [];
+      const body = page === 1 ? Array.from({ length: 100 }, (_, i) => ({ id: i + 1, name: `build-${i}`, expired: false, archive_download_url: "x" })) : page === 2 ? all : [];
       return new Response(JSON.stringify({ artifacts: body }), { status: 200 });
     }
     const m = /^\/download\/(\d+)$/.exec(url.pathname);
     if (m) {
       const a = artifacts[Number(m[1])]!;
+      if (a.raw !== undefined) return new Response(a.raw, { status: 200 });
       return new Response(new Uint8Array(zip(a.files ?? {}, a.method ?? 8)), { status: 200 });
     }
     return new Response("{}", { status: 404 });
@@ -159,12 +160,91 @@ describe("steward history import", () => {
     expect(gh.calls.filter((c) => c.startsWith("/download/"))).toEqual(["/download/1", "/download/0"]);
   });
 
-  it("adds nothing the second time", async () => {
+  it("adds nothing the second time, and doesn't download the same artifact again", async () => {
     const gh = fakeGithub([{ name: "steward-history-2-1", files: { "record.jsonl": line(record(8, "2026-11-11T10:00:00.000Z")) } }]);
     await steward(gh);
+    // Ids only: no names, logins or URLs.
+    expect(await readFile(join(app, ".steward/history-imported.json"), "utf8")).toBe("[1000]\n");
+    gh.calls.length = 0;
+    const r = await steward(gh);
+    expect(r.stdout).toBe(
+      "No new steward-history artifacts in acme/app, so app/.steward/history.jsonl is up to date.\n1 artifact was imported before, so it wasn't downloaded again.\n",
+    );
+    expect(gh.calls.filter((c) => c.startsWith("/download/"))).toEqual([]);
+    expect((await history()).trim().split("\n")).toHaveLength(1);
+  });
+
+  it("downloads only the new artifacts, keeping the remembered ids sorted", async () => {
+    const first = { name: "steward-history-2-1", files: { "record.jsonl": line(record(8, "2026-11-11T10:00:00.000Z")) } };
+    await steward(fakeGithub([first]));
+    // A newer run comes first in GitHub's list, so it gets id 1000 and the earlier one 1001.
+    const gh = fakeGithub([{ name: "steward-history-3-1", files: { "record.jsonl": line(record(9, "2026-11-12T10:00:00.000Z")) } }, first]);
+    await writeFile(join(app, ".steward/history-imported.json"), "[1001]\n");
+    const r = await steward(gh);
+    expect(r.stdout).toBe(
+      "Imported 1 record from 1 artifact in acme/app into app/.steward/history.jsonl.\n1 artifact was imported before, so it wasn't downloaded again.\n",
+    );
+    expect(gh.calls.filter((c) => c.startsWith("/download/"))).toEqual(["/download/0"]);
+    expect(await readFile(join(app, ".steward/history-imported.json"), "utf8")).toBe("[1000,1001]\n");
+  });
+
+  it("treats a damaged history-imported.json as empty: downloads again, still adds nothing twice", async () => {
+    const gh = fakeGithub([{ name: "steward-history-2-1", files: { "record.jsonl": line(record(8, "2026-11-11T10:00:00.000Z")) } }]);
+    await steward(gh);
+    await writeFile(join(app, ".steward/history-imported.json"), "{ not json");
     const r = await steward(gh);
     expect(r.stdout).toBe("Imported 0 records from 1 artifact in acme/app into app/.steward/history.jsonl.\n1 record was already there, so it wasn't added again.\n");
-    expect((await history()).trim().split("\n")).toHaveLength(1);
+    expect(await readFile(join(app, ".steward/history-imported.json"), "utf8")).toBe("[1000]\n");
+  });
+
+  it("skips an artifact that isn't a zip, says which, and tries it again next time", async () => {
+    const gh = fakeGithub([
+      { name: "steward-history-3-1", raw: "this is not a zip archive, just some text that is long enough" },
+      { name: "steward-history-2-1", files: { "record.jsonl": line(record(8, "2026-11-11T10:00:00.000Z")) } },
+    ]);
+    const r = await steward(gh);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toBe(
+      "Imported 1 record from 1 artifact in acme/app into app/.steward/history.jsonl.\n" +
+        "1 artifact couldn't be read as a zip archive, so it was skipped: steward-history-3-1. The next import tries again.\n",
+    );
+    expect(await readFile(join(app, ".steward/history-imported.json"), "utf8")).toBe("[1001]\n");
+    gh.calls.length = 0;
+    await steward(gh);
+    expect(gh.calls.filter((c) => c.startsWith("/download/"))).toEqual(["/download/0"]);
+  });
+
+  it("explains a network failure or a bad GITHUB_API_URL calmly, without a stack trace", async () => {
+    const offline = (async () => {
+      throw new TypeError("fetch failed", { cause: Object.assign(new Error("getaddrinfo ENOTFOUND api.github.test"), { code: "ENOTFOUND" }) });
+    }) as unknown as typeof globalThis.fetch;
+    const r = await steward({ fetch: offline, calls: [] });
+    expect(r.code).toBe(1);
+    expect(r.stderr).toBe("Steward couldn't reach GitHub (fetch failed: ENOTFOUND). Check your connection, and GITHUB_API_URL (https://api.github.test), then try again.\n");
+
+    let stderr = "";
+    const code = await main(["history", "import", "app"], { stdout: () => {}, stderr: (t) => (stderr += t), cwd: work, env: { GITHUB_TOKEN: "t0ken", GITHUB_API_URL: "not a url" }, fetch: realFetch });
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/^Steward couldn't reach GitHub \(.*\)\. Check your connection, and GITHUB_API_URL \(not a url\), then try again\.\n$/);
+
+    const html = (async () => new Response("<html>hi</html>", { status: 200 })) as unknown as typeof globalThis.fetch;
+    expect((await steward({ fetch: html, calls: [] })).stderr).toMatch(/isn't JSON\)\. Check GITHUB_API_URL \(https:\/\/api\.github\.test\)\./);
+  });
+
+  it("says one invalid line in the singular", async () => {
+    const gh = fakeGithub([{ name: "steward-history-2-1", files: { "record.jsonl": "{ broken\n" } }]);
+    expect((await steward(gh)).stdout).toContain("\n1 line wasn't a valid history record, so it wasn't imported.\n");
+  });
+
+  it("prints the help for `history --help`, `history -h` and `history import --help`", async () => {
+    for (const args of [["history", "--help"], ["history", "-h"], ["history", "import", "--help"]]) {
+      let stdout = "";
+      let stderr = "";
+      const code = await main(args, { stdout: (t) => (stdout += t), stderr: (t) => (stderr += t), cwd: work });
+      expect(code).toBe(0);
+      expect(stdout).toContain("Options for history import:");
+      expect(stderr).toBe("");
+    }
   });
 
   it("refuses records that aren't valid history, such as one carrying an author", async () => {

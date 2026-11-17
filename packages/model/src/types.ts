@@ -89,6 +89,8 @@ export interface ComponentEntry {
   variants: string[];
   /** Prop names, from the destructured parameter and the props type. */
   props?: string[];
+  /** Props the type requires (no `?`), so examples include them. */
+  requiredProps?: string[];
   /** Elements the component can render at its root, e.g. `["a", "button"]`. */
   rootElements?: string[];
 }

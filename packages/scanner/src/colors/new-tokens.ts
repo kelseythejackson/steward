@@ -6,7 +6,7 @@
  * is suggested as a token for a person to accept or reject; the rest stay
  * off-system, and Review flags them.
  */
-import { compareStrings, STEWARD_EXTENSION, suggestionId, type MergeDecision, type TokenGroup, type TokenSuggestion } from "@steward/model";
+import { compareStrings, STEWARD_EXTENSION, suggestionId, type MergeDecision, type SystemModel, type TokenGroup, type TokenSuggestion } from "@steward/model";
 import { isToken } from "@steward/model";
 import { contrastRatio, formatRatio, REQUIRED_RATIO } from "../contrast/wcag.js";
 import { nearestPassingShade } from "../contrast/fix.js";
@@ -58,6 +58,19 @@ export function colorNamesInModel(tokens: TokenGroup): Map<string, string> {
   return out;
 }
 
+/**
+ * Pure: the colors a re-scan treats as already in the system: every color the
+ * model's tokens stand for, except new colors that are there only because a
+ * person accepted them and that acceptance has since been undone. Their
+ * suggestion is still in the model with no decision, so they're held out
+ * again and wait for a decision: the undo really undoes.
+ */
+export function knownColors(model: SystemModel): string[] {
+  const accepted = new Set(model.decisions.filter((d) => d.status === "accepted").map((d) => d.suggestionId));
+  const undone = new Set(model.suggestions.filter((s) => s.kind === "token" && !accepted.has(s.id)).flatMap((s) => s.members.map((m) => m.toLowerCase())));
+  return colorsInModel(model.tokens).filter((c) => !undone.has(c));
+}
+
 const tokenMembers = (decisions: readonly MergeDecision[], status: MergeDecision["status"]) =>
   new Set(decisions.filter((d) => d.kind === "token" && d.status === status).flatMap((d) => d.members));
 
@@ -87,10 +100,15 @@ const isTextUse = (snippet: string) => /(?:^|[\s:])text-\[/.test(snippet);
  * Paths never clash with `takenPaths`. A color that fails contrast as text
  * on white says so and names the nearest shade that passes.
  */
-export function suggestNewTokens(held: readonly ExtractedColor[], takenPaths: Iterable<string>, decisions: readonly MergeDecision[] = []): TokenSuggestion[] {
+export function suggestNewTokens(
+  held: readonly ExtractedColor[],
+  takenPaths: Iterable<string>,
+  decisions: readonly MergeDecision[] = [],
+  minUses = NEW_TOKEN_MIN_USES,
+): TokenSuggestion[] {
   const rejected = tokenMembers(decisions, "rejected");
   const candidates = held
-    .filter((c) => c.uses >= NEW_TOKEN_MIN_USES && !rejected.has(c.value))
+    .filter((c) => c.uses >= minUses && !rejected.has(c.value))
     .sort((a, b) => b.uses - a.uses || compareStrings(a.value, b.value));
   const paths = proposeColorPaths(
     candidates.map((c) => c.value),

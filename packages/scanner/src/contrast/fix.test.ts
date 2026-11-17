@@ -72,12 +72,33 @@ describe("chooseFix", () => {
     expect(chooseFix("#6b7280", "#f3f4f6", 4.5, tokens)).toMatchObject({ replaces: "background", hex: "#f9fafb" });
   });
 
-  it("computes a shade when no token passes, and names it", () => {
+  it("suggests the nearest Tailwind palette step that passes when no token does, so the fix is a real class", () => {
+    // red-600 on red-50 is 4.4:1. A computed in-between shade (#da2324) has no class; red-700 does.
     const fix = chooseFix("#dc2626", "#fef2f2", 4.5, tokens)!;
-    expect(fix.existing).toBe(false);
+    expect(fix).toMatchObject({ replaces: "foreground", hex: "#b91c1c", path: "color.red.700", existing: false });
     expect(fix.ratio).toBeGreaterThanOrEqual(4.5);
-    expect(fix.path).toMatch(/^color\.(red|gray)\.\d+$/);
-    expect(tokens.map((t) => t.path)).not.toContain(fix.path);
+  });
+
+  it("uses an existing token's name when a passing palette step is already in the system", () => {
+    const fix = chooseFix("#dc2626", "#fef2f2", 4.5, [...tokens, { path: "color.danger", hex: "#b91c1c" }])!;
+    expect(fix).toMatchObject({ path: "color.danger", existing: true });
+  });
+
+  it("skips a palette step whose name a different token already has", () => {
+    const fix = chooseFix("#dc2626", "#fef2f2", 4.5, [...tokens, { path: "color.red.700", hex: "#123456" }])!;
+    expect(fix.path).not.toBe("color.red.700");
+    expect(fix.ratio).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("finds a gray for white or black, which have no steps of their own", () => {
+    const fix = chooseFix("#ffffff", "#ffffff", 4.5, [])!;
+    expect(fix.path).toMatch(/^color\.(gray|slate|zinc|neutral|stone)\.\d+$/);
+    expect(fix.ratio).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("picks from the palette it's given (Tailwind v4's, say)", () => {
+    const fix = chooseFix("#dc2626", "#fef2f2", 4.5, tokens, { "red-800": "#991b1b" })!;
+    expect(fix).toMatchObject({ path: "color.red.800", hex: "#991b1b" });
   });
 
   it("only swaps tokens for a color that is itself in the system", () => {

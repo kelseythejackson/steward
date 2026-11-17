@@ -58,6 +58,27 @@ export const HISTORY_FIELDS = [
   "components",
 ] as const satisfies readonly (keyof HistoryRecord)[];
 
+/**
+ * Every Review rule id a record's `problems` may name. Anything else is refused, so a key can never
+ * carry a name or a per-person count (`"jane-doe": 3`). Kept in step with Review's rules by a test in
+ * packages/guard. Add new ids here; never remove one, or older history would stop being readable.
+ */
+export const HISTORY_RULE_IDS: readonly string[] = [
+  "a11y-accessible-name",
+  "a11y-focus-visible",
+  "a11y-img-alt",
+  "a11y-interactive-element",
+  "a11y-label-inputs",
+  "a11y-text-contrast",
+  "no-arbitrary-spacing",
+  "no-hardcoded-color",
+  "use-system-component",
+];
+const RULE_IDS = new Set(HISTORY_RULE_IDS);
+
+/** A UTC timestamp exactly as `Date.toISOString()` writes it: nothing else can ride along in a date. */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+
 const COMPONENT_FIELDS = ["system", "total", "share"] as const;
 const SOURCES = new Set<SourceType>(["ai-agent", "human", "unknown"]);
 
@@ -71,7 +92,8 @@ const isCount = (v: unknown): v is number => Number.isInteger(v) && (v as number
 /**
  * Pure: checks a record against the allowed fields and types. Throws
  * `HistoryError` for any field not on the list (an `author`, say) or a
- * value of the wrong kind. `problems` keys must look like rule ids.
+ * value of the wrong kind. `date` must be an ISO 8601 UTC time and `problems`
+ * keys must be Review's rule ids, so neither can carry a name.
  */
 export function checkHistoryRecord(value: unknown): HistoryRecord {
   const fail = (problem: string): never => {
@@ -79,11 +101,14 @@ export function checkHistoryRecord(value: unknown): HistoryRecord {
   };
   if (!isRecord(value)) return fail("should be an object");
   const extra = Object.keys(value).filter((k) => !(HISTORY_FIELDS as readonly string[]).includes(k));
-  if (extra.length > 0) fail(`has ${extra.map((k) => `"${k}"`).join(", ")}, which history doesn't keep`);
+  // Unknown keys aren't repeated in the message (it's shown on the Report page): one could be a name.
+  if (extra.length > 0) fail(`has ${extra.length === 1 ? "a field" : `${extra.length} fields`} history doesn't keep`);
   for (const k of HISTORY_FIELDS) if (!(k in value)) fail(`is missing "${k}"`);
 
   if (value["v"] !== HISTORY_VERSION) fail(`has version ${JSON.stringify(value["v"])}`);
-  if (typeof value["date"] !== "string" || Number.isNaN(Date.parse(value["date"]))) fail('has a "date" that isn\'t a date');
+  if (typeof value["date"] !== "string" || !ISO_DATE.test(value["date"]) || Number.isNaN(Date.parse(value["date"]))) {
+    fail('has a "date" that isn\'t an ISO 8601 UTC time like 2026-11-17T20:36:54.035Z');
+  }
   if (value["scope"] !== "changes" && value["scope"] !== "all") fail('has a "scope" other than "changes" or "all"');
   if (value["pr"] !== null && !(isCount(value["pr"]) && value["pr"] > 0)) fail('has a "pr" that isn\'t a pull request number');
   if (!SOURCES.has(value["source"] as SourceType)) fail('has a "source" other than "ai-agent", "human" or "unknown"');
@@ -93,12 +118,14 @@ export function checkHistoryRecord(value: unknown): HistoryRecord {
   const problems = value["problems"];
   if (!isRecord(problems)) return fail('has "problems" that aren\'t counts by rule');
   for (const [k, n] of Object.entries(problems)) {
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(k) || !isCount(n)) fail(`has "problems.${k}" that isn't a count by rule id`);
+    // The key is echoed only if it's a known rule id: an unknown key might be a name, and errors are shown.
+    if (!RULE_IDS.has(k)) fail('has a "problems" key that isn\'t one of Review\'s rule ids');
+    if (!isCount(n)) fail(`has "problems.${k}" that isn't a count`);
   }
   const c = value["components"];
   if (!isRecord(c)) return fail('has "components" that aren\'t { system, total, share }');
   const extraC = Object.keys(c).filter((k) => !(COMPONENT_FIELDS as readonly string[]).includes(k));
-  if (extraC.length > 0) fail(`has "components.${extraC[0]}", which history doesn't keep`);
+  if (extraC.length > 0) fail('has a "components" field history doesn\'t keep');
   if (!isCount(c["system"]) || !isCount(c["total"]) || c["system"] > c["total"]) fail('has "components" counts that don\'t add up');
   if (c["share"] !== null && (typeof c["share"] !== "number" || c["share"] < 0 || c["share"] > 1)) fail('has a "components.share" outside 0–1');
   return value as unknown as HistoryRecord;

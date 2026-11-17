@@ -1,13 +1,18 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState, type DragEvent } from "react";
-import type { Decision } from "../../lib/decide";
+import type { DecideResult, Decision } from "../../lib/decide";
 import { nameForMovedColor } from "../../lib/names";
 import type { ReviewData } from "../../lib/review-data";
 import { Button } from "../button";
 import { plural, ReviewCard, StatusBadge, Swatch } from "./parts";
 
 interface Group {
+  /**
+   * Fixed for the group's life, for React keys. Not the path: that's the name being typed, and a key
+   * that changes on every keystroke remounts the field, so keyboard focus would drop after each letter.
+   */
+  id: string;
   /** The token's path before any edit; new groups (a color moved out on its own) have none. */
   from: string | null;
   path: string;
@@ -16,7 +21,7 @@ interface Group {
 
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600";
 
-export function ColorsCard({ data, busy, run, notice }: { data: ReviewData["colors"]; busy: boolean; run: (d: Decision) => void; notice?: string | null }) {
+export function ColorsCard({ data, busy, run, notice }: { data: ReviewData["colors"]; busy: boolean; run: (d: Decision) => Promise<DecideResult>; notice?: string | null }) {
   const [editing, setEditing] = useState(false);
   const waiting = data.merges.filter((m) => m.status === "waiting");
   const titleId = useId();
@@ -49,7 +54,15 @@ export function ColorsCard({ data, busy, run, notice }: { data: ReviewData["colo
       }
     >
       {editing ? (
-        <EditGroups tokens={data.tokens} busy={busy} onCancel={() => setEditing(false)} onSave={(groups) => (run({ kind: "color-groups", groups }), setEditing(false))} />
+        <EditGroups
+          tokens={data.tokens}
+          busy={busy}
+          onCancel={() => setEditing(false)}
+          onSave={async (groups) => {
+            // Close only once it's saved: if the save is refused, the edits stay, and the card shows why.
+            if ((await run({ kind: "color-groups", groups })).ok) setEditing(false);
+          }}
+        />
       ) : (
         <>
           <div className="flex flex-col gap-2">
@@ -89,7 +102,8 @@ export function ColorsCard({ data, busy, run, notice }: { data: ReviewData["colo
                         →
                       </span>
                       <span className="sr-only">merge into</span>
-                      <Swatch hex={m.hex} label={m.name} />
+                      {/* Decorative: the name is read once, from the code beside it. */}
+                      <span aria-hidden="true" className="inline-flex size-8 shrink-0 rounded-md border border-gray-500" style={{ backgroundColor: m.hex }} />
                       <code className="text-sm text-gray-900">{m.name}</code>
                       <span className="ml-auto">
                         <StatusBadge status={m.status} />
@@ -101,7 +115,7 @@ export function ColorsCard({ data, busy, run, notice }: { data: ReviewData["colo
                         <Button disabled={busy} aria-label={`Accept: merge into ${m.name}`} onClick={() => run({ kind: "accept", ids: [m.id] })}>
                           Accept
                         </Button>
-                        <Button variant="quiet" disabled={busy} aria-label={`Keep ${m.members.join(" and ")} apart`} onClick={() => run({ kind: "reject", ids: [m.id] })}>
+                        <Button variant="quiet" disabled={busy} aria-label={`Keep apart: ${m.members.join(" and ")}`} onClick={() => run({ kind: "reject", ids: [m.id] })}>
                           Keep apart
                         </Button>
                       </div>
@@ -128,9 +142,11 @@ export function ColorsCard({ data, busy, run, notice }: { data: ReviewData["colo
  * Move form (the keyboard way). Rename a token by editing its name.
  * Only groups that changed are saved.
  */
-function EditGroups({ tokens, busy, onCancel, onSave }: { tokens: ReviewData["colors"]["tokens"]; busy: boolean; onCancel: () => void; onSave: (groups: { members: string[]; path: string }[]) => void }) {
-  const initial = useMemo<Group[]>(() => tokens.map((t) => ({ from: t.path, path: t.path, members: [...t.members] })), [tokens]);
+function EditGroups({ tokens, busy, onCancel, onSave }: { tokens: ReviewData["colors"]["tokens"]; busy: boolean; onCancel: () => void; onSave: (groups: { members: string[]; path: string }[]) => Promise<void> }) {
+  const initial = useMemo<Group[]>(() => tokens.map((t) => ({ id: t.path, from: t.path, path: t.path, members: [...t.members] })), [tokens]);
   const [groups, setGroups] = useState<Group[]>(initial);
+  /** Numbers the groups made while editing (`new-1`, `new-2`…), so each has its own id. */
+  const created = useRef(0);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
   const [announce, setAnnounce] = useState("");
   const hintId = useId();
@@ -143,7 +159,7 @@ function EditGroups({ tokens, busy, onCancel, onSave }: { tokens: ReviewData["co
       const next = gs.map((g) => ({ ...g, members: g.members.filter((m) => m !== hex) }));
       if (to === "own") {
         const path = nameForMovedColor(gs[fromIndex]!.path, hex, gs.map((g) => g.path));
-        next.push({ from: null, path, members: [hex] });
+        next.push({ id: `new-${++created.current}`, from: null, path, members: [hex] });
         setAnnounce(`Moved ${hex} into a token of its own, ${path}.`);
       } else {
         next[to]!.members.push(hex);
@@ -183,7 +199,7 @@ function EditGroups({ tokens, busy, onCancel, onSave }: { tokens: ReviewData["co
         {groups.map((g, i) =>
           g.members.length === 0 && g.from !== null && !changed.includes(g) ? null : (
             <li
-              key={g.from ?? g.path}
+              key={g.id}
               onDragOver={(e) => {
                 e.preventDefault();
                 setDropTarget(i);
@@ -217,8 +233,9 @@ function EditGroups({ tokens, busy, onCancel, onSave }: { tokens: ReviewData["co
           ),
         )}
       </ul>
-      <div className="flex flex-wrap gap-3">
-        <Button variant="primary" disabled={busy || toSave.length === 0} onClick={() => onSave(toSave)}>
+      {/* An item of its own, so if a save is refused, focus goes back to Save (the editor stays open, edits intact). */}
+      <div data-item="color-editor" className="flex flex-wrap gap-3">
+        <Button variant="primary" disabled={busy || toSave.length === 0} onClick={() => void onSave(toSave)}>
           {toSave.length === 0 ? "No changes yet" : `Save ${plural(toSave.length, "group")}`}
         </Button>
         <Button disabled={busy} onClick={onCancel}>
@@ -275,7 +292,7 @@ function MoveForm({ groups, onMove }: { groups: Group[]; onMove: (hex: string, t
           <option value="">Choose a group</option>
           {groups.map((g, j) =>
             g.path === from || (g.members.length === 0 && g.from !== null) ? null : (
-              <option key={g.from ?? g.path} value={j}>
+              <option key={g.id} value={j}>
                 {g.path}
               </option>
             ),

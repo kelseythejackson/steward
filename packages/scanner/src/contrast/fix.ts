@@ -1,7 +1,8 @@
 import { compareStrings } from "@steward/model";
 import { clampChroma, converter, formatHex, parse } from "culori";
 import { deltaE } from "../colors/cluster.js";
-import { colorFamily, proposeColorPaths } from "../colors/naming.js";
+import { colorFamily } from "../colors/naming.js";
+import { TAILWIND_PALETTE } from "./palette.js";
 import { contrastRatio } from "./wcag.js";
 
 const toOklch = converter("oklch");
@@ -97,15 +98,27 @@ interface Candidate extends Fix {
 const byCost = (a: Candidate, b: Candidate) =>
   a.cost - b.cost || (a.replaces === b.replaces ? 0 : a.replaces === "foreground" ? -1 : 1) || compareStrings(a.path, b.path);
 
-const strip = ({ cost: _cost, ...fix }: Candidate): Fix => fix;
+const strip = ({ cost: _cost, ...fix }: Candidate & { otherHue?: boolean }): Fix => {
+  delete (fix as { otherHue?: boolean }).otherHue;
+  return fix;
+};
 
 /**
  * Picks the smallest change that makes the pair pass:
  * 1. Swap a side for another token in the same color family, if that side is a token.
- * 2. Otherwise compute the nearest passing shade of either side.
+ * 2. Otherwise the nearest Tailwind palette step in the same color family that passes (`red-700`),
+ *    so the fix is a class that works as it is. A computed in-between shade (`#da2324`) has no class:
+ *    its name would render Tailwind's own, different color, which is how fixes used to go in circles.
  * "Smallest" is measured in ΔE from the color being replaced; ties favor changing the foreground.
+ * Null when no token or palette step in the family passes.
  */
-export function chooseFix(foreground: string, background: string, required: number, tokens: readonly TokenRef[]): Fix | null {
+export function chooseFix(
+  foreground: string,
+  background: string,
+  required: number,
+  tokens: readonly TokenRef[],
+  palette: Readonly<Record<string, string>> = TAILWIND_PALETTE,
+): Fix | null {
   const inSystem = (hex: string) => tokens.some((t) => t.hex === hex);
   const familyOf = (t: TokenRef) => t.family ?? colorFamily(t.hex);
   const existing: Candidate[] = [];
@@ -125,13 +138,35 @@ export function chooseFix(foreground: string, background: string, required: numb
   }
   if (existing.length > 0) return strip(existing.sort(byCost)[0]!);
 
-  const computed: Candidate[] = [];
-  const taken = tokens.map((t) => t.path);
+  const steps: (Candidate & { otherHue: boolean })[] = [];
+  const takenPaths = new Map(tokens.map((t) => [t.path, t.hex]));
+  const entries = Object.entries(palette).map(([name, raw]) => [name, raw.toLowerCase()] as const);
+  /** `red` for red-600, or for a color nearest red-600: the palette hue a color reads as. */
+  const hueOf = (hex: string) => {
+    let best: { name: string; d: number } | null = null;
+    for (const [name, p] of entries) {
+      const d = deltaE(hex, p);
+      if (!best || d < best.d) best = { name, d };
+    }
+    return best ? best.name.replace(/-\d+$/, "") : null;
+  };
   for (const [replaces, original, other] of sides) {
-    const shade = nearestPassingShade(original, other, required);
-    if (!shade) continue;
-    const path = proposeColorPaths([shade.hex], taken).get(shade.hex)!;
-    computed.push({ replaces, hex: shade.hex, ratio: shade.ratio, path, existing: false, cost: deltaE(original, shade.hex) });
+    const hue = hueOf(original);
+    const family = colorFamily(original);
+    // White and black have no other steps of their own: their nearest passing shades are grays.
+    const families = family === "white" || family === "black" ? [family, "gray"] : [family];
+    for (const [name, hex] of entries) {
+      if (hex === original || hex === other || !families.includes(colorFamily(hex))) continue;
+      const ratio = contrastRatio(hex, other);
+      if (ratio < required) continue;
+      const path = `color.${name.replaceAll("-", ".")}`;
+      const token = tokens.find((t) => t.hex === hex);
+      // A token already has this color: use its name. A different color under this name: skip, it isn't this class.
+      if (!token && takenPaths.has(path)) continue;
+      // A red stays a red: steps of the same palette hue come first, then the rest of the (broader) family.
+      steps.push({ replaces, hex, ratio, path: token?.path ?? path, existing: token !== undefined, cost: deltaE(original, hex), otherHue: name.replace(/-\d+$/, "") !== hue });
+    }
   }
-  return computed.length > 0 ? strip(computed.sort(byCost)[0]!) : null;
+  steps.sort((a, b) => Number(a.otherHue) - Number(b.otherHue) || byCost(a, b));
+  return steps.length > 0 ? strip(steps[0]!) : null;
 }

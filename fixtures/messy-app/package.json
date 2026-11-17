@@ -1,5 +1,5 @@
 {
-  "name": "@steward/fixture-messy-app",
+  "name": "@steward/acme-metrics",
   "version": "0.0.0",
   "private": true,
   "description": "Deliberately inconsistent React + Tailwind app used as the Steward test target. See FIXTURE_NOTES.md.",

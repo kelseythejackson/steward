@@ -17,7 +17,7 @@ describe("themeCss", () => {
     expect(css).toContain("--color-gray-900: #111827;");
     expect(css).toContain("--color-white: #ffffff;");
     expect(css).toContain("--color-black-40: #00000066;");
-    expect(css.match(/--color-[\w-]+: #/g)).toHaveLength(17);
+    expect(css.match(/--color-[\w-]+: #/g)).toHaveLength(18);
   });
 
   it("has the spacing scale in order, with 2.5 written the way Tailwind looks it up", () => {

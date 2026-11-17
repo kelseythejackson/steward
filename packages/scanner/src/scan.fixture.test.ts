@@ -34,6 +34,13 @@ describe("scanRepo on fixtures/messy-app", () => {
     expect(s.skippedFiles).toEqual([]);
   });
 
+  it("counts a declined contrast fix once, as declined, so the counts add up to the failing pairs", async () => {
+    const declined: MergeDecision[] = result.contrast.suggestions.slice(0, 2).map((s) => ({ suggestionId: s.id, kind: "contrast", members: s.members, status: "rejected", decidedAt: "2026-11-17T00:00:00.000Z" }));
+    const a = summarizeScan(await scanRepo(FIXTURE, { decisions: declined })).accessibility;
+    expect(a).toMatchObject({ failingPairs: 9, fixesSuggested: 7, fixDeclined: 2, noFixFound: 0 });
+    expect(a.fixesSuggested + a.fixDeclined + a.noFixFound).toBe(a.failingPairs);
+  });
+
   it("builds a model that survives a round trip through system.json", () => {
     const text = serializeSystemModel(model);
     expect(serializeSystemModel(parseSystemModel(text, "system.json"))).toBe(text);

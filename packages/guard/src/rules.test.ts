@@ -91,6 +91,12 @@ describe("no-arbitrary-spacing on the fixture", () => {
     });
   });
 
+  it("flags nothing when the system has no spacing scale yet (the scan found no spacing), instead of failing", () => {
+    const noSpacing = { ...model, tokens: Object.fromEntries(Object.entries(model.tokens).filter(([k]) => k !== "spacing")) } as SystemModel;
+    const found = checkFile({ path: "src/A.tsx", code: `export const A = () => <div className="p-[13px]" />;` }, noSpacing).findings;
+    expect(found.filter((f) => f.rule === "no-arbitrary-spacing")).toEqual([]);
+  });
+
   it("leaves sizes like h-[42px] and the dynamic width style alone", () => {
     expect(byRule("no-arbitrary-spacing").map((f) => f.found)).not.toContain("h-[42px]");
     expect(byRule("no-arbitrary-spacing").every((f) => f.systemRule === "spacing-tokens-only")).toBe(true);

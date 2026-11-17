@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import type { Decision } from "../../lib/decide";
+import type { DecideResult, Decision } from "../../lib/decide";
 import type { ReviewData } from "../../lib/review-data";
 import { Button } from "../button";
 import { decide } from "./actions";
@@ -24,17 +24,21 @@ export function SetupReview({ data, version, summary, readOnly = false }: { data
   const returnTo = useRef<{ item: string | null; card: string | null } | null>(null);
   const clicked = useRef<HTMLElement | null>(null);
 
-  function run(decision: Decision) {
+  /** Saves a decision. Resolves with the result once it's saved (or refused), for a card that waits on it, like the color editor. */
+  function run(decision: Decision): Promise<DecideResult> {
     setMessage(null);
     const focused = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
     const active = clicked.current?.isConnected ? clicked.current : focused;
     clicked.current = null;
     returnTo.current = { item: active?.closest("[data-item]")?.getAttribute("data-item") ?? null, card: active?.closest("section[id]")?.id ?? null };
     const card = returnTo.current.card;
-    startTransition(async () => {
-      const r = await decide(version, decision);
-      setMessage({ ok: r.ok, text: r.message, card });
-    });
+    return new Promise((done) =>
+      startTransition(async () => {
+        const r = await decide(version, decision);
+        setMessage({ ok: r.ok, text: r.message, card });
+        done(r);
+      }),
+    );
   }
 
   /** The last save's message, shown in the card it came from (not while saving). */
@@ -62,8 +66,17 @@ export function SetupReview({ data, version, summary, readOnly = false }: { data
       </ol>
       <header className="flex flex-col gap-2">
         <p className="text-sm font-medium text-gray-700">Setup</p>
-        <h1 className="text-2xl font-semibold text-gray-900">We found your design system. Here&apos;s a cleaner version.</h1>
-        <p className="text-sm text-gray-700">{summary} Decide on each suggestion: accept it, change it, or keep things as they are. Your code doesn&apos;t change.</p>
+        {data.waiting === 0 ? (
+          <>
+            <h1 className="text-2xl font-semibold text-gray-900">Your design system is set up.</h1>
+            <p className="text-sm text-gray-700">{summary} Undo any decision below to change it. Your code doesn&apos;t change.</p>
+          </>
+        ) : (
+          <>
+            <h1 className="text-2xl font-semibold text-gray-900">We found your design system. Here&apos;s a cleaner version.</h1>
+            <p className="text-sm text-gray-700">{summary} Decide on each suggestion: accept it, change it, or keep things as they are. Your code doesn&apos;t change.</p>
+          </>
+        )}
       </header>
       {readOnly && (
         <p className="rounded-md border border-gray-500 bg-gray-50 p-3 text-sm text-gray-900">

@@ -79,7 +79,7 @@ describe("loadRepo", () => {
     const repo = await loadRepo({ STEWARD_REPO: app });
     expect(repo.kind === "ready" && repo.history).toHaveLength(1);
     expect(repo.kind === "ready" && repo.historyProblem).toBe(
-      `1 line of .steward/history.jsonl couldn't be read, so it's left out (line 1 has "author", which history doesn't keep). The rest are counted.`,
+      `1 line of .steward/history.jsonl couldn't be read, so it's left out (line 1 has a field history doesn't keep). The rest are counted.`,
     );
   });
 });

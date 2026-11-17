@@ -5,9 +5,10 @@ import { DRIFT_RULES, type MainSource } from "./health.ts";
 export const ruleLabel = (rule: string) => RULE_LABELS[rule as RuleId] ?? rule;
 
 const SETUP_CARD: Readonly<Record<string, { href: string; label: string }>> = {
-  "no-hardcoded-color": { href: "/setup#colors", label: "Review colors on Setup" },
-  "no-arbitrary-spacing": { href: "/setup#spacing", label: "Review the spacing scale" },
-  "use-system-component": { href: "/setup#components", label: "Review components on Setup" },
+  // "Decide", not "Review": Review is the pull request checks; Setup is where suggestions get a decision.
+  "no-hardcoded-color": { href: "/setup#colors", label: "Decide on colors in Setup" },
+  "no-arbitrary-spacing": { href: "/setup#spacing", label: "Decide on the spacing scale in Setup" },
+  "use-system-component": { href: "/setup#components", label: "Decide on components in Setup" },
 };
 
 /**

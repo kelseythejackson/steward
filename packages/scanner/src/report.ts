@@ -6,14 +6,25 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 /** "; 1 merge you declined stays separate", or "" when there's none. Declined merges are a healthy choice, so they read as settled. */
 const declined = (n: number) => (n === 0 ? "" : `; ${plural(n, "merge")} you declined ${n === 1 ? "stays" : "stay"} separate`);
 
+/** "; 2 new colors wait for a decision (1 orange, 1 purple)", or "" when none are held. */
+function heldNote(s: ScanSummary): string {
+  if (!s.newColors) return "";
+  const { held, suggested, families } = s.newColors;
+  const which = families.map((f) => `${f.count} ${f.family}`).join(", ");
+  // Only colors used in enough places are suggested; the rest are held without a decision to make.
+  const state = suggested === held ? (held === 1 ? "waits for a decision" : "wait for a decision") : "held for now";
+  return `; ${plural(held, "new color")} ${state} (${which})`;
+}
+
 function colorsLine(s: ScanSummary): string {
   const { found, suggested, merges, keptApart } = s.colors;
   if (found === 0) return "Colors: no colors found";
   const head = `Colors: ${plural(found, "color")} → ${plural(suggested, "token")}`;
   const kept = declined(keptApart);
-  if (merges === 0) return `${head}, no near-duplicates${kept}`;
+  const held = heldNote(s);
+  if (merges === 0) return `${head}, no near-duplicates${held}${kept}`;
   const families = s.colorFamilies.map((f) => `${plural(f.found, f.family)} → ${f.suggested}`);
-  return `${head} (${families.join(", ")})${kept}`;
+  return `${head} (${families.join(", ")})${held}${kept}`;
 }
 
 function spacingLine(s: ScanSummary): string {
@@ -23,6 +34,7 @@ function spacingLine(s: ScanSummary): string {
     repo: `${scaleSteps}-step scale from the Tailwind values you use most`,
     default: `Steward's default ${scaleSteps}-step scale, as too few standard values are used to build yours`,
     custom: `${scaleSteps}-step scale`,
+    none: "no scale",
   }[scaleBasis];
   let line = `Spacing: ${plural(found, "value")} → ${scale}`;
   if (snapping === 0) line += " (all already on it)";

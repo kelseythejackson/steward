@@ -2,6 +2,7 @@ import { isAbsolute, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Readable, Writable } from "node:stream";
 import { componentUse, formatReview, historyRecord } from "@steward/guard";
+import { pendingSuggestions } from "@steward/model";
 import { checkJson, runCheck } from "./check.js";
 import { runGithubCheck } from "./github.js";
 import { formatImport, githubToken, importHistory, originRepo } from "./history-import.js";
@@ -51,6 +52,7 @@ function help(): string {
     "",
     "Options for history import:",
     "  --repo <owner/name>  GitHub repo to read (default: the folder's origin remote). Uses GITHUB_TOKEN, GH_TOKEN or `gh auth login`",
+    "  Artifacts already imported are listed by id in .steward/history-imported.json and aren't downloaded again.",
     "",
     "Options for check:",
     "  --base <ref>  Branch to compare with (default: \"base\" in .steward/config.json, then the repo's default branch)",
@@ -85,7 +87,7 @@ async function scan(args: string[], io: Io): Promise<number> {
   const target = positionals[0] ?? ".";
   const { output, writtenTo } = await runScan(resolve(io.cwd, target), { shownAs: target });
   if (values.json) io.stdout(`${JSON.stringify(output, null, 2)}\n`);
-  else io.stdout(formatScanReport(output.summary, displayPath(io.cwd, writtenTo), target));
+  else io.stdout(formatScanReport(output.summary, displayPath(io.cwd, writtenTo), target, pendingSuggestions(output.model).length));
   return 0;
 }
 
@@ -99,7 +101,7 @@ async function review(args: string[], io: Io): Promise<number> {
     io.stdout(help());
     return 0;
   }
-  if (positionals.length > 1) throw new StewardError(`review takes one folder, but got ${positionals.length}: ${positionals.join(" ")}`);
+  if (positionals.length > 1) throw new StewardError(`decide takes one folder, but got ${positionals.length}: ${positionals.join(" ")}`);
 
   const target = positionals[0] ?? ".";
   const run = await runReview(resolve(io.cwd, target), { acceptAll: values["accept-all"], shownAs: target });
@@ -179,6 +181,10 @@ async function check(args: string[], io: Io): Promise<number> {
 
 async function history(args: string[], io: Io): Promise<number> {
   const [sub, ...rest] = args;
+  if (sub === "--help" || sub === "-h" || sub === "help") {
+    io.stdout(help());
+    return 0;
+  }
   if (sub !== "import") throw new StewardError("history has one command: `steward history import [path]`, which brings the pull request checks' history in from GitHub.");
   const { values, positionals } = parseArgs({ args: rest, allowPositionals: true, options: { repo: { type: "string" }, help: { type: "boolean", short: "h", default: false } } });
   if (values.help) {

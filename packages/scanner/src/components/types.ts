@@ -7,6 +7,8 @@ export interface ComponentInfo {
   exported: boolean;
   /** Prop names from the destructured parameter and the props type, sorted. */
   props: string[];
+  /** Props the type requires (no `?`), sorted: an example that leaves them out wouldn't compile. */
+  requiredProps: string[];
   /** True when the component collects `...rest` props. */
   spreadsRest: boolean;
   /** Types the props extend, e.g. `ButtonHTMLAttributes<HTMLButtonElement>`. */

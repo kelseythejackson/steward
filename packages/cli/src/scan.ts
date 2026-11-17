@@ -2,7 +2,7 @@ import { readFile, stat } from "node:fs/promises";
 import { join, relative, resolve, sep } from "node:path";
 import { checkFile, isReviewable, SnippetParseError } from "@steward/guard";
 import { compareStrings, readSystemModel, STEWARD_DIR, SYSTEM_MODEL_FILE, SystemModelError, writeSystemModel, type Exception, type SystemModel } from "@steward/model";
-import { buildSystemModel, colorNamesInModel, colorsInModel, scanRepo, summarizeScan, type ScanResult, type ScanSummary } from "@steward/scanner";
+import { buildSystemModel, colorNamesInModel, knownColors, scanRepo, summarizeScan, type ScanResult, type ScanSummary } from "@steward/scanner";
 
 /** A problem the person can fix, with a calm message saying how. */
 export class StewardError extends Error {
@@ -86,7 +86,8 @@ export async function runScan(target: string, options: ScanOptions = {}): Promis
   }
 
   // On a re-scan, only colors already in the system become tokens on their own; new ones wait for a person.
-  const known = previous ? colorsInModel(previous.tokens) : [];
+  // A new color whose acceptance was undone isn't "already in the system": it waits again.
+  const known = previous ? knownColors(previous) : [];
   // Tokens keep their names across scans, so code using them never points at a different color.
   const names = previous ? colorNamesInModel(previous.tokens) : new Map<string, string>();
   const details = await scanRepo(root, {

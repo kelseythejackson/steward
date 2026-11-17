@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { checkHistoryRecord, parseSystemModel } from "@steward/model";
+import { checkHistoryRecord, HISTORY_RULE_IDS, parseSystemModel } from "@steward/model";
 import { describe, expect, it } from "vitest";
 import { checkContext } from "./context.js";
 import { acceptedSuggestions } from "./github.js";
@@ -126,5 +126,12 @@ describe("acceptedSuggestions near the comment's line", () => {
 
   it("never counts an empty suggestion (a line removed), which would match any blank line", () => {
     expect(acceptedSuggestions([{ path: "a.tsx", line: null, originalLine: 2, body: body("", "a3") }], () => "a\n\nb")).toBe(0);
+  });
+});
+
+describe("history's allowed rule ids", () => {
+  it("include every Review rule, so a new rule's counts are never refused (add its id to HISTORY_RULE_IDS in packages/model)", () => {
+    const missing = RULES.map((r) => r.id).filter((id) => !HISTORY_RULE_IDS.includes(id));
+    expect(missing).toEqual([]);
   });
 });

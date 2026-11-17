@@ -53,8 +53,22 @@ describe("suggestColorTokens", () => {
 
   it("proposes a token for every group, but merges only for groups of two or more", () => {
     const result = suggestColorTokens([...blues(), color("#2563eb", 1)]);
-    expect(result.tokens.map((t) => t.path)).toEqual(["color.blue.500", "color.blue.600"]);
+    expect(result.preview.map((t) => t.path)).toEqual(["color.blue.500", "color.blue.600"]);
     expect(result.suggestions).toHaveLength(1);
+  });
+
+  it("applies a merge only once a person accepts it: until then each color is its own token, and undo splits them again", () => {
+    const waiting = suggestColorTokens(blues());
+    const id = waiting.suggestions[0]!.id;
+    // Waiting: three tokens, each a color found in the code; the merged token is only the suggestion's preview.
+    expect(waiting.tokens.map((t) => t.token.$value.hex).sort()).toEqual(["#3a81f5", "#3b82f6", "#3b83f7"]);
+    expect(waiting.preview.map((t) => t.path)).toEqual(["color.blue.500"]);
+    // Near-duplicates waiting to merge go by their hex, never by a Tailwind step that's a different color.
+    expect(waiting.tokens.map((t) => t.path).sort()).toEqual(["color.blue.3a81f5", "color.blue.3b83f7", "color.blue.500"]);
+    // Accepted: one token, with the others merged into it.
+    const accepted = suggestColorTokens(blues(), { decisions: [{ ...rejected(waiting.suggestions[0]!.members, id), status: "accepted" }] });
+    expect(accepted.tokens).toHaveLength(1);
+    expect(accepted.tokens[0]!.token.$extensions?.["dev.steward"]?.mergedFrom?.sort()).toEqual(["#3a81f5", "#3b83f7"]);
   });
 
   it("never re-suggests a rejected merge, and gives each color its own token instead", () => {

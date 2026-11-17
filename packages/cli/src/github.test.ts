@@ -252,6 +252,21 @@ describe("steward check --github", () => {
     const r = await steward(fakeGithub());
     expect(r.code).toBe(0);
     expect(r.stdout).toContain("::warning title=Steward Review::Steward Review couldn't run: There's no Steward system in app yet.");
+    expect(r.stdout).toContain("Mode: warn, so this doesn't fail the check.");
+  });
+
+  it("in error mode, fails the check when Steward couldn't check: no system.json, or the base branch is missing", async () => {
+    await writeFile(join(repo, "app/.steward/config.json"), '{ "mode": "error" }');
+    await writeFile(env["GITHUB_EVENT_PATH"]!, JSON.stringify({ pull_request: { number: 7, base: { ref: "gone" }, head: { sha: git("rev-parse", "HEAD") } } }));
+    const noBase = await steward(fakeGithub());
+    expect(noBase.code).toBe(1);
+    expect(noBase.stdout).toMatch(/::error title=Steward Review::Steward Review couldn't run: .*origin\/gone/);
+    expect(noBase.stdout).toContain("Mode: error, so this fails the check until Steward can check the changes.");
+
+    await rm(join(repo, "app/.steward/system.json"));
+    const noSystem = await steward(fakeGithub());
+    expect(noSystem.code).toBe(1);
+    expect(noSystem.stdout).toContain("::error title=Steward Review::Steward Review couldn't run: There's no Steward system in app yet.");
   });
 
   describe("history", () => {

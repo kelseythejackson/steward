@@ -50,6 +50,8 @@ export interface ContrastReport {
   skipped: ContrastSkip[];
   /** The color tokens, with `contrastIssues` set on any that fail. */
   tokens: ProposedColorToken[];
+  /** The proposed system: the tokens as if every waiting color merge were accepted, marked the same way. */
+  preview: ProposedColorToken[];
   /** The color merge suggestions, with the same marks on their proposed tokens. */
   colorSuggestions: ColorMergeSuggestion[];
 }
@@ -89,7 +91,14 @@ function fixPhrase(fix: Fix, original: string): string {
     return `${bgWord ? `a ${name} background` : name} (${fix.hex}, ${ratio}), already in your system`;
   }
   const direction = lightness(fix.hex) < lightness(original) ? "darker" : "lighter";
-  return `${bgWord ? `a ${fix.hex} background` : fix.hex} (${ratio}), a ${direction} ${colorFamily(fix.hex)} in the same hue`;
+  const name = tokenLabel(fix.path);
+  return `${bgWord ? `a ${name} background` : name} (${fix.hex}, ${ratio}), a ${direction} ${colorFamily(fix.hex)} from Tailwind's palette`;
+}
+
+/** A color token's key, with its alpha as two more hex digits when it's see-through, as extracted colors are written. */
+function keyOf(token: ColorToken): string {
+  const { hex, alpha } = token.$value;
+  return alpha === undefined || alpha >= 1 ? hex : `${hex}${Math.round(alpha * 255).toString(16).padStart(2, "0")}`;
 }
 
 function withIssues(token: ColorToken, ids: readonly string[] | undefined): ColorToken {
@@ -109,19 +118,32 @@ function withIssues(token: ColorToken, ids: readonly string[] | undefined): Colo
  * A fix someone declined is still suggested: its decision keeps it from
  * waiting again, and the pair keeps showing as failing, with an Undo.
  */
-export function checkContrast(extraction: ContrastExtraction, colors: ColorSuggestions): ContrastReport {
+export interface ContrastOptions {
+  /** The Tailwind palette fixes are chosen from: the repo's version (v3 or v4). Defaults to v3. */
+  palette?: Readonly<Record<string, string>>;
+  /** Decisions so far: an accepted fix that isn't a token yet joins the tokens under its palette name. */
+  decisions?: readonly MergeDecision[];
+}
+
+export function checkContrast(extraction: ContrastExtraction, colors: ColorSuggestions, options: ContrastOptions = {}): ContrastReport {
   // Raw color → token it belongs to.
+  // Keyed with alpha (`#9ca3af80`), so a see-through token never stands in for its solid color, or the other way round.
   const tokenOf = new Map<string, ProposedColorToken>();
-  for (const t of colors.tokens) {
-    tokenOf.set(t.token.$value.hex, t);
+  // Pairs are grouped by the proposed system (`preview`), so near-duplicates count as the token they'd
+  // merge into, and a pair's suggestion stays the same whether or not that merge is accepted yet.
+  for (const t of colors.preview) {
+    tokenOf.set(keyOf(t.token), t);
     for (const raw of t.token.$extensions?.[STEWARD_EXTENSION]?.mergedFrom ?? []) tokenOf.set(raw, t);
   }
-  const canonical = (hex: string) => tokenOf.get(hex)?.token.$value.hex ?? hex;
+  const canonical = (hex: string) => {
+    const t = tokenOf.get(hex);
+    return t ? keyOf(t.token) : hex;
+  };
   const label = (hex: string) => {
     const t = tokenOf.get(hex);
     return t ? tokenLabel(t.path) : (PALETTE_NAMES.get(hex) ?? hex);
   };
-  const tokenRefs = colors.tokens.map((t) => ({ path: t.path, hex: t.token.$value.hex, family: colorFamily(t.token.$value.hex) }));
+  const tokenRefs = colors.preview.map((t) => ({ path: t.path, hex: t.token.$value.hex, family: colorFamily(t.token.$value.hex) }));
 
   // Group occurrences by token pair, and by whether each use meets its own requirement:
   // a pair can fail as text (4.5:1) and still pass as a UI border (3:1) elsewhere.
@@ -177,11 +199,11 @@ export function checkContrast(extraction: ContrastExtraction, colors: ColorSugge
     if (pair.passes) continue;
 
     const id = contrastSuggestionId(g.fg, g.bg);
-    const fix = chooseFix(g.fg, g.bg, required, tokenRefs);
+    const fix = chooseFix(g.fg, g.bg, required, tokenRefs, options.palette);
     if (!fix) continue;
 
     const original = fix.replaces === "foreground" ? g.fg : g.bg;
-    const existingToken = colors.tokens.find((t) => t.path === fix.path)?.token;
+    const existingToken = colors.preview.find((t) => t.path === fix.path)?.token;
     let summary =
       `${label(g.fg)} on ${label(g.bg)} is ${formatRatio(ratio)}; ${USE_PHRASE[use]} ${required}:1. ` +
       `Used together in ${plural(pair.places, "place")} across ${plural(files.length, "file")}. ` +
@@ -220,13 +242,28 @@ export function checkContrast(extraction: ContrastExtraction, colors: ColorSugge
   );
   suggestions.sort((a, b) => Number(b.reason.evidence.places) - Number(a.reason.evidence.places) || compareStrings(a.id, b.id));
 
-  const mark = (token: ColorToken) => withIssues(token, issues.get(token.$value.hex));
+  // An accepted fix that isn't a token yet joins the tokens, under its palette name, even before any code uses it:
+  // otherwise Review would flag the very class the fix tells people to use.
+  const accepted = new Set((options.decisions ?? []).filter((d) => d.kind === "contrast" && d.status === "accepted").map((d) => d.suggestionId));
+  const tokens = [...colors.tokens];
+  const preview = [...colors.preview];
+  for (const s of suggestions) {
+    if (s.proposed.existing || !accepted.has(s.id)) continue;
+    const hex = s.proposed.token.$value.hex;
+    if (tokens.some((t) => t.path === s.proposed.path || t.token.$value.hex === hex)) continue;
+    tokens.push({ path: s.proposed.path, token: colorToken(hex, 0) });
+    preview.push({ path: s.proposed.path, token: colorToken(hex, 0) });
+  }
+
+  // A color still waiting to merge is marked with the issues of the token it would merge into.
+  const mark = (token: ColorToken) => withIssues(token, issues.get(canonical(keyOf(token))));
   return {
     pairs,
     suggestions,
     focus: [...extraction.focus],
     skipped: [...extraction.skipped],
-    tokens: colors.tokens.map((t) => ({ ...t, token: mark(t.token) })),
+    tokens: tokens.map((t) => ({ ...t, token: mark(t.token) })),
+    preview: preview.map((t) => ({ ...t, token: mark(t.token) })),
     colorSuggestions: colors.suggestions.map((s) => ({ ...s, proposed: { ...s.proposed, token: mark(s.proposed.token) } })),
   };
 }

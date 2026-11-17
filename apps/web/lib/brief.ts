@@ -74,11 +74,17 @@ const readText = async (p: string) => {
   }
 };
 
-/** What's set up in the repo itself. A tool can also be set up outside the repo (user settings), which Steward can't see. */
+/** Pure: quotes a path for a POSIX shell, only when it needs it. */
+const q = (s: string) => (/^[\w./@:-]+$/.test(s) ? s : `'${s.replaceAll("'", "'\\''")}'`);
+
+/** Pure: the shell command that starts Steward's MCP server for a repo, for any tool that supports MCP. */
+export function serveCommand(bin: string, repo: string): string {
+  return `node ${q(bin)} context ${q(repo)} --serve`;
+}
+
 /** Pure: the `claude mcp add` command that adds Steward's server for this repo, private to you (Claude Code's "local" scope). */
 export function claudeMcpAdd(bin: string, repo: string): string {
-  const q = (s: string) => (/^[\w./@:-]+$/.test(s) ? s : `'${s.replaceAll("'", "'\\''")}'`);
-  return `claude mcp add steward -- node ${q(bin)} context ${q(repo)} --serve`;
+  return `claude mcp add steward -- ${serveCommand(bin, repo)}`;
 }
 
 /**
@@ -95,6 +101,7 @@ async function claudeLocalServers(home: string, repo: string): Promise<string> {
   }
 }
 
+/** What's set up in the repo itself. A tool can also be set up outside the repo (user settings), which Steward can't see. */
 export async function toolStatus(repo: string, home = homedir()): Promise<{ claudeCode: ToolStatus; cursor: ToolStatus }> {
   const claudeMd = (await readText(join(repo, "CLAUDE.md"))) ?? "";
   let cursorRules = false;
@@ -168,13 +175,35 @@ export async function demoDir(env: Env, cwd: string): Promise<string | null> {
 
 const runNumber = (label: string) => Number(label.split("-").at(-1));
 
-/**
- * Reads every scored run (`<condition>/<label>.json`, as `pnpm eval:score`
- * writes them) and pairs them up by prompt. Prompts with no runs are left
- * out; a side with no runs is null. Nothing is made up.
- */
-export async function loadComparison(dir: string): Promise<PromptComparison[]> {
+/** Pure: whether parsed JSON has the parts of a scored run the page reads. */
+function isEvalRun(v: unknown): v is EvalRun {
+  if (!v || typeof v !== "object") return false;
+  const r = v as Partial<EvalRun>;
+  const t = r.totals as Partial<EvalRun["totals"]> | undefined;
+  return (
+    typeof r.label === "string" &&
+    typeof r.prompt === "string" &&
+    Array.isArray(r.files) &&
+    r.files.every((f) => f && typeof f === "object" && Array.isArray((f as { findings?: unknown }).findings)) &&
+    !!t &&
+    typeof t.problems === "number" &&
+    typeof t.addedLines === "number" &&
+    !!t.byCheck &&
+    typeof t.byCheck === "object"
+  );
+}
+
+/** Pure: the note for result files that couldn't be read (left out of the comparison), or null when there are none. */
+export function unreadableNote(files: readonly string[]): string | null {
+  if (files.length === 0) return null;
+  const one = files.length === 1;
+  return `${files.length} result ${one ? "file" : "files"} in eval/results couldn't be read, so ${one ? "it's" : "they're"} left out: ${files.join(", ")}.`;
+}
+
+/** Reads the comparison, as {@link loadComparison} does, and also lists the result files it had to leave out (`<condition>/<file>`). */
+export async function readComparison(dir: string): Promise<{ comparisons: PromptComparison[]; unreadable: string[] }> {
   const runs: Record<Condition, EvalRun[]> = { without: [], with: [] };
+  const unreadable: string[] = [];
   for (const condition of CONDITIONS) {
     let names: string[];
     try {
@@ -184,8 +213,15 @@ export async function loadComparison(dir: string): Promise<PromptComparison[]> {
       continue;
     }
     for (const name of names.filter((n) => n.endsWith(".json") && LABEL.test(n.slice(0, -5))).sort()) {
-      const run = JSON.parse(await readFile(join(/* turbopackIgnore: true */ dir, condition, name), "utf8")) as EvalRun;
-      runs[condition].push(run);
+      // A file that isn't a scored run (half-written, edited by hand) is left out and named on the page, rather than breaking it.
+      let run: unknown;
+      try {
+        run = JSON.parse(await readFile(join(/* turbopackIgnore: true */ dir, condition, name), "utf8"));
+      } catch {
+        run = null;
+      }
+      if (isEvalRun(run)) runs[condition].push(run);
+      else unreadable.push(`${condition}/${name}`);
     }
   }
 
@@ -208,5 +244,15 @@ export async function loadComparison(dir: string): Promise<PromptComparison[]> {
   const prompts = [...new Set([...runs.without, ...runs.with].map((r) => r.prompt))].sort((a, b) => Object.keys(PROMPTS).indexOf(a) - Object.keys(PROMPTS).indexOf(b));
   const out: PromptComparison[] = [];
   for (const prompt of prompts) out.push({ prompt, text: PROMPTS[prompt] ?? prompt, without: await side("without", prompt), with: await side("with", prompt) });
-  return out;
+  return { comparisons: out, unreadable };
+}
+
+/**
+ * Reads every scored run (`<condition>/<label>.json`, as `pnpm eval:score`
+ * writes them) and pairs them up by prompt. Prompts with no runs are left
+ * out; a side with no runs is null; a file that can't be read is skipped.
+ * Nothing is made up.
+ */
+export async function loadComparison(dir: string): Promise<PromptComparison[]> {
+  return (await readComparison(dir)).comparisons;
 }

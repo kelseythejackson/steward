@@ -19,6 +19,8 @@ function checkClass(ctx: CheckContext, use: ClassUse): Hit | null {
   // Sizes (`w-[42px]`) aren't spacing; the scanner leaves them out of the scale too.
   if (!parsed || parsed.category !== "spacing") return null;
   const scale = ctx.spacing.map((s) => s.px);
+  // No spacing scale in the system yet (the scan found no spacing): nothing to compare with.
+  if (scale.length === 0) return null;
   const snap = snapToScale(parsed.px, scale);
   if (snap.kind === "on-scale") return null;
 

@@ -29,6 +29,9 @@
         "className",
         "variant"
       ],
+      "requiredProps": [
+        "children"
+      ],
       "rootElements": [
         "button"
       ],
@@ -48,6 +51,9 @@
         "onClick",
         "size"
       ],
+      "requiredProps": [
+        "children"
+      ],
       "rootElements": [
         "a",
         "button"
@@ -62,6 +68,9 @@
         "children",
         "className",
         "title"
+      ],
+      "requiredProps": [
+        "children"
       ],
       "rootElements": [
         "section"
@@ -91,6 +100,12 @@
         "open",
         "title"
       ],
+      "requiredProps": [
+        "onCancel",
+        "onConfirm",
+        "open",
+        "title"
+      ],
       "rootElements": [
         "div"
       ],
@@ -101,6 +116,12 @@
       "line": 14,
       "name": "Modal",
       "props": [
+        "children",
+        "onClose",
+        "open",
+        "title"
+      ],
+      "requiredProps": [
         "children",
         "onClose",
         "open",
@@ -119,6 +140,10 @@
         "current",
         "onNavigate"
       ],
+      "requiredProps": [
+        "current",
+        "onNavigate"
+      ],
       "rootElements": [
         "header"
       ],
@@ -131,6 +156,9 @@
       "props": [
         "children",
         "heading"
+      ],
+      "requiredProps": [
+        "children"
       ],
       "rootElements": [
         "div"
@@ -425,6 +453,7 @@
       "suggestionId": "spacing-be3401501fef"
     }
   ],
+  "exceptions": [],
   "rules": [
     {
       "appliesTo": [
@@ -770,6 +799,10 @@
         {
           "kind": "token",
           "path": "color.red.600"
+        },
+        {
+          "kind": "token",
+          "path": "color.red.700"
         }
       ],
       "basedOn": [
@@ -778,13 +811,13 @@
       "category": "accessibility",
       "enabled": true,
       "examples": {
-        "right": "<p className=\"text-[#da2324] bg-red-50\">Due today</p>",
+        "right": "<p className=\"text-red-700 bg-red-50\">Due today</p>",
         "wrong": "<p className=\"text-red-600 bg-red-50\">Due today</p>"
       },
       "id": "contrast-red-600-on-red-50",
       "severity": "warn",
       "source": "generated",
-      "text": "Text on `red-50` uses `#da2324` or darker (needs 4.5:1)."
+      "text": "Text on `red-50` uses `red-700` or darker (needs 4.5:1)."
     },
     {
       "appliesTo": [
@@ -1753,8 +1786,8 @@
       },
       "proposed": {
         "existing": false,
-        "path": "color.red.500",
-        "ratio": 4.52,
+        "path": "color.red.700",
+        "ratio": 5.91,
         "replaces": "foreground",
         "token": {
           "$extensions": {
@@ -1766,11 +1799,11 @@
           "$value": {
             "colorSpace": "srgb",
             "components": [
-              0.8549,
-              0.1373,
-              0.1412
+              0.7255,
+              0.1098,
+              0.1098
             ],
-            "hex": "#da2324"
+            "hex": "#b91c1c"
           }
         }
       },
@@ -1778,12 +1811,12 @@
         "evidence": {
           "backgroundAssumed": 0,
           "files": 1,
-          "fixRatio": 4.52,
+          "fixRatio": 5.91,
           "places": 1,
           "ratio": 4.41,
           "required": 4.5
         },
-        "summary": "red-600 on red-50 is 4.4:1; normal text needs 4.5:1. Used together in 1 place across 1 file. Suggest #da2324 (4.5:1), a darker red in the same hue."
+        "summary": "red-600 on red-50 is 4.4:1; normal text needs 4.5:1. Used together in 1 place across 1 file. Suggest red-700 (#b91c1c, 5.9:1), a darker red from Tailwind's palette."
       }
     },
     {
@@ -2499,6 +2532,23 @@
               0.149
             ],
             "hex": "#dc2626"
+          }
+        },
+        "700": {
+          "$extensions": {
+            "dev.steward": {
+              "uses": 0
+            }
+          },
+          "$type": "color",
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.7255,
+              0.1098,
+              0.1098
+            ],
+            "hex": "#b91c1c"
           }
         }
       },

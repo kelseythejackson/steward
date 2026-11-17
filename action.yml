@@ -22,19 +22,38 @@ runs:
       with:
         node-version: 22
 
-    # Steward isn't published yet, so the action builds it from its own source.
-    # If that fails, the run warns instead of failing the check.
+    # Steward isn't published yet, so the action builds it from its own source
+    # (only the CLI and the packages it uses). If that fails, nothing was checked:
+    # warn mode warns and passes; error mode ("mode": "error" in the app's
+    # .steward/config.json) fails the check, since it can't call the change clean.
     - name: Build Steward
       id: build
       shell: bash
       working-directory: ${{ github.action_path }}
+      env:
+        STEWARD_PATH: ${{ inputs.path }}
       run: |
-        if npx --yes pnpm@12.18.0 install --frozen-lockfile && npx --yes pnpm@12.18.0 build; then
+        if npx --yes pnpm@12.18.0 install --frozen-lockfile --filter @steward/cli... && npx --yes pnpm@12.18.0 build; then
           echo "ok=true" >> "$GITHUB_OUTPUT"
-        else
-          echo "::warning title=Steward Review::Steward couldn't be installed or built, so nothing was checked."
-          echo "ok=false" >> "$GITHUB_OUTPUT"
+          exit 0
         fi
+        echo "ok=false" >> "$GITHUB_OUTPUT"
+        # Read the mode from the workspace; a missing or unreadable config.json means the default, warn.
+        mode="$(node -e '
+          const fs = require("fs"), path = require("path");
+          try {
+            const file = path.join(process.env.GITHUB_WORKSPACE || ".", process.env.STEWARD_PATH || ".", ".steward", "config.json");
+            const config = JSON.parse(fs.readFileSync(file, "utf8"));
+            process.stdout.write(config && config.mode === "error" ? "error" : "warn");
+          } catch {
+            process.stdout.write("warn");
+          }
+        ' || echo warn)"
+        if [ "$mode" = "error" ]; then
+          echo "::error title=Steward Review::Steward couldn't be installed or built, so nothing was checked. Mode: error, so this fails the check."
+          exit 1
+        fi
+        echo "::warning title=Steward Review::Steward couldn't be installed or built, so nothing was checked. Mode: warn, so this doesn't fail the check."
 
     # Inputs go through env, never straight into the script.
     - name: Steward Review

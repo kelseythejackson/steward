@@ -24,5 +24,5 @@ console.log("Added the Report's history: Steward Review checks from real pull re
 const args = process.argv.slice(2).filter((a, i) => !(i === 0 && a === "--"));
 
 // Only this computer can reach the app: it writes the repo's system.json, so it mustn't be open to the local network.
-const next = spawn("pnpm", ["exec", "next", "dev", "-H", "127.0.0.1", ...args], { stdio: "inherit", env: { ...process.env, STEWARD_REPO: copy } });
+const next = spawn("pnpm", ["exec", "next", "dev", "-H", "127.0.0.1", ...args], { stdio: "inherit", env: { ...process.env, STEWARD_REPO: copy, NEXT_TELEMETRY_DISABLED: "1" } });
 next.on("exit", (code) => process.exit(code ?? 0));

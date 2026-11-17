@@ -235,8 +235,8 @@ function contrastRule(s: ContrastSuggestion, pathOf: (hex: string) => string | u
   const fg = nameOf(foreground);
   const bg = nameOf(background);
   const fixHex = s.proposed.token.$value.hex;
-  // A new shade goes by its hex, like the suggestion's own reason: its proposed path can sit oddly next to existing steps.
-  const fix = s.proposed.existing ? tokenLabel(s.proposed.path) : fixHex;
+  // Every fix is a token or a Tailwind palette step, so it always has a class name.
+  const fix = tokenLabel(s.proposed.path);
   const replaced = s.proposed.replaces === "foreground" ? foreground : background;
   const direction = contrastRatio(fixHex, "#000000") < contrastRatio(replaced, "#000000") ? "darker" : "lighter";
   const required = `${REQUIRED_RATIO[use]}:1`;
@@ -253,7 +253,7 @@ function contrastRule(s: ContrastSuggestion, pathOf: (hex: string) => string | u
     id: `contrast-${slug(fg)}-on-${slug(bg)}`,
     text,
     category: "accessibility",
-    appliesTo: [...new Set([...(s.proposed.existing ? [s.proposed.path] : []), ...[foreground, background].map(pathOf).filter((p): p is string => p !== undefined)])].map((path) => ({ kind: "token" as const, path })),
+    appliesTo: [...new Set([...[fixHex, foreground, background].map(pathOf).filter((p): p is string => p !== undefined)])].sort(compareStrings).map((path) => ({ kind: "token" as const, path })),
     examples: {
       right: s.proposed.replaces === "foreground" ? el(fix, bg) : el(fg, fix),
       wrong: el(fg, bg),
@@ -297,7 +297,16 @@ export function generateRules(inputs: RuleInputs): Rule[] {
   if (spacing) rules.push(spacing);
 
   const button = rules.find((r) => r.id === "no-raw-button")?.appliesTo.find((t) => t.kind === "component");
-  rules.push(...accessibilityRules(inputs.colorTokens, button && button.kind === "component" ? button.name : null));
+  // A color waiting to merge (or accepted, before the re-scan folds it in) is on its way out of the
+  // system: leave it out of the basics' advice, so they name the token to use, never the near-duplicate.
+  const declined = new Set(inputs.decisions.filter((d) => d.status === "rejected").map((d) => d.suggestionId));
+  const leaving = new Set(
+    inputs.suggestions
+      .filter((s) => s.kind === "color" && !declined.has(s.id))
+      .flatMap((s) => (s.kind === "color" ? s.members.filter((m) => m !== s.proposed.token.$value.hex) : [])),
+  );
+  const staying = inputs.colorTokens.filter((t) => !leaving.has(t.token.$value.hex));
+  rules.push(...accessibilityRules(staying, button && button.kind === "component" ? button.name : null));
 
   // Two suggestions can lead to the same rule (e.g. two button merges); the first, by suggestion id, wins.
   const byId = new Map<string, Rule>();
@@ -358,6 +367,14 @@ export function ruleInputsFromModel(model: SystemModel): RuleInputs {
   for (const { path, token } of tokens) {
     if (token.$type === "color") colorTokens.push({ path, token });
     else if (path.startsWith("spacing.")) spacingTokens.push({ path, token });
+  }
+  // An accepted contrast fix from Tailwind's palette joins the tokens on the next scan (checkContrast).
+  // Count it now too, so rules rebuilt from the saved model match that scan.
+  const accepted = new Set(model.decisions.filter((d) => d.kind === "contrast" && d.status === "accepted").map((d) => d.suggestionId));
+  for (const s of model.suggestions) {
+    if (s.kind !== "contrast" || s.proposed.existing || !accepted.has(s.id)) continue;
+    if (colorTokens.some((t) => t.path === s.proposed.path || t.token.$value.hex === s.proposed.token.$value.hex)) continue;
+    colorTokens.push({ path: s.proposed.path, token: s.proposed.token });
   }
   spacingTokens.sort((a, b) => a.token.$value.value - b.token.$value.value);
   return { decisions: model.decisions, suggestions: model.suggestions, colorTokens, spacingTokens, components: model.components };

@@ -15,7 +15,7 @@ not uses, and are listed separately below.
 The color tables are machine-read by `packages/scanner` tests: keep the
 first two columns as `` `#hex` `` (6 digits, or 8 with alpha) and a plain number.
 
-It typechecks (`pnpm -F @steward/fixture-messy-app typecheck`) but is not
+It typechecks (`pnpm -F @steward/acme-metrics typecheck`) but is not
 meant to be run. There is no bundler and `/logo.svg` does not exist.
 
 ## 1. Colors

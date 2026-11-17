@@ -70,7 +70,7 @@ export function SpacingCard({ data, busy, run, notice }: { data: ReviewData["spa
                   </Button>
                   {s.values.map((v) => (
                     <Button key={v} variant="quiet" disabled={busy} onClick={() => run({ kind: "leave-off", id: s.id, values: [v] })}>
-                      Leave {v} off
+                      Keep {v} as is
                     </Button>
                   ))}
                 </>

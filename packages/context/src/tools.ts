@@ -1,8 +1,10 @@
 import { compareStrings, type ComponentEntry, type Rule, type RuleCategory, type SystemModel } from "@steward/model";
-import { checkCode, describeCheck, type CheckResult } from "@steward/guard";
+import { checkCode, describeCheck, parseFile, type CheckResult } from "@steward/guard";
+import { examplePair } from "./design-md.js";
 import { STOPWORDS, SYNONYMS } from "./synonyms.js";
 import {
   colorLabel,
+  colorName,
   contrastNotes,
   importLine,
   list,
@@ -27,7 +29,7 @@ export interface ToolResult<T> {
   data: T;
 }
 
-const IMPORT_NOTE = "Import paths are from the repo root; adjust them to the importing file.";
+const IMPORT_NOTE = "Files are given from the repo root. Import each component with a path relative to the file you're editing.";
 
 // ---------------------------------------------------------------------------
 // Words
@@ -88,14 +90,15 @@ export function getTokens(model: SystemModel, type?: TokenType): ToolResult<Toke
   if (type !== "spacing") {
     const notes = contrastNotes(model, view.colors);
     data.colors = view.colors.map((c) => {
-      const info: ColorTokenInfo = { name: colorLabel(c.path), path: c.path, hex: c.token.$value.hex, uses: usesOf(c) };
+      const info: ColorTokenInfo = { name: colorName(c), path: c.path, hex: c.token.$value.hex, uses: usesOf(c) };
       if (c.token.$value.alpha !== undefined) info.alpha = c.token.$value.alpha;
       const note = notes.get(c.path);
       if (note) info.note = note;
       return info;
     });
     const solid = view.colors.filter((c) => c.token.$value.alpha === undefined);
-    const example = view.colors.length > 0 ? `, e.g. \`bg-${colorLabel(mostUsed(solid.length > 0 ? solid : view.colors).path)}\`` : "";
+    const pair = examplePair(view.colors);
+    const example = view.colors.length > 0 ? `, e.g. \`${pair ?? `bg-${colorName(mostUsed(solid.length > 0 ? solid : view.colors))}`}\`` : "";
     lines.push(`Colors (${data.colors.length}). Use the name in Tailwind classes${example}; never a hex value.`);
     for (const c of data.colors) {
       const value = c.alpha === undefined ? c.hex : `${c.hex} at ${Math.round(c.alpha * 100)}%`;
@@ -349,5 +352,14 @@ export function getRules(model: SystemModel, topic?: string): ToolResult<RulesDa
  */
 export function checkSnippet(model: SystemModel, code: string): ToolResult<CheckResult> {
   const result = checkCode(code, model);
+  // Prose, an empty string or plain TypeScript parses without error but has nothing the checks look at.
+  // Say so, rather than "No problems found", which an AI tool would take as a pass.
+  const parsed = parseFile({ code });
+  if (parsed.elements.length === 0 && parsed.classes.length === 0 && parsed.styles.length === 0) {
+    return {
+      text: "There's no JSX in this snippet, so nothing was checked. Pass the TSX you wrote, for example `<Button variant=\"primary\">Save</Button>`.\n",
+      data: result,
+    };
+  }
   return { text: describeCheck(result), data: result };
 }

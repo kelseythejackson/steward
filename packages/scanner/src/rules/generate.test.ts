@@ -125,15 +125,16 @@ describe("starter rules on fixtures/messy-app", () => {
     expect(rule.examples.right).toBe('<p className="text-white bg-blue-600">Due today</p>');
   });
 
-  it("names a new shade by its hex, as the suggestion's reason does", () => {
+  it("names a palette fix by its class, which is a token once accepted", () => {
     const red = find((s) => s.kind === "contrast" && s.pair.foreground === "#dc2626");
     expect(red.kind === "contrast" && red.proposed.existing).toBe(false);
     const rule = byId(scanFiles(files, { decisions: [decide(red)] }).rules, "contrast-red-600-on-red-50")!;
-    expect(rule.text).toBe("Text on `red-50` uses `#da2324` or darker (needs 4.5:1).");
-    expect(rule.examples.right).toBe('<p className="text-[#da2324] bg-red-50">Due today</p>');
+    expect(rule.text).toBe("Text on `red-50` uses `red-700` or darker (needs 4.5:1).");
+    expect(rule.examples.right).toBe('<p className="text-red-700 bg-red-50">Due today</p>');
     expect(rule.appliesTo).toEqual([
       { kind: "token", path: "color.red.50" },
       { kind: "token", path: "color.red.600" },
+      { kind: "token", path: "color.red.700" },
     ]);
   });
 

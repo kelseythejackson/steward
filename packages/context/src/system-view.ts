@@ -25,6 +25,18 @@ export const list = (xs: readonly string[], joiner = "and") =>
 
 /** `color.gray.400` → `gray-400`, the name used in Tailwind classes. Matches the scanner's labels. */
 export const colorLabel = (path: string) => path.replace(/^color\./, "").replaceAll(".", "-");
+/**
+ * How a token is written in a Tailwind class. A see-through token is its color with
+ * Tailwind's opacity modifier: `color.black-40` at 40% → `black/40` (as in `bg-black/40`).
+ * `black-40` isn't a class: Tailwind would silently render nothing.
+ */
+export function colorName(c: { path: string; token: { $value: { alpha?: number } } }): string {
+  const label = colorLabel(c.path);
+  const alpha = c.token.$value.alpha;
+  if (alpha === undefined || alpha >= 1) return label;
+  const pct = Math.round(alpha * 100);
+  return `${label.endsWith(`-${pct}`) ? label.slice(0, -`-${pct}`.length) : label}/${pct}`;
+}
 /** `spacing.2_5` → `2.5`, the Tailwind class suffix. */
 export const spacingKey = (path: string) => path.replace(/^spacing\./, "").replace("_", ".");
 
@@ -155,12 +167,18 @@ export function usage(c: ComponentEntry): string {
   if (props.includes("open")) attrs.push("open={isOpen}");
   const titled = ["label", "title", "heading"].find((t) => props.includes(t));
   if (titled) attrs.push(`${titled}="…"`);
+  // Every other prop the type requires, so the example compiles as written.
+  const named = new Set(["variant", "open", "children", ...(titled ? [titled] : [])]);
+  for (const p of c.requiredProps ?? []) if (!named.has(p)) attrs.push(`${p}={…}`);
   const open = [c.name, ...attrs].join(" ");
   return props.includes("children") ? `<${open}>…</${c.name}>` : `<${open} />`;
 }
 
-/** `import { Button } from "src/components/Button";`, with the path from the repo root. */
-export const importLine = (c: ComponentEntry) => `import { ${c.name} } from "${c.filePath.replace(/\.[cm]?[jt]sx?$/, "")}";`;
+/**
+ * Where to import a component from: its file, from the repo root. Not an import statement: a
+ * root-relative path like `src/components/Button` only resolves with a path alias, which most repos don't set.
+ */
+export const importLine = (c: ComponentEntry) => `${c.name} is exported from ${c.filePath}; import it with a path relative to your file.`;
 
 /** Names merged into `c` by accepted decisions, e.g. `["CTAButton", "PrimaryBtn"]`. */
 export const replacedBy = (view: SystemView, c: ComponentEntry) =>

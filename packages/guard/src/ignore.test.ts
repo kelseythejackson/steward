@@ -16,13 +16,13 @@ const check = (code: string) => checkFile({ path: "src/pages/Hero.tsx", code }, 
 describe("parseIgnores", () => {
   it("reads a // comment on its own line as covering the next line", () => {
     expect(parseIgnores("// steward-ignore use-system-component: marketing hero needs a custom button\n<button />")).toEqual([
-      { line: 1, covers: 2, rules: ["use-system-component"], reason: "marketing hero needs a custom button" },
+      { line: 1, covers: 2, through: 2, rules: ["use-system-component"], reason: "marketing hero needs a custom button" },
     ]);
   });
 
   it("reads a {/* */} JSX comment on its own line, with several rules", () => {
-    expect(parseIgnores('<div>\n  {/* steward-ignore no-hardcoded-color, a11y-text-contrast: partner brand color */}\n  <p className="text-[#ff6b00]" />')).toEqual([
-      { line: 2, covers: 3, rules: ["no-hardcoded-color", "a11y-text-contrast"], reason: "partner brand color" },
+    expect(parseIgnores('<div>\n  {/* steward-ignore no-hardcoded-color, a11y-text-contrast: partner brand color */}\n  <p className="text-[#ff6b00]" />\n</div>')).toEqual([
+      { line: 2, covers: 3, through: 3, rules: ["no-hardcoded-color", "a11y-text-contrast"], reason: "partner brand color" },
     ]);
   });
 
@@ -31,7 +31,32 @@ describe("parseIgnores", () => {
   });
 
   it("keeps a missing reason as empty, and ignores comments that only mention steward", () => {
-    expect(parseIgnores("// steward-ignore use-system-component\n// see the steward docs")).toEqual([{ line: 1, covers: 2, rules: ["use-system-component"], reason: "" }]);
+    expect(parseIgnores("// steward-ignore use-system-component\n// see the steward docs")).toEqual([{ line: 1, covers: 2, through: 2, rules: ["use-system-component"], reason: "" }]);
+  });
+
+  it("only reads real comments: not JSX text, which shows on the page, and not strings", () => {
+    expect(parseIgnores('<p>\n  // steward-ignore a11y-img-alt: decorative\n  <img src="a" />\n</p>')).toEqual([
+      { line: 2, covers: 3, through: 3, rules: ["a11y-img-alt"], reason: "decorative", inText: true },
+    ]);
+    expect(parseIgnores('const s = "// steward-ignore a11y-img-alt: decorative";')).toEqual([]);
+  });
+
+  it("covers every line of the opening tag that starts on the next line", () => {
+    expect(parseIgnores('<>\n  {/* steward-ignore no-arbitrary-spacing: legacy layout */}\n  <div\n    className="p-[13px]"\n  >\n    <span />\n  </div>\n</>')).toEqual([
+      { line: 2, covers: 3, through: 5, rules: ["no-arbitrary-spacing"], reason: "legacy layout" },
+    ]);
+  });
+
+  it("covers every line of a plain statement, but not a whole function", () => {
+    const [statement, fn] = parseIgnores(
+      ['// steward-ignore no-hardcoded-color: chart palette', "const palette = [", '  "#ff6b00",', "];", "// steward-ignore no-hardcoded-color: chart", "function Chart() {", '  return "#ff6b00";', "}"].join("\n"),
+    );
+    expect(statement).toMatchObject({ covers: 2, through: 4 });
+    expect(fn).toMatchObject({ covers: 6, through: 6 });
+  });
+
+  it("reads a {/* */} comment followed by code on the same line as covering that line", () => {
+    expect(parseIgnores('<>\n  {/* steward-ignore a11y-img-alt: decorative */} <img src="a" />\n  <img src="b" />\n</>')[0]).toMatchObject({ line: 2, covers: 2, through: 2 });
   });
 
   it("keeps colons in the reason", () => {
@@ -89,6 +114,25 @@ describe("steward-ignore in the engine", () => {
   it("says when there's nothing on the line to ignore", () => {
     const r = check(hero("      {/* steward-ignore use-system-component: hero */}", '      <p className="text-gray-900">Hi</p>'));
     expect(r.notes.map((n) => n.message)).toEqual(["Nothing on line 5 is flagged by `use-system-component`, so this steward-ignore can be removed."]);
+  });
+
+  it("covers a multi-line element under the comment, and only says it can be removed when nothing in it is flagged", () => {
+    const tag = ["      <div", '        className="p-[13px]"', "      >", "        Hi", "      </div>"];
+    const r = check(hero("      {/* steward-ignore no-arbitrary-spacing: legacy layout */}", ...tag));
+    expect(r.findings).toEqual([]);
+    expect(r.ignored.map((i) => [i.finding.rule, i.finding.line])).toEqual([["no-arbitrary-spacing", 6]]);
+    expect(r.notes).toEqual([]);
+    const clean = check(hero("      {/* steward-ignore no-arbitrary-spacing: legacy layout */}", ...tag.map((l) => l.replace("p-[13px]", "p-4"))));
+    expect(clean.notes.map((n) => n.message)).toEqual(["Nothing on lines 5–7 is flagged by `no-arbitrary-spacing`, so this steward-ignore can be removed."]);
+  });
+
+  it("doesn't apply a steward-ignore written as JSX text, and says how to make it a comment", () => {
+    const r = check(hero("      // steward-ignore use-system-component: marketing hero needs a custom button", BUTTON));
+    expect(r.findings.map((f) => f.rule)).toEqual(["use-system-component"]);
+    expect(r.ignored).toEqual([]);
+    expect(r.notes.map((n) => n.message)).toEqual([
+      "This steward-ignore is written as text inside JSX, so it shows on the page and isn't applied. Wrap it in `{/* … */}` to make it a comment.",
+    ]);
   });
 
   it("says nothing about a comment for a rule that's turned off", () => {

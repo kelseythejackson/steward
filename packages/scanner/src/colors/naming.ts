@@ -99,6 +99,9 @@ for (const palette of [TAILWIND_PALETTE, TAILWIND_V4_PALETTE]) {
  */
 export function proposeColorPaths(hexes: readonly string[], alreadyTaken: Iterable<string> = []): Map<string, string> {
   const taken = new Set<string>(alreadyTaken);
+  // Token names nest with dots, so a name is unusable if it's taken, or one name would contain the other:
+  // `color.blue.600` can't sit beside a token a person named `color.blue`.
+  const clashes = (p: string) => taken.has(p) || [...taken].some((t) => t.startsWith(`${p}.`) || p.startsWith(`${t}.`));
   const paths = new Map<string, string>();
   for (const hex of hexes) {
     if (paths.has(hex)) continue;
@@ -118,11 +121,13 @@ export function proposeColorPaths(hexes: readonly string[], alreadyTaken: Iterab
       const steps = paletteStep === undefined ? near : [paletteStep, ...near];
       path = steps
         .map((step) => `color.${family}.${step}${suffix}`)
-        .find((p) => !taken.has(p));
+        .find((p) => !clashes(p));
     }
     // Every step is taken (or white/black twice): fall back to the hex itself, which is unique.
-    // White and black are tokens, not groups, so their fallback is a sibling name.
-    if (!path || taken.has(path)) path = single ? `color.${family}-${hex.slice(1)}` : `color.${family}.${hex.slice(1)}`;
+    // White and black are tokens, not groups, so their fallback is a sibling name; so is any color whose
+    // family name is itself a token (`color.blue`), since nothing can nest under a token.
+    if (!path || clashes(path)) path = single ? `color.${family}-${hex.slice(1)}` : `color.${family}.${hex.slice(1)}`;
+    if (clashes(path)) path = `color.${family}-${hex.slice(1)}`;
     taken.add(path);
     paths.set(hex, path);
   }

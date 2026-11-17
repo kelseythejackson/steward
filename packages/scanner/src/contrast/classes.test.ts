@@ -48,6 +48,14 @@ describe("parseClassList", () => {
     expect(parseClassList("text-[22px] font-semibold")).toMatchObject({ fontSizePx: 22, fontWeight: 600 });
   });
 
+  it("reads the size of a text size with a line height (`text-2xl/8`), so large text isn't held to the normal-text bar", () => {
+    expect(parseClassList("text-2xl/8")).toMatchObject({ fontSizePx: 24 });
+    expect(parseClassList("text-lg/[1.4]")).toMatchObject({ fontSizePx: 18 });
+    expect(parseClassList("text-[22px]/7")).toMatchObject({ fontSizePx: 22 });
+    // A color's slash is still an opacity, not a line height.
+    expect(parseClassList("text-red-600/50").fontSizePx).toBeUndefined();
+  });
+
   it("treats bg-transparent as no background of its own", () => {
     expect(parseClassList("bg-transparent").states.base?.bg).toBe("transparent");
   });

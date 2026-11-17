@@ -104,6 +104,6 @@ describe("steward review", () => {
     await runScan(app);
     await run(["review", "messy-app", "--accept-all"], work);
     const r = await run(["review", "messy-app", "--accept-all"], work);
-    expect(r.stdout).toBe("Nothing to review: every suggestion has a decision (24 accepted, 0 declined).\n");
+    expect(r.stdout).toBe("Nothing waiting for a decision: every suggestion has one (24 accepted, 0 declined).\n");
   });
 });

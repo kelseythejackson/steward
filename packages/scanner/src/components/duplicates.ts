@@ -202,7 +202,12 @@ export function findDuplicates(components: readonly ComponentInfo[], options: Du
   const nameCount = new Map<string, number>();
   for (const c of all) nameCount.set(c.name, (nameCount.get(c.name) ?? 0) + 1);
   const labels = all.map((c) => (nameCount.get(c.name)! > 1 ? `${c.name} (${c.file})` : c.name));
-  const apart = keptApart(rejectedSets(decisions));
+  const rejected = rejectedSets(decisions);
+  const apartByLabel = keptApart(rejected);
+  // Labels gain or lose a file (`Button` ↔ `Button (src/x.tsx)`) as same-named components come and go,
+  // so a rejection also holds by component name: a rejected merge is never suggested again.
+  const apartByName = keptApart(rejected.map((members) => members.map((m) => m.replace(/ \(.*\)$/, ""))));
+  const apart = (i: number, j: number) => apartByLabel(labels[i]!, labels[j]!) || apartByName(all[i]!.name, all[j]!.name);
 
   // Flagged pairs live in a bitset (n² bits) plus compact arrays, so memory stays small even when everything matches.
   const bits = new Uint8Array(Math.ceil((n * n) / 8));
@@ -216,7 +221,7 @@ export function findDuplicates(components: readonly ComponentInfo[], options: Du
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
       const core = coreCompare(all[i]!, all[j]!, features[i]!, features[j]!);
-      if (core.verdict === "flag" && apart(labels[i]!, labels[j]!)) continue;
+      if (core.verdict === "flag" && apart(i, j)) continue;
       if (core.verdict === "flag") {
         const k = at(i, j);
         bits[k >> 3]! |= 1 << (k & 7);
@@ -276,7 +281,10 @@ export function findDuplicates(components: readonly ComponentInfo[], options: Du
 
     const names = others.map((c) => c.name);
     let summary = `${list(names)} ${names.length === 1 ? "looks like a duplicate" : "look like duplicates"} of ${keeper.name}. ${signalSentences.join(" ")}`;
-    summary += ` ${keeper.name} is used most (${keeper.usages} ${keeper.usages === 1 ? "place" : "places"}).`;
+    // Say why this one is kept, truthfully: a person's choice, or usage (never "used most" with 0 uses).
+    if (chosen !== undefined && labelOf.get(keeper) === chosen) summary += ` You chose to keep ${keeper.name}.`;
+    else if (keeper.usages === 0) summary += ` None of these are used yet, so ${keeper.name} is kept.`;
+    else summary += ` ${keeper.name} is used most (${keeper.usages} ${keeper.usages === 1 ? "place" : "places"}).`;
     if (checks.length > 0) summary += ` Check before merging: ${checks.join("; ")}.`;
 
     suggestions.push({ id: suggestionId("component", members), kind: "component", members, proposed: { name: labelOf.get(keeper)! }, reason: { summary, evidence } });

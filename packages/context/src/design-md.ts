@@ -2,10 +2,10 @@ import { compareStrings, type Rule, type SystemModel } from "@steward/model";
 import {
   code,
   colorLabel,
+  colorName,
   comparePaths,
   contrastNotes,
   contrastRatio,
-  importLine,
   list,
   mostUsed,
   plural,
@@ -79,7 +79,61 @@ function topRules(p: SystemView): string[] {
   return ["", "## Most important rules", "", ...top.flatMap((r) => ruleBullet(r))];
 }
 
-function accessibility(p: SystemView): string[] {
+const REQUIRED: Readonly<Record<string, number>> = { text: 4.5, "large-text": 3, ui: 3 };
+const SUBJECT: Readonly<Record<string, string>> = { text: "Text", "large-text": "Large text", ui: "Icons and form borders" };
+const BEHIND: Readonly<Record<string, string>> = { text: "text", "large-text": "large text", ui: "icons and borders" };
+
+/**
+ * One line per color that needs a partner, listing every token that passes with it, so two fixes for
+ * the same background read as one choice, not as two rules ("blue-600 or darker", then "gray-700 or
+ * darker") that seem to disagree. Built from each rule's suggestion; a rule without one is shown as it is.
+ */
+function contrastFixLines(model: SystemModel, fixes: readonly Rule[], opaque: SystemView["colors"]): string[] {
+  const nameOf = (hex: string) => {
+    const t = opaque.find((c) => c.token.$value.hex === hex);
+    return t ? colorLabel(t.path) : hex;
+  };
+  const groups = new Map<string, { replaces: "foreground" | "background"; use: string; fixed: string }>();
+  const loose: string[] = [];
+  for (const r of fixes) {
+    const s = model.suggestions.find((x) => x.kind === "contrast" && x.id === r.basedOn?.[0]);
+    if (!s || s.kind !== "contrast") {
+      loose.push(r.text);
+      continue;
+    }
+    const fixed = s.proposed.replaces === "foreground" ? s.pair.background : s.pair.foreground;
+    groups.set(`${s.proposed.replaces} ${s.pair.use} ${fixed}`, { replaces: s.proposed.replaces, use: s.pair.use, fixed });
+  }
+  const out: string[] = [];
+  for (const g of [...groups.values()].sort((a, b) => compareStrings(a.replaces, b.replaces) || compareStrings(nameOf(a.fixed), nameOf(b.fixed)) || compareStrings(a.use, b.use))) {
+    const need = REQUIRED[g.use] ?? 4.5;
+    const passing = opaque.filter((c) => c.token.$value.hex !== g.fixed && contrastRatio(c.token.$value.hex, g.fixed) >= need).map((c) => code(colorLabel(c.path)));
+    if (passing.length === 0) continue;
+    out.push(
+      g.replaces === "foreground"
+        ? `${SUBJECT[g.use] ?? "Text"} on ${code(nameOf(g.fixed))}: use ${list(passing, "or")} (needs ${need}:1).`
+        : `Behind ${code(nameOf(g.fixed))} ${BEHIND[g.use] ?? "text"}, use a ${list(passing, "or")} background (needs ${need}:1).`,
+    );
+  }
+  return [...out, ...loose];
+}
+
+/**
+ * The go-to example class pair, which passes contrast: the lightest token as the background (a page
+ * or card, usually white), and the most-used token that passes as text on it.
+ */
+export function examplePair(colors: SystemView["colors"]): string | null {
+  const opaque = colors.filter((c) => c.token.$value.alpha === undefined);
+  const byUse = [...opaque].sort((a, b) => usesOf(b) - usesOf(a) || comparePaths(a.path, b.path));
+  const lightestFirst = [...opaque].sort((a, b) => contrastRatio(b.token.$value.hex, "#000000") - contrastRatio(a.token.$value.hex, "#000000") || comparePaths(a.path, b.path));
+  for (const bg of lightestFirst) {
+    const fg = byUse.find((c) => c !== bg && contrastRatio(c.token.$value.hex, bg.token.$value.hex) >= 4.5);
+    if (fg) return `text-${colorLabel(fg.path)} bg-${colorLabel(bg.path)}`;
+  }
+  return null;
+}
+
+function accessibility(model: SystemModel, p: SystemView): string[] {
   const opaque = p.colors.filter((c) => c.token.$value.alpha === undefined);
   const lines = ["", "## Accessibility", ""];
   if (opaque.length > 0) {
@@ -105,7 +159,7 @@ function accessibility(p: SystemView): string[] {
   }
 
   const fixes = p.rules.filter(isContrastFix).sort((a, b) => compareStrings(a.id, b.id));
-  if (fixes.length > 0) lines.push("", "### Contrast fixes to follow", "", ...fixes.map((r) => `- ${r.text}`));
+  if (fixes.length > 0) lines.push("", "### Contrast fixes to follow", "", ...contrastFixLines(model, fixes, opaque).map((t) => `- ${t}`));
 
   const basics = p.rules.filter(isBasicA11y).sort((a, b) => compareStrings(a.id, b.id));
   if (basics.length > 0) lines.push("", "### Labels, focus and interaction", "", ...basics.flatMap((r) => ruleBullet(r)));
@@ -123,7 +177,8 @@ function tokens(model: SystemModel, p: SystemView): string[] {
       "",
       `### Colors`,
       "",
-      `Use the name in Tailwind classes, e.g. ${code(`bg-${colorLabel(mostUsed(solid.length > 0 ? solid : p.colors).path)}`)}.`,
+      // A pair that passes contrast, so the example an AI tool copies first is an accessible one.
+      `Use the name in Tailwind classes, e.g. ${code(examplePair(p.colors) ?? `bg-${colorName(mostUsed(solid.length > 0 ? solid : p.colors))}`)}.`,
       "",
       "| Name | Value | Uses | Note |",
       "|---|---|---|---|",
@@ -131,7 +186,7 @@ function tokens(model: SystemModel, p: SystemView): string[] {
     for (const c of p.colors) {
       const { hex, alpha } = c.token.$value;
       const value = alpha === undefined ? hex : `${hex} at ${Math.round(alpha * 100)}%`;
-      lines.push(`| ${[code(colorLabel(c.path)), value, String(usesOf(c)), notes.get(c.path) ?? ""].join(" | ")} |`.replace(/ {2}\|$/, " |"));
+      lines.push(`| ${[code(colorName(c)), value, String(usesOf(c)), notes.get(c.path) ?? ""].join(" | ")} |`.replace(/ {2}\|$/, " |"));
     }
   }
   if (p.spacing.length > 0) {
@@ -152,10 +207,12 @@ function tokens(model: SystemModel, p: SystemView): string[] {
 
 function components(p: SystemView): string[] {
   if (p.components.length === 0) return [];
-  const lines = ["", "## Components", "", "Import paths are from the repo root; adjust them to the importing file."];
+  const lines = ["", "## Components", "", "Files are given from the repo root. Import each component with a path relative to the file you're editing."];
   for (const c of p.components) {
-    lines.push("", `### ${c.name}`, "", code(importLine(c)), "");
+    lines.push("", `### ${c.name}`, "", `- File: ${code(c.filePath)}`);
     if (c.props && c.props.length > 0) lines.push(`- Props: ${c.props.map(code).join(", ")}`);
+    const required = (c.requiredProps ?? []).filter((x) => x !== "children");
+    if (required.length > 0) lines.push(`- Required: ${required.map(code).join(", ")}`);
     if (c.variants.length > 0) lines.push(`- Variants: ${c.variants.map(code).join(", ")}`);
     const instead = replacedBy(p, c).map(code);
     if (instead.length > 0) lines.push(`- Use instead of ${list(instead, "or")}`);
@@ -191,7 +248,7 @@ export function generateDesignMd(model: SystemModel, options: DesignMdOptions = 
     "",
     ...summary(name, p),
     ...topRules(p),
-    ...accessibility(p),
+    ...accessibility(model, p),
     ...tokens(model, p),
     ...components(p),
     ...otherRules(p),

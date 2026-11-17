@@ -1,9 +1,14 @@
 import { readFileSync } from "node:fs";
+import { cp, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseSystemModel } from "@steward/model";
+import { runScan } from "@steward/cli";
+import { colorTokenGroups, parseSystemModel } from "@steward/model";
 import { describe, expect, it } from "vitest";
 import { nameForMovedColor, reviewData } from "./review-data.ts";
 
+const FIXTURE = fileURLToPath(new URL("../../../fixtures/messy-app", import.meta.url));
 const decided = parseSystemModel(readFileSync(fileURLToPath(new URL("../../../fixtures/messy-app/.steward/system.json", import.meta.url)), "utf8"));
 const fresh = { ...decided, decisions: [] };
 
@@ -17,9 +22,27 @@ describe("reviewData", () => {
 
   it("shows colors found in code against the suggested tokens", () => {
     const d = reviewData(fresh);
-    expect(d.colors.tokens).toHaveLength(17);
+    expect(d.colors.tokens).toHaveLength(18); // 17 from the code, plus red-700: an accepted contrast fix
     expect(d.colors.found.length).toBeGreaterThan(d.colors.tokens.length);
     expect(d.colors.tokens.find((t) => t.name === "gray-200")).toEqual({ path: "color.gray.200", name: "gray-200", hex: "#e5e7eb", members: ["#e5e7eb", "#e4e4e7"] });
+  });
+
+  it("on a real fresh scan, shows the proposed tokens while system.json keeps each color until a merge is accepted", async () => {
+    const work = await mkdtemp(join(tmpdir(), "steward-review-data-"));
+    try {
+      const copy = join(work, "messy-app");
+      await cp(FIXTURE, copy, { recursive: true, filter: (src) => !src.includes("node_modules") && !src.includes("/.steward") && !src.endsWith("FIXTURE_NOTES.md") });
+      const { output } = await runScan(copy);
+      // Nothing decided: every color found is its own token in system.json…
+      expect(colorTokenGroups(output.model).every((g) => g.members.length === 1)).toBe(true);
+      // …and the card shows what accepting the merges would make.
+      const d = reviewData(output.model);
+      expect(d.colors.tokens).toHaveLength(17);
+      expect(d.colors.tokens.find((t) => t.name === "gray-200")?.members.sort()).toEqual(["#e4e4e7", "#e5e7eb"]);
+      expect(d.colors.found).toHaveLength(24);
+    } finally {
+      await rm(work, { recursive: true, force: true });
+    }
   });
 
   it("shows the spacing scale in order, and what snaps where", () => {

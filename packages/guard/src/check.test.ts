@@ -115,7 +115,7 @@ describe("use-system-component", () => {
     expect(f!.systemRule).toBe("no-raw-button");
     expect(f!.found).toBe('<button className="mt-2" onClick={save}>');
     expect(f!.fix.replacement).toBe('<Button className="mt-2" onClick={save}>Save</Button>');
-    expect(f!.fix.description).toBe('Use `<Button>`, with `variant="primary"` for the main action on the page. Import it with `import { Button } from "src/components/Button";`');
+    expect(f!.fix.description).toBe('Use `Button` from your system. Add `variant="primary"` only if this is the page\'s main action. Import it with `import { Button } from "src/components/Button";`');
   });
 
   it("leaves buttons alone when the system has no shared Button", () => {

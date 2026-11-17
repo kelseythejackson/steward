@@ -37,18 +37,28 @@ describe("collectSpacing", () => {
 describe("suggestSpacingScale", () => {
   const values = () => collectSpacing(files).values;
 
+  it("proposes no scale and no tokens when there's no spacing at all, rather than making defaults official", () => {
+    expect(suggestSpacingScale([])).toEqual({ scale: [], scaleBasis: "none", tokens: [], suggestions: [], beyondScale: [], kept: [] });
+  });
+
   it("proposes the scale as tokens with Tailwind numbering and usage", () => {
     const r = suggestSpacingScale(values());
     expect(r.tokens.map((t) => [t.path, t.token.$value.value])).toEqual([
       ["spacing.1", 4], ["spacing.2", 8], ["spacing.3", 12], ["spacing.4", 16],
       ["spacing.6", 24], ["spacing.8", 32], ["spacing.12", 48], ["spacing.16", 64],
     ]);
+    // Nothing snaps until a person accepts it: the step stands for its own uses, and the suggestion previews the snap.
     const eight = r.tokens.find((t) => t.path === "spacing.2")!.token;
-    expect(eight).toEqual({
+    expect(eight).toEqual({ $type: "dimension", $value: { value: 8, unit: "px" }, $extensions: { "dev.steward": { uses: 1 } } });
+    expect(r.suggestions.find((s) => s.proposed.path === "spacing.2")!.proposed.token).toEqual({
       $type: "dimension",
       $value: { value: 8, unit: "px" },
       $extensions: { "dev.steward": { uses: 5, mergedFrom: ["7px", "9px"] } },
     });
+    const accepted = suggestSpacingScale(values(), {
+      decisions: [{ suggestionId: r.suggestions.find((s) => s.proposed.path === "spacing.2")!.id, kind: "spacing", members: ["7px", "8px", "9px"], status: "accepted", decidedAt: "2026-11-01T00:00:00.000Z" }],
+    });
+    expect(accepted.tokens.find((t) => t.path === "spacing.2")!.token.$extensions).toEqual({ "dev.steward": { uses: 5, mergedFrom: ["7px", "9px"] } });
   });
 
   it("makes one suggestion per step, listing the values that snap and where they're used", () => {
@@ -110,6 +120,16 @@ describe("suggestSpacingScale", () => {
     const r = suggestSpacingScale(later, { decisions });
     expect(r.suggestions.find((s) => s.proposed.path === "spacing.2")?.members).toEqual(["6.5px", "8px"]);
     expect(r.kept.map((v) => v.px)).toEqual([7, 9]);
+  });
+
+  it("keeps a rejected value off the scale even when the scale changes and it would snap to a different step", () => {
+    const decisions: MergeDecision[] = [
+      { suggestionId: suggestionId("spacing", ["12px", "13px"]), kind: "spacing", members: ["12px", "13px"], status: "rejected", decidedAt: "2026-11-01T00:00:00.000Z" },
+    ];
+    // On this scale 13px would snap to 14px, not the 12px it was refused for.
+    const r = suggestSpacingScale(values(), { decisions, scale: [6, 10, 14] });
+    expect(r.suggestions.flatMap((s) => s.members)).not.toContain("13px");
+    expect(r.kept.map((v) => v.px)).toContain(13);
   });
 
   it("takes a custom scale", () => {

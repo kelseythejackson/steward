@@ -14,13 +14,14 @@ Both copies are scored against the same reference: `fixtures/messy-app/.steward/
 ```sh
 pnpm install
 eval/setup.sh                    # builds Steward, then creates ~/steward-eval/without and ~/steward-eval/with
+eval/setup.sh ../my-eval         # or pick another folder (relative paths are resolved from where you run it)
 ```
 
 The `with` copy's MCP server runs from `packages/cli/dist`. `setup.sh` builds it,
 but if you change Steward's code afterwards, run `pnpm build` again before the
 next run, or the server keeps the old behavior.
 
-The copies have to live outside this repo. Claude Code reads every `CLAUDE.md` in parent folders, and this repo registers its own Steward MCP server, so a copy inside it would get help in both conditions.
+The copies have to live outside this repo, and `setup.sh` refuses a folder inside it. Claude Code reads every `CLAUDE.md` in parent folders, and this repo's `CLAUDE.md` describes Steward. If you've registered a Steward MCP server for this folder in your Claude Code settings, that would apply too. Either way, a copy inside the repo would get help in both conditions.
 
 The setup script also removes everything that would hint at the planted problems: `FIXTURE_NOTES.md`, and the Steward name and description in `package.json`. `node_modules` isn't copied, so neither copy can be typechecked. That limit applies to both equally.
 
@@ -38,7 +39,7 @@ Paste each one word for word. None of them mention design systems, tokens or acc
 
 Do 3 runs of each prompt in each copy: 18 runs in all. For every run:
 
-1. Reset the copy: `eval/reset.sh ~/steward-eval/<copy>`
+1. Reset the copy: `eval/reset.sh ~/steward-eval/<copy>`. This puts every tracked file back to the `baseline` tag and removes everything else, ignored files included (`node_modules`, `.steward/history.jsonl`). It keeps `.claude/`, where Claude Code stores your approval of the `steward` MCP server.
 2. Start a **fresh** Claude Code session in that copy, using the same model every time. In `with/`, approve the `steward` MCP server the first time it asks.
 3. Paste the prompt. Accept every edit. Don't send follow-up messages or corrections.
 4. When it finishes, score it from this repo:

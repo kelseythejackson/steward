@@ -9,9 +9,9 @@ The action runs `steward check --github` on every pull request:
    the comment has a GitHub suggestion, so clicking **Apply suggestion** fixes it in
    one click. Fixes that also change another line, like swapping in `Button`
    and adding its import, get advice instead.
-3. It posts one summary comment, for example *"Steward Review found 4
-   off-system values and 1 accessibility issue · 3 can be fixed in one
-   click"*. A new push updates that comment instead of adding another one, and
+3. It posts one summary comment, for example *"Steward Review found 3
+   off-system values, 1 component to swap and 1 accessibility issue · 3 can
+   be fixed in one click"*. A new push updates that comment instead of adding another one, and
    line comments already there aren't posted again. Old comments are never
    deleted, since people may have replied to them.
 4. It writes the same summary to the run's summary page.
@@ -19,20 +19,27 @@ The action runs `steward check --github` on every pull request:
    `ai-agent` from an `ai-agent` label or an AI agent's bot account, `human`
    from a `human` label, otherwise `unknown`) as a small `steward-history-*`
    artifact for the Report dashboard. No names, emails or usernames are ever
-   stored. Bring those records in with `steward history import`. Add
-   `.steward/history.jsonl` to your `.gitignore`: it also records local
-   `steward check` runs, so committing it would mix everyone's runs and
-   cause merge conflicts. Local `steward check` reminds you if it isn't.
+   stored. Bring those records in with `steward history import`;
+   it remembers which artifacts it imported (by id only, in
+   `.steward/history-imported.json`), so later runs download only new ones. Add
+   `.steward/history.jsonl` and `.steward/history-imported.json` to your
+   `.gitignore`: history.jsonl also records local `steward check` runs, so
+   committing it would mix everyone's runs and cause merge conflicts, and the
+   list of imported artifacts belongs with the history it describes. Local `steward check` reminds you if it isn't.
 
 **Modes.** These are set in `.steward/config.json`, as `"mode": "warn"` or
 `"mode": "error"`.
 
 - **`warn` (the default) never fails the check.** It doesn't fail when GitHub
   refuses a comment, when the token is read-only (pull requests from forks),
-  or when Steward can't run at all. Each of those shows as a warning on the
-  run instead.
-- **`error`** fails the check only when something is found on the changed
-  lines. API problems never fail it.
+  or when Steward couldn't check at all. Each of those shows as a warning on
+  the run instead.
+- **`error`** fails the check when something is found on the changed lines,
+  and also when Steward couldn't check them: Steward couldn't be installed or
+  built, the folder has no `.steward/system.json`, or the base branch is
+  missing. Nothing was checked then, so it can't call the change clean; the
+  run says why. API problems (a refused comment, a read-only token) never
+  fail it.
 
 **Setup.** Copy [`steward-review.yml`](github-action/steward-review.yml) to
 `.github/workflows/` in the app's repo. It needs:
@@ -128,8 +135,9 @@ The first run takes about a minute, mostly installing and building Steward.
 
 Open the pull request (`gh pr view --web`).
 
-- **Conversation:** one summary comment headed *"Steward Review found 4
-  off-system values and 1 accessibility issue · 3 can be fixed in one click"*.
+- **Conversation:** one summary comment headed *"Steward Review found 3
+  off-system values, 1 component to swap and 1 accessibility issue · 3 can be
+  fixed in one click"*.
   Below the heading are a table by rule, the line "Mode: warn, so this never
   fails the check", and the static-checks note.
 - **Files changed:** three line comments on `src/pages/Settings.tsx`.
@@ -146,8 +154,8 @@ On line 26, click **Apply suggestion** and then **Commit changes**. That push
 runs the workflow again. When it finishes:
 
 - The summary is the same comment, edited. It now reads *"Steward Review found
-  2 off-system values and 1 accessibility issue · 1 can be fixed in one
-  click"*.
+  1 off-system value, 1 component to swap and 1 accessibility issue · 1 can be
+  fixed in one click"*.
 - No new line comments appear for lines 27 and 28. The line 26 comment shows
   as outdated.
 

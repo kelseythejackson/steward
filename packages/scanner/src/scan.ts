@@ -22,6 +22,8 @@ import { collectComponents, isComponentFile } from "./components/inventory.js";
 import { componentEntries } from "./components/summary.js";
 import type { ComponentInventory } from "./components/types.js";
 import { checkContrast, contrastSuggestionId, type ContrastReport } from "./contrast/check.js";
+import { TAILWIND_PALETTE } from "./contrast/palette.js";
+import { TAILWIND_V4_PALETTE } from "./contrast/palette-v4.js";
 import { SKIP_SEMI_TRANSPARENT, SKIP_TOO_MANY, SKIP_UNKNOWN_TEXT, SKIP_VARIANTS } from "./contrast/jsx.js";
 import { collectContrast } from "./contrast/index.js";
 import { collectSpacing } from "./spacing/collect.js";
@@ -156,7 +158,7 @@ export interface ScanSummary {
    */
   exceptions?: number;
   /** New colors since the last scan, held out of the tokens; `suggested` of them are suggested as tokens. Absent on a first scan. */
-  newColors?: { held: number; suggested: number };
+  newColors?: { held: number; suggested: number; families: { family: string; count: number }[] };
   /** Files at least one extractor couldn't parse. */
   skippedFiles: string[];
   /** Files left out before parsing because they're too big to be hand-written. */
@@ -184,7 +186,7 @@ export function scanFiles(files: readonly SourceFile[], options: ScanOptions = {
   const { kept, held } = splitNewColors(colors.colors, options.knownColors, decisions);
   const colorSuggestions = suggestColorTokens(kept, { decisions, ...(options.colorNames ? { previousNames: options.colorNames } : {}) });
   const spacingSuggestions = suggestSpacingScale(spacing.values, { decisions, rootPx: setup.rootPx });
-  const contrast = checkContrast(contrastPairs, colorSuggestions);
+  const contrast = checkContrast(contrastPairs, colorSuggestions, { palette: setup.version === 4 ? TAILWIND_V4_PALETTE : TAILWIND_PALETTE, decisions });
 
   const storyColors = collectColors(stories, setup.theme);
   const storySpacing = collectSpacing(stories, setup.version, setup.rootPx);
@@ -209,7 +211,7 @@ export function scanFiles(files: readonly SourceFile[], options: ScanOptions = {
     components,
     duplicates,
     contrast,
-    newColors: { held, suggestions: suggestNewTokens(held, contrast.tokens.map((t) => t.path), decisions) },
+    newColors: { held, suggestions: [...suggestNewTokens(held, contrast.tokens.map((t) => t.path), decisions), ...acceptedNewColors(kept, decisions)] },
     rules: mergeRules(generated, options.rules ?? [], decisions),
     storiesAndTests: {
       files: stories.map((f) => f.path),
@@ -219,6 +221,20 @@ export function scanFiles(files: readonly SourceFile[], options: ScanOptions = {
       offScaleSpacing: storySpacing.values.filter((v) => !onScale.has(v.px)).map((v) => v.px),
     },
   };
+}
+
+/**
+ * The suggestions for new colors a person accepted, kept in the model once they're tokens, under the
+ * name they were accepted as. Like a declined contrast fix, a decided suggestion stays so it can be
+ * undone: after an undo it waits again, and `knownColors` holds the color out of the tokens.
+ */
+function acceptedNewColors(kept: readonly ExtractedColor[], decisions: readonly MergeDecision[]): TokenSuggestion[] {
+  const accepted = decisions.filter((d) => d.kind === "token" && d.status === "accepted");
+  const colors = kept.filter((c) => accepted.some((d) => d.members.includes(c.value)));
+  return suggestNewTokens(colors, [], [], 0).map((s) => {
+    const path = accepted.find((d) => d.suggestionId === s.id)?.path;
+    return path ? { ...s, proposed: { ...s.proposed, path } } : s;
+  });
 }
 
 /** Walks a repo and scans it. The only part that touches the disk. */
@@ -272,8 +288,13 @@ export function summarizeScan(result: ScanResult): ScanSummary {
 
   const families = new Map<string, { found: number; suggested: number }>();
   const row = (family: string) => families.get(family) ?? families.set(family, { found: 0, suggested: 0 }).get(family)!;
-  for (const c of colors.colors) row(colorFamily(c.value)).found++;
-  for (const t of contrast.tokens) row(colorFamily(t.token.$value.hex)).suggested++;
+  // New colors held out of the system are reported on their own, not as colors merged into nothing.
+  const heldValues = new Set(result.newColors.held.map((c) => c.value));
+  for (const c of colors.colors) if (!heldValues.has(c.value)) row(colorFamily(c.value)).found++;
+  const heldFamilies = new Map<string, number>();
+  for (const c of result.newColors.held) heldFamilies.set(colorFamily(c.value), (heldFamilies.get(colorFamily(c.value)) ?? 0) + 1);
+  // The proposed system: what the tokens become once the waiting merges are accepted.
+  for (const t of contrast.preview) row(colorFamily(t.token.$value.hex)).suggested++;
   const colorFamilies = [...families]
     .filter(([, r]) => r.found > r.suggested)
     .map(([family, r]) => ({ family, ...r }))
@@ -308,12 +329,19 @@ export function summarizeScan(result: ScanResult): ScanSummary {
   ].sort(compareStrings);
 
   return {
-    ...(result.newColors.held.length > 0 ? { newColors: { held: result.newColors.held.length, suggested: result.newColors.suggestions.length } } : {}),
+    ...(result.newColors.held.length > 0 ? {
+          newColors: {
+            held: result.newColors.held.length,
+            // Only held colors: an accepted one's suggestion is kept (so it can be undone) but isn't waiting.
+            suggested: result.newColors.suggestions.filter((s) => s.members.some((m) => heldValues.has(m))).length,
+            families: [...heldFamilies].map(([family, count]) => ({ family, count })).sort((a, b) => b.count - a.count || compareStrings(a.family, b.family)),
+          },
+        } : {}),
     filesScanned: result.files.length,
     colorFamilies,
     colors: {
       found: colors.colors.length,
-      suggested: contrast.tokens.length,
+      suggested: contrast.preview.length,
       merges: contrast.colorSuggestions.length,
       keptApart: stillPresent("color", new Set(colors.colors.map((c) => c.value))),
     },
@@ -336,9 +364,10 @@ export function summarizeScan(result: ScanResult): ScanSummary {
     accessibility: {
       pairsChecked: new Set(contrast.pairs.map(pairKey)).size,
       failingPairs: failingKeys.size,
-      fixesSuggested: contrast.suggestions.length,
+      // A declined fix stays in `contrast.suggestions` (so it can be undone): count it once, as declined.
+      fixesSuggested: contrast.suggestions.length - fixDeclined,
       fixDeclined,
-      noFixFound: failingKeys.size - contrast.suggestions.length - fixDeclined,
+      noFixFound: failingKeys.size - contrast.suggestions.length,
       assumedWhite: new Set(failing.filter((p) => p.backgroundAssumed > 0).map(pairKey)).size,
       focusProblems: contrast.focus.length,
       notCheckable: {

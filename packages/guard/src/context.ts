@@ -89,12 +89,18 @@ export const tokenName = (path: string) => path.replace(/^color\./, "").replaceA
 /** Contrast fixes from accepted contrast suggestions only: people decide what the system is. */
 function findContrastFixes(model: SystemModel): Map<string, ContrastFix> {
   const accepted = new Set(model.decisions.filter((d) => d.kind === "contrast" && d.status === "accepted").map((d) => d.suggestionId));
+  // An accepted fix joins the tokens on the next scan, so look for it there: it's then a system color, by its token name.
+  const opaqueTokens = flatten(model.tokens).filter((t) => t.node.$type === "color" && t.node.$value.alpha === undefined);
+  const tokenFor = (hex: string) => opaqueTokens.find((t) => t.node.$type === "color" && t.node.$value.hex.toLowerCase() === hex);
   const out = new Map<string, ContrastFix>();
   const fixes = model.suggestions.filter((s) => s.kind === "contrast" && accepted.has(s.id)).sort((a, b) => compareStrings(a.id, b.id));
   for (const s of fixes) {
     if (s.kind !== "contrast") continue;
     const hex = s.proposed.token.$value.hex.toLowerCase();
-    const fix: ContrastFix = { replaces: s.proposed.replaces, name: s.proposed.existing ? tokenName(s.proposed.path) : hex, hex, existing: s.proposed.existing, ratio: s.proposed.ratio };
+    const token = s.proposed.existing ? undefined : tokenFor(hex);
+    const existing = s.proposed.existing || token !== undefined;
+    const name = token ? tokenName(token.path) : tokenName(s.proposed.path);
+    const fix: ContrastFix = { replaces: s.proposed.replaces, name, hex, existing, ratio: s.proposed.ratio };
     const rule = model.rules.find((r) => r.id.startsWith("contrast-") && (r.basedOn?.includes(s.id) ?? false));
     if (rule) fix.systemRule = rule.id;
     out.set(contrastKey(s.pair.foreground, s.pair.background, s.pair.use), fix);

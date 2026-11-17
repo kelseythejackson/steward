@@ -35,12 +35,34 @@ describe("history records", () => {
     ["per-person counts", { byAuthor: { "jane-doe": 3 } }],
   ])("refuse %s: only the listed fields are kept", (_, extra) => {
     expect(() => serializeHistoryRecord({ ...record(), ...extra } as HistoryRecord)).toThrow(HistoryError);
-    expect(() => serializeHistoryRecord({ ...record(), ...extra } as HistoryRecord)).toThrow(/which history doesn't keep/);
+    expect(() => serializeHistoryRecord({ ...record(), ...extra } as HistoryRecord)).toThrow(/history doesn't keep/);
+    // The message is shown on the Report page, so it never repeats the refused key or value.
+    try {
+      checkHistoryRecord({ ...record(), ...extra });
+    } catch (err) {
+      expect((err as Error).message).not.toMatch(/jane|author|username|email|byAuthor/i);
+    }
   });
 
-  it("refuse extra fields inside components, and names used as problem keys", () => {
-    expect(() => checkHistoryRecord({ ...record(), components: { system: 1, total: 1, share: 1, author: "jane-doe" } })).toThrow(/components\.author/);
-    expect(() => checkHistoryRecord({ ...record(), problems: { "Jane Doe": 1 } })).toThrow(/problems\.Jane Doe/);
+  it("refuse extra fields inside components, and anything but Review's rule ids as problem keys, without repeating them", () => {
+    expect(() => checkHistoryRecord({ ...record(), components: { system: 1, total: 1, share: 1, author: "jane-doe" } })).toThrow(/"components" field history doesn't keep/);
+    for (const key of ["Jane Doe", "jane-doe", "bob-smith"]) {
+      expect(() => checkHistoryRecord({ ...record(), problems: { [key]: 3 } })).toThrow(/isn't one of Review's rule ids/);
+      expect(() => checkHistoryRecord({ ...record(), problems: { [key]: 3 } })).not.toThrow(/jane|bob/i);
+    }
+  });
+
+  it.each([
+    ["a name before the date", "Kelsey Jackson 2024"],
+    ["an email before the date", "jane@x.com 2024-01-01"],
+    ["a date with no time", "2026-11-17"],
+    ["a local time with an offset", "2026-11-17T20:36:54+02:00"],
+  ])("refuse %s: dates are ISO 8601 UTC only", (_, date) => {
+    expect(() => checkHistoryRecord({ ...record(), date })).toThrow(/ISO 8601 UTC/);
+  });
+
+  it("accept dates exactly as toISOString writes them", () => {
+    expect(() => checkHistoryRecord({ ...record(), date: new Date("2026-11-17T20:36:54.035Z").toISOString() })).not.toThrow();
   });
 
   it.each([
@@ -110,6 +132,6 @@ describe("damaged history", () => {
     expect(records.map((r) => r.pr)).toEqual([7, 8]);
     expect(problems.map((p) => p.line)).toEqual([2, 4, 5, 6]);
     expect(problems[0]!.message).toBe("isn't valid JSON");
-    expect(problems[2]!.message).toMatch(/"author", which history doesn't keep/);
+    expect(problems[2]!.message).toMatch(/has a field history doesn't keep/);
   });
 });

@@ -72,6 +72,7 @@ export function normalizeSystemModel(model: SystemModel): SystemModel {
       .map((c) => {
         const out = { ...c, variants: sortedStrings(c.variants) };
         if (c.props) out.props = sortedStrings(c.props);
+        if (c.requiredProps) out.requiredProps = sortedStrings(c.requiredProps);
         if (c.rootElements) out.rootElements = sortedStrings(c.rootElements);
         return out;
       })

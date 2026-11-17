@@ -34,6 +34,18 @@ describe("a11y-img-alt", () => {
     expect(found[0]!.fix.edits).toBeUndefined();
   });
 
+  it('accepts images hidden with aria-hidden or role="presentation"/"none", but still flags aria-hidden="false"', () => {
+    const code = `<>
+      <img src="a" aria-hidden="true" />
+      <img src="b" aria-hidden />
+      <img src="c" aria-hidden={true} />
+      <img src="d" role="presentation" />
+      <img src="e" role="none" />
+      <img src="f" aria-hidden="false" />
+    </>`;
+    expect(snippet("a11y-img-alt", code).map((f) => f.found)).toEqual(['<img src="f" aria-hidden="false" />']);
+  });
+
   it('accepts alt="", an alt expression and spread props', () => {
     expect(snippet("a11y-img-alt", `<><img src="a" alt="" /><img src="b" alt={t("logo")} /><img {...props} /></>`)).toEqual([]);
   });
@@ -51,6 +63,23 @@ describe("a11y-accessible-name", () => {
     const found = snippet("a11y-accessible-name", `<><a href="/settings"><GearIcon /></a><Button variant="ghost"><XIcon /></Button></>`);
     expect(found.map((f) => f.found)).toEqual(['<a href="/settings">', '<Button variant="ghost">']);
     expect(found[0]!.message).toBe('This icon link has no label, so screen readers will just say "link" or read out the address. Add aria-label?');
+  });
+
+  it("flags empty buttons (self-closing or with nothing inside) with no name, but not an expression child or a children prop", () => {
+    const code = `<>
+      <button onClick={close} />
+      <button className="p-2">  </button>
+      <Button variant="ghost"></Button>
+      <button>{label}</button>
+      <button>{icon}</button>
+      <Button children="Save" />
+      <button aria-label="Close" />
+      <a href="/" />
+    </>`;
+    const found = snippet("a11y-accessible-name", code);
+    expect(found.map((f) => f.found)).toEqual(["<button onClick={close} />", '<button className="p-2">', '<Button variant="ghost">']);
+    expect(found[0]!.message).toBe('This button has nothing inside it, so screen readers will just say "button." Add text or an aria-label?');
+    expect(found[0]!.evidence).toBe("<button> with no content, and no aria-label, aria-labelledby or title");
   });
 
   it("accepts text, sr-only text, an aria-label, aria-labelledby or title", () => {
@@ -93,6 +122,16 @@ describe("a11y-label-inputs", () => {
     expect(snippet("a11y-label-inputs", code)).toEqual([]);
   });
 
+  it("treats shadcn/ui's <Label> like <label>, for htmlFor and as a wrapper", () => {
+    const code = `<>
+      <Label htmlFor="email">Email</Label><input id="email" />
+      <Label htmlFor={nameId}>Name</Label><input id={nameId} />
+      <Label><input type="checkbox" /> Remember me</Label>
+      <Label htmlFor="other">Other</Label><input id="phone" />
+    </>`;
+    expect(snippet("a11y-label-inputs", code).map((f) => f.found)).toEqual(['<input id="phone" />']);
+  });
+
   it("names selects and textareas in plain words, and still flags an empty aria-label", () => {
     const found = snippet("a11y-label-inputs", `<><select /><textarea /><input aria-label="" /></>`);
     expect(found.map((f) => f.message.split(" has")[0])).toEqual(["This dropdown", "This text box", "This input"]);
@@ -118,6 +157,25 @@ describe("a11y-interactive-element", () => {
       <div role="button" onClick={open}>Not enough</div>
     </>`;
     expect(snippet("a11y-interactive-element", code).map((f) => f.found)).toEqual(["<span onClick={open}>", '<div role="button" onClick={open}>']);
+  });
+
+  it("lists only what's missing, and drops role and tabIndex from the suggested button", () => {
+    const code = `<>
+      <div role="button" tabIndex={0} onClick={open} className="p-2">Ok</div>
+      <span tabIndex="0" onClick={open}>More</span>
+      <div onClick={open}>Row</div>
+    </>`;
+    const found = snippet("a11y-interactive-element", code);
+    expect(found.map((f) => f.evidence)).toEqual([
+      "<div> with onClick and no key handler",
+      "<span> with onClick and no role or key handler",
+      "<div> with onClick and no role, tabIndex or key handler",
+    ]);
+    expect(found.map((f) => f.fix.replacement)).toEqual([
+      '<button type="button" onClick={open} className="p-2">Ok</button>',
+      '<button type="button" onClick={open}>More</button>',
+      '<button type="button" onClick={open}>Row</button>',
+    ]);
   });
 });
 
@@ -164,10 +222,16 @@ describe("a11y-text-contrast", () => {
     expect(field.evidence).toContain("background assumed white, because a parent component sets it");
   });
 
-  it("says so when no color in the system passes, and names the computed shade", () => {
+  it("uses an accepted palette fix by its token name once the scan made it a token", () => {
     const f = fixture("a11y-text-contrast").find((x) => where(x) === "pages/Settings.tsx:45")!;
-    expect(f.message).toMatch(/^On hover, `red-600` on `red-50` is 4\.4:1, .* No color in your system passes here\. Add a shade like `#[0-9a-f]{6}` \(4\.\d:1\)\?$/);
-    expect(f.fix.edits).toBeUndefined();
+    expect(f.message).toMatch(/^On hover, `red-600` on `red-50` is 4\.4:1, .* Use `red-700` \(5\.9:1\)\?$/);
+  });
+
+  it("says so when no color in the system passes, and names the Tailwind palette step to add", () => {
+    // No purple is in the system, so the fix is a purple from Tailwind's palette, named by its class.
+    const [f] = snippet("a11y-text-contrast", `<p className="bg-white text-[#c084fc]">Due today</p>`);
+    expect(f!.message).toMatch(/No color in your system passes here\. Add Tailwind's `purple-\d00` \(#[0-9a-f]{6}, \d\.\d:1\)\?$/);
+    expect(f!.fix.edits).toBeUndefined();
   });
 
   it("swaps a token class on the element itself, and only gives advice for hardcoded colors", () => {

@@ -140,8 +140,11 @@ export function parseClassList(classes: string, theme: ThemeColors = {}, rootPx 
 
     if (utility.startsWith("text-")) {
       const rest = utility.slice(5);
-      const size = FONT_SIZES[rest];
-      const arbitrarySize = /^\[(\d*\.?\d+)(px|rem)\]$/.exec(rest);
+      // `text-2xl/8` sets a line height too; the size is the part before the slash.
+      // (A color keeps its slash: `text-red-600/50` is an opacity, handled below.)
+      const sizePart = rest.replace(/\/(?:\d*\.?\d+|\[[^\]]+\]|[a-z]+)$/, "");
+      const size = FONT_SIZES[sizePart];
+      const arbitrarySize = /^\[(\d*\.?\d+)(px|rem)\]$/.exec(sizePart);
       if (size !== undefined || arbitrarySize) {
         if (state === "base") out.fontSizePx = size !== undefined ? (size * rootPx) / 16 : Number(arbitrarySize![1]) * (arbitrarySize![2] === "rem" ? rootPx : 1);
         continue;

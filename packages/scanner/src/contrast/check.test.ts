@@ -2,6 +2,7 @@ import { STEWARD_EXTENSION, suggestionId, type MergeDecision } from "@steward/mo
 import { describe, expect, it } from "vitest";
 import { color } from "../colors/cluster.test.js";
 import { suggestColorTokens } from "../colors/suggest.js";
+import { scanFiles } from "../scan.js";
 import { checkContrast, contrastSuggestionId } from "./check.js";
 import type { ContrastExtraction, PairOccurrence } from "./types.js";
 
@@ -91,17 +92,38 @@ describe("checkContrast", () => {
     expect(ui.suggestions[0]?.reason.summary).toMatch(/; form borders and icons need 3:1\./);
   });
 
-  it("describes a background fix and a computed shade", () => {
+  it("describes a background fix from Tailwind's palette, by its class name", () => {
     const sys = suggestColorTokens([color("#3b82f6", 5), color("#ffffff", 1)]);
     const report = checkContrast(extraction([occ("#ffffff", "#3b82f6", "a.tsx", 1)]), sys);
-    // No darker blue token exists, so the background becomes a computed darker blue.
-    expect(report.suggestions[0]?.proposed).toMatchObject({ replaces: "background", existing: false });
-    expect(report.suggestions[0]?.reason.summary).toMatch(/Suggest a #[0-9a-f]{6} background \(\d\.\d:1\), a darker blue in the same hue\.$/);
+    // No darker blue token exists, so the background becomes Tailwind's blue-600.
+    expect(report.suggestions[0]?.proposed).toMatchObject({ replaces: "background", existing: false, path: "color.blue.600" });
+    expect(report.suggestions[0]?.reason.summary).toMatch(/Suggest a blue-600 background \(#2563eb, \d\.\d:1\), a darker blue from Tailwind's palette\.$/);
+  });
+
+  it("adds an accepted palette fix to the tokens, so the class it suggests isn't flagged as off-system", () => {
+    const sys = suggestColorTokens([color("#3b82f6", 5), color("#ffffff", 1)]);
+    const pairs = extraction([occ("#ffffff", "#3b82f6", "a.tsx", 1)]);
+    const id = checkContrast(pairs, sys).suggestions[0]!.id;
+    expect(checkContrast(pairs, sys).tokens.some((t) => t.path === "color.blue.600")).toBe(false);
+    const decided = checkContrast(pairs, sys, { decisions: [{ suggestionId: id, kind: "contrast", members: ["#3b82f6", "#ffffff"], status: "accepted", decidedAt: "2026-11-17T00:00:00.000Z" }] });
+    expect(decided.tokens.find((t) => t.path === "color.blue.600")?.token.$value.hex).toBe("#2563eb");
+    const declined = checkContrast(pairs, sys, { decisions: [{ suggestionId: id, kind: "contrast", members: ["#3b82f6", "#ffffff"], status: "rejected", decidedAt: "2026-11-17T00:00:00.000Z" }] });
+    expect(declined.tokens.some((t) => t.path === "color.blue.600")).toBe(false);
   });
 
   it("names colors that aren't tokens by their Tailwind name or hex", () => {
     const report = checkContrast(extraction([occ("#dc2626", "#fef2f2", "a.tsx", 1, { state: "hover" })]), colors());
     expect(report.suggestions[0]?.reason.summary).toMatch(/^red-600 on red-50 is 4\.4:1; normal text needs 4\.5:1\. Used together in 1 place across 1 file\./);
+  });
+
+  it("keeps a see-through token apart from its solid color: its own issues, and the solid color's name in reasons", () => {
+    const r = scanFiles([
+      { path: "src/A.tsx", content: `export const A = () => <div className="bg-white"><p className="text-[#9ca3af]">a</p><p className="text-[#9ca3af]">b</p><span className="bg-[#9ca3af]/50">c</span></div>;` },
+    ]);
+    const issues = (path: string) => r.contrast.tokens.find((t) => t.path === path)?.token.$extensions?.[STEWARD_EXTENSION]?.contrastIssues;
+    expect(issues("color.gray.400")).toHaveLength(1);
+    expect(issues("color.gray.400-50")).toBeUndefined();
+    expect(r.contrast.suggestions[0]!.reason.summary).toMatch(/^gray-400 on white is 2\.5:1/);
   });
 
   it("keeps a failing token from becoming official: marks it with the open suggestion", () => {

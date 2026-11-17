@@ -26,7 +26,7 @@ describe("steward context", () => {
     app = join(work, "messy-app");
     // Keep the committed system.json (the accepted state) but leave node_modules behind.
     await cp(FIXTURE, app, { recursive: true, filter: (src) => !src.includes("node_modules") && !src.endsWith("design.md") });
-    expected = generateDesignMd(parseSystemModel(await readFile(join(app, ".steward/system.json"), "utf8")), { name: "fixture-messy-app" }); // from its package.json name, without the @steward/ scope
+    expected = generateDesignMd(parseSystemModel(await readFile(join(app, ".steward/system.json"), "utf8")), { name: "acme-metrics" }); // from its package.json name, without the @steward/ scope
   });
   afterEach(async () => {
     await rm(work, { recursive: true, force: true });
@@ -44,7 +44,7 @@ describe("steward context", () => {
     expect(r.code).toBe(0);
     expect(r.stdout).toBe(
       `Wrote messy-app/design.md (${expected.split("\n").length - 1} lines) from .steward/system.json.\n` +
-        "Next: point your AI coding tool at it. Run this again after each scan or review to keep it current.\n",
+        "Next: point your AI coding tool at it. Run this again after each scan or decision to keep it current.\n",
     );
     expect(await readFile(join(app, "design.md"), "utf8")).toBe(expected);
   });
@@ -110,7 +110,7 @@ describe("steward context", () => {
       expect(await running).toBe(0);
       expect(stdout).toBe("");
       expect(stderr).toBe(
-        "Steward Brief is serving fixture-messy-app's design system to AI tools over stdio. It reads only .steward/system.json, and nothing leaves this machine. Press Ctrl+C to stop.\n",
+        "Steward Brief is serving acme-metrics's design system to AI tools over stdio. It reads only .steward/system.json, and nothing leaves this machine. Press Ctrl+C to stop.\n",
       );
     });
 

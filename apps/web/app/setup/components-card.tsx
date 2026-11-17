@@ -78,7 +78,7 @@ export function ComponentsCard({ data, busy, run, notice }: { data: ReviewData["
                     >
                       Accept
                     </Button>
-                    <Button variant="quiet" disabled={busy} aria-label={`Keep ${m.members.join(" and ")} as they are`} onClick={() => run({ kind: "reject", ids: [m.id] })}>
+                    <Button variant="quiet" disabled={busy} aria-label={`Keep both: ${m.members.join(" and ")}`} onClick={() => run({ kind: "reject", ids: [m.id] })}>
                       Keep both
                     </Button>
                   </>

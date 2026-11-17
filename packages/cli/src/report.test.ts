@@ -32,4 +32,8 @@ describe("formatScanReport", () => {
       [...describeScan(summary), "Wrote .steward/system.json", "Next: run `steward decide .` to see the suggestions waiting for a decision.", ""].join("\n"),
     );
   });
+
+  it("doesn't point at `steward decide` when nothing is waiting there", () => {
+    expect(formatScanReport(summary, ".steward/system.json", ".", 0)).toBe([...describeScan(summary), "Wrote .steward/system.json", "Nothing is waiting for a decision.", ""].join("\n"));
+  });
 });

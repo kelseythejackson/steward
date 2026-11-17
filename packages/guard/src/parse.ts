@@ -96,6 +96,24 @@ function tryParse(code: string): ReturnType<typeof parse> | null {
   }
 }
 
+/** The AST of a file or loose markup, as `parseFile` reads it. */
+export interface ParsedCode {
+  ast: ReturnType<typeof parse>;
+  /** What was parsed: the code, or the code wrapped in a fragment. */
+  source: string;
+  /** How far the wrapper moved line 1 (0 when the code parsed on its own). */
+  shift: number;
+}
+
+/** Parses code as a module, or as loose markup wrapped in a fragment. Null when it isn't JSX that can be read. */
+export function parseCode(code: string): ParsedCode | null {
+  const ast = tryParse(code);
+  if (ast) return { ast, source: code, shift: 0 };
+  const source = `${FRAGMENT_OPEN}${code}</>`;
+  const wrapped = tryParse(source);
+  return wrapped ? { ast: wrapped, source, shift: FRAGMENT_OPEN.length } : null;
+}
+
 function nameOf(n: N<"JSXOpeningElement">["name"]): string {
   if (n.type === "JSXIdentifier") return n.name;
   if (n.type === "JSXNamespacedName") return `${n.namespace.name}:${n.name.name}`;
@@ -144,15 +162,10 @@ export function readSnippet(code: string): ParsedFile {
 /** Parses a file or snippet for the rules. `path` (repo-relative) is kept on the result. */
 export function parseFile(input: { path?: string | undefined; code: string }): ParsedFile {
   const { code } = input;
-  let source = code;
-  let shift = 0;
-  let ast = tryParse(code);
-  if (!ast) {
-    source = `${FRAGMENT_OPEN}${code}</>`;
-    shift = FRAGMENT_OPEN.length;
-    ast = tryParse(source);
-  }
-  if (!ast) throw new SnippetParseError("I couldn't read that as JSX, so nothing was checked. Send a component or a piece of markup, like `<button className=\"p-2\">Save</button>`.");
+  const parsed = parseCode(code);
+  if (!parsed) throw new SnippetParseError("I couldn't read that as JSX, so nothing was checked. Send a component or a piece of markup, like `<button className=\"p-2\">Save</button>`.");
+
+  const { ast, source, shift } = parsed;
 
   // Offsets → positions in the code as given (the fragment wrapper only shifts line 1).
   const lineStarts = [0];

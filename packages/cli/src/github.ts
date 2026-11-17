@@ -228,7 +228,7 @@ export function describePostingError(err: unknown, postedBefore = 0): string {
 }
 
 /** A GitHub Actions log command: shows as a warning on the run. */
-export function annotation(level: "warning" | "notice", message: string): string {
+export function annotation(level: "error" | "warning" | "notice", message: string): string {
   const data = message.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
   return `::${level} title=Steward Review::${data}\n`;
 }
@@ -253,7 +253,8 @@ async function configOf(root: string): Promise<StewardConfig | null> {
 /**
  * The whole `--github` run. Returns the exit code: in warn mode always 0,
  * even when GitHub refuses a comment or Steward can't run; in error mode 1
- * only when something is found (or Steward couldn't check at all).
+ * when something is found, or when Steward couldn't check at all (no
+ * system.json, base branch missing). API problems never fail it.
  */
 export async function runGithubCheck(target: string, io: GithubCheckIo, options: { base?: string } = {}): Promise<number> {
   const root = resolve(io.cwd, target);
@@ -309,9 +310,10 @@ export async function runGithubCheck(target: string, io: GithubCheckIo, options:
     await writeHistory(root, record(fixesAccepted), history);
     return run.result.failed ? 1 : 0;
   } catch (err) {
+    // Nothing was checked, so error mode can't call the change clean: it fails, and says why. Warn mode never fails.
     const message = err instanceof Error ? err.message : String(err);
-    io.stdout(annotation("warning", `Steward Review couldn't run: ${message}`));
-    if (mode === "warn") io.stdout("Mode: warn, so this doesn't fail the check.\n");
+    io.stdout(annotation(mode === "error" ? "error" : "warning", `Steward Review couldn't run: ${message}`));
+    io.stdout(mode === "error" ? "Mode: error, so this fails the check until Steward can check the changes.\n" : "Mode: warn, so this doesn't fail the check.\n");
     return mode === "error" ? 1 : 0;
   }
 }

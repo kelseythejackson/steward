@@ -49,8 +49,12 @@ describe("suggestColorTokens on fixtures/messy-app", () => {
   });
 
   it("proposes unique token names, one per color group", () => {
-    const paths = result.tokens.map((t) => t.path);
-    expect(new Set(paths).size).toBe(paths.length);
-    expect(paths).toHaveLength(24 - 7); // 24 colors; 5 grays and 2 blues are absorbed by merges
+    const proposed = result.preview.map((t) => t.path);
+    expect(new Set(proposed).size).toBe(proposed.length);
+    expect(proposed).toHaveLength(24 - 7); // 24 colors; once its merges are accepted, 5 grays and 2 blues are absorbed
+    // Before anyone decides, every color is its own token, each with its own name.
+    const now = result.tokens.map((t) => t.path);
+    expect(new Set(now).size).toBe(now.length);
+    expect(now).toHaveLength(24);
   });
 });

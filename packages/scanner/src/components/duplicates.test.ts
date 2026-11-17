@@ -168,6 +168,26 @@ describe("findDuplicates", () => {
     expect(groups[0]!.includes("Card") && groups[0]!.includes("Panel")).toBe(false);
   });
 
+  it("keeps a rejected merge rejected after a same-named component appears and the names gain their files", () => {
+    const decisions: MergeDecision[] = [
+      { suggestionId: suggestionId("component", ["Card", "Panel"]), kind: "component", members: ["Card", "Panel"], status: "rejected", decidedAt: "2026-11-01T00:00:00.000Z" },
+    ];
+    // A second Card elsewhere: the labels become "Card (src/…)", which the rejection doesn't name.
+    const otherCard = { ...card, file: "src/legacy/Card.tsx", usages: 0, props: ["unrelated"], classes: ["flex"], root: "section" };
+    const groups = findDuplicates([card, panel, otherCard], { decisions }).suggestions.map((s) => s.members);
+    expect(groups.some((g) => g.some((m) => m.startsWith("Card")) && g.includes("Panel"))).toBe(false);
+  });
+
+  it("says why the kept one is kept: a person's choice, or usage, never \"used most\" with no uses", () => {
+    const chosen = findDuplicates([card, panel], {
+      decisions: [{ suggestionId: suggestionId("component", ["Card", "Panel"]), kind: "component", members: ["Card", "Panel"], status: "accepted", decidedAt: "2026-11-01T00:00:00.000Z", keep: "Panel" }],
+    }).suggestions[0]!;
+    expect(chosen.reason.summary).toContain("You chose to keep Panel.");
+    expect(chosen.reason.summary).not.toContain("used most");
+    const unused = findDuplicates([{ ...card, usages: 0 }, { ...panel, usages: 0 }]).suggestions[0]!;
+    expect(unused.reason.summary).toMatch(/None of these are used yet, so (Card|Panel) is kept\./);
+  });
+
   it("tells same-named components in different files apart", () => {
     const legacy = { ...button, file: "src/legacy/Button.tsx", usages: 1 };
     const s = findDuplicates([button, legacy]).suggestions[0]!;

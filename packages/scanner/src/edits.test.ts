@@ -18,7 +18,8 @@ const group = (model: ReturnType<typeof buildSystemModel>, path: string) => colo
 
 describe("color groups a person arranged", () => {
   it("keep a color moved out on its own, under the name the person chose", async () => {
-    expect(group(first, "color.gray.200")!.members).toContain("#e4e4e7");
+    // On a fresh scan the merge of #e4e4e7 into gray-200 is only suggested; nothing is merged yet.
+    expect(first.suggestions.some((s) => s.kind === "color" && s.members.includes("#e4e4e7") && s.proposed.path === "color.gray.200")).toBe(true);
     const decided = editColorGroups(first, [{ members: ["#e4e4e7"], path: "color.zinc.200" }], NOW);
     const next = buildSystemModel(await scanWith(decided.decisions), decided);
     expect(group(next, "color.zinc.200")!.members).toEqual(["#e4e4e7"]);
@@ -70,6 +71,18 @@ describe("a new color accepted as a token, then renamed", () => {
     expect(group(next, "color.brand")!.members).toEqual(["#7c3aed"]);
     expect(colorTokenGroups(next).filter((g) => g.members.includes("#7c3aed"))).toHaveLength(1);
     expect(scan(withNew, next)).toEqual(next);
+  });
+});
+
+describe("a token renamed to a family name, then a new color in that family", () => {
+  it("scans cleanly: the new color gets a name that doesn't nest under the renamed token", () => {
+    const one = [{ path: "A.tsx", content: `export const A = () => <p className="bg-[#3b82f6] text-white">x</p>;` }];
+    const renamed = editColorGroups(buildSystemModel(scanFiles(one)), [{ members: ["#3b82f6"], path: "color.blue" }], NOW);
+    const two = [...one, { path: "B.tsx", content: `export const B = () => <p className="bg-[#2563eb]">y</p>;` }];
+    const next = buildSystemModel(scanFiles(two, { decisions: renamed.decisions }), renamed);
+    expect(group(next, "color.blue")!.members).toEqual(["#3b82f6"]);
+    const other = colorTokenGroups(next).find((g) => g.members.includes("#2563eb"))!;
+    expect(other.path.startsWith("color.blue.")).toBe(false);
   });
 });
 

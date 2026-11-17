@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import { contrastSummary } from "../../lib/contrast-summary";
 import type { Decision } from "../../lib/decide";
 import type { ReviewData } from "../../lib/review-data";
 import { Button } from "../button";
@@ -29,7 +30,7 @@ export function ContrastCard({ data, names, busy, run, notice }: { data: ReviewD
       notice={notice}
       anchor="contrast"
       title="Contrast"
-      summary={`${plural(data.length, "pair")} below WCAG AA${accepted > 0 ? ` · ${accepted} with a fix accepted` : ""}`}
+      summary={contrastSummary(data.length, accepted)}
       actions={
         <Button variant="primary" disabled={busy || waiting.length === 0} onClick={() => run({ kind: "accept", ids: waiting.map((c) => c.id) })}>
           {waiting.length === 0 ? "Nothing waiting" : `Accept ${plural(waiting.length, "fix", "fixes")}`}

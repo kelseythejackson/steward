@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { allLines } from "@steward/guard";
 // The eval's own scoring, so these results are in exactly the format `pnpm eval:score` writes.
 import { promptOf, scoreFile, totalsOf, type RunResult } from "../../../eval/src/score.ts";
-import { claudeMcpAdd, CURSOR_RULE, demoDir, loadComparison, mcpConfig, namesSteward, stewardBin, toolStatus } from "./brief.ts";
+import { claudeMcpAdd, CURSOR_RULE, demoDir, loadComparison, mcpConfig, namesSteward, readComparison, serveCommand, stewardBin, toolStatus, unreadableNote } from "./brief.ts";
 
 const FIXTURE = fileURLToPath(new URL("../../../fixtures/messy-app", import.meta.url));
 const ctx = checkContext(parseSystemModel(readFileSync(join(FIXTURE, ".steward/system.json"), "utf8")));
@@ -27,6 +27,11 @@ describe("setup steps", () => {
     const config = JSON.parse(mcpConfig("/s/packages/cli/dist/bin.js", "/work/app"));
     expect(config).toEqual({ mcpServers: { steward: { type: "stdio", command: "node", args: ["/s/packages/cli/dist/bin.js", "context", "/work/app", "--serve"] } } });
     expect(namesSteward(mcpConfig("/s/packages/cli/dist/bin.js", "/work/app"))).toBe(true);
+  });
+
+  it("builds the plain command that starts the server, for any other tool", () => {
+    expect(serveCommand("/s/bin.js", "/work/app")).toBe("node /s/bin.js context /work/app --serve");
+    expect(serveCommand("<path to steward>/packages/cli/dist/bin.js", "/Users/me/My App")).toBe("node '<path to steward>/packages/cli/dist/bin.js' context '/Users/me/My App' --serve");
   });
 
   it("only counts a config that starts Steward's server", () => {
@@ -113,6 +118,23 @@ describe("loadComparison", () => {
     await saveRun("without", "dialog-1", WITHOUT);
     const [c] = await loadComparison(dir);
     expect(c!.with).toBeNull();
+  });
+
+  it("skips result files it can't read and lists them, instead of breaking the page", async () => {
+    await saveRun("without", "pricing-1", WITHOUT);
+    await writeFile(join(dir, "without", "pricing-2.json"), '{"label": "pricing-2", "prompt": ');
+    await writeFile(join(dir, "without", "pricing-3.json"), '{"label": "pricing-3", "prompt": "pricing"}');
+    const { comparisons, unreadable } = await readComparison(dir);
+    expect(unreadable).toEqual(["without/pricing-2.json", "without/pricing-3.json"]);
+    expect(comparisons).toHaveLength(1);
+    expect(comparisons[0]!.without).toMatchObject({ runs: 1, shown: "pricing-1" });
+    expect(await loadComparison(dir)).toEqual(comparisons);
+  });
+
+  it("says which result files were left out, calmly", () => {
+    expect(unreadableNote([])).toBeNull();
+    expect(unreadableNote(["without/pricing-2.json"])).toBe("1 result file in eval/results couldn't be read, so it's left out: without/pricing-2.json.");
+    expect(unreadableNote(["with/a-1.json", "without/b-2.json"])).toBe("2 result files in eval/results couldn't be read, so they're left out: with/a-1.json, without/b-2.json.");
   });
 
   it("finds the results folder, or says there isn't one", async () => {

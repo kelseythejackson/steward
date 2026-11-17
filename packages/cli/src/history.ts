@@ -15,7 +15,7 @@ export const ARTIFACT_DIR = "steward-history";
 
 /** Shown after a local check when git would commit the history: each person's local checks would conflict in it. */
 export const GITIGNORE_TIP =
-  "Tip: add .steward/history.jsonl to your .gitignore. It records checks run on this computer, so committing it would mix everyone's local runs and cause merge conflicts. The Report counts pull request checks, which come from GitHub (`steward history import`).\n";
+  "Tip: add .steward/history.jsonl and .steward/history-imported.json to your .gitignore. They record checks run and imported on this computer, so committing them would mix everyone's local runs and cause merge conflicts. The Report counts pull request checks, which come from GitHub (`steward history import`).\n";
 
 const run = promisify(execFile);
 

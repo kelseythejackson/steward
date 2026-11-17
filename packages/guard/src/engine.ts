@@ -1,7 +1,7 @@
 import type { SystemModel } from "@steward/model";
 import { checkContext, type CheckContext } from "./context.js";
 import type { Finding, IgnoredFinding, Note, RuleId, TextEdit } from "./findings.js";
-import { parseIgnores } from "./ignore.js";
+import { parseIgnores, type IgnoreComment } from "./ignore.js";
 import { parseFile, type ParsedFile } from "./parse.js";
 import type { GuardRule, Hit } from "./rule.js";
 import { RULES } from "./rules/index.js";
@@ -95,6 +95,7 @@ const list = (xs: readonly string[]) => (xs.length <= 1 ? (xs[0] ?? "") : `${xs.
 function applyIgnores(file: ParsedFile, result: CheckResult, ran: ReadonlySet<RuleId>): void {
   const comments = parseIgnores(file.code);
   if (comments.length === 0) return;
+  const span = (c: IgnoreComment) => (c.through === c.covers ? `line ${c.covers}` : `lines ${c.covers}–${c.through}`);
   const note = (line: number, covers: number, message: string) => {
     const n: Note = { line, covers, message };
     if (file.path !== undefined) n.file = file.path;
@@ -102,6 +103,10 @@ function applyIgnores(file: ParsedFile, result: CheckResult, ran: ReadonlySet<Ru
   };
 
   for (const c of comments) {
+    if (c.inText) {
+      note(c.line, c.covers, "This steward-ignore is written as text inside JSX, so it shows on the page and isn't applied. Wrap it in `{/* … */}` to make it a comment.");
+      continue;
+    }
     const known = c.rules.filter((r) => RULE_IDS.has(r));
     const unknown = c.rules.filter((r) => !RULE_IDS.has(r));
     if (c.rules.length === 0) {
@@ -112,7 +117,7 @@ function applyIgnores(file: ParsedFile, result: CheckResult, ran: ReadonlySet<Ru
       note(c.line, c.covers, `This steward-ignore names ${list(unknown.map(code))}, which ${unknown.length === 1 ? "isn't a Review rule" : "aren't Review rules"}. The rules are ${list(RULES.map((r) => code(r.id)))}.`);
     }
     if (known.length === 0) continue;
-    const covered = result.findings.filter((f) => f.line === c.covers && known.includes(f.rule));
+    const covered = result.findings.filter((f) => f.line >= c.covers && f.line <= c.through && known.includes(f.rule));
     if (c.reason === "") {
       if (covered.length > 0) {
         note(c.line, c.covers, `This steward-ignore has no reason, so it isn't applied. Add one after a colon so the next person knows why: \`// steward-ignore ${known.join(", ")}: <why>\`.`);
@@ -123,7 +128,7 @@ function applyIgnores(file: ParsedFile, result: CheckResult, ran: ReadonlySet<Ru
     result.findings = result.findings.filter((f) => !covered.includes(f));
     const unused = known.filter((r) => ran.has(r as RuleId) && !covered.some((f) => f.rule === r));
     if (unused.length > 0) {
-      note(c.line, c.covers, `Nothing on line ${c.covers} is flagged by ${list(unused.map(code))}, so this steward-ignore can be removed${unused.length < known.length ? " for that rule" : ""}.`);
+      note(c.line, c.covers, `Nothing on ${span(c)} is flagged by ${list(unused.map(code))}, so this steward-ignore can be removed${unused.length < known.length ? " for that rule" : ""}.`);
     }
   }
 }

@@ -167,7 +167,8 @@ function suggest(ctx: CheckContext, fg: Named, bg: Named, use: ContrastUse): Sug
   const tokens = ctx.colors.filter((c) => c.alpha === undefined).map((c) => ({ path: c.path, hex: c.hex }));
   const fix = chooseFix(fg.hex, bg.hex, REQUIRED_RATIO[use], tokens);
   if (!fix) return null;
-  return { replaces: fix.replaces, name: fix.existing ? tokenName(fix.path) : fix.hex, hex: fix.hex, ratio: fix.ratio, existing: fix.existing, accepted: false };
+  // Every fix is a token or a Tailwind palette step, so it always has a class name.
+  return { replaces: fix.replaces, name: tokenName(fix.path), hex: fix.hex, ratio: fix.ratio, existing: fix.existing, accepted: false };
 }
 
 const NEEDS: Readonly<Record<ContrastUse, string>> = { text: "text", "large-text": "large text", ui: "icons and form borders" };
@@ -271,8 +272,8 @@ export const a11yTextContrast: GuardRule = {
         ask = "Pick a lighter or darker color for one side?";
         description = "No change to either color reaches the required contrast; pick a different pair.";
       } else if (!fix.existing) {
-        ask = `No color in your system passes here. Add a shade like \`${fix.hex}\` (${formatRatio(fix.ratio)})?`;
-        description = `Add \`${fix.hex}\` to the system for the ${fix.replaces === "foreground" ? "text" : "background"}, or choose a different pair.`;
+        ask = `No color in your system passes here. Add Tailwind's \`${fix.name}\` (${fix.hex}, ${formatRatio(fix.ratio)})?`;
+        description = `Add \`${fix.name}\` to the system for the ${fix.replaces === "foreground" ? "text" : "background"} (accept the contrast fix in Setup), or choose a different pair.`;
       } else {
         const what = fix.replaces === "foreground" ? `\`${fix.name}\`` : `a \`${fix.name}\` background`;
         ask = `Use ${what} (${formatRatio(fix.ratio)})?`;
