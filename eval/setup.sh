@@ -41,7 +41,7 @@ make_copy() {
     pkg.name = "acme-metrics"; pkg.description = "Acme Metrics web app";
     fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + "\n");
   ' "$dir/package.json"
-  printf 'node_modules/\n' > "$dir/.gitignore"
+  printf 'node_modules/\n.steward/history.jsonl\n' > "$dir/.gitignore"
 }
 
 make_copy without

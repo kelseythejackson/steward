@@ -67,7 +67,7 @@ describe("splitPatterns", () => {
     expect(first!.pattern).toEqual({ value: "#7c3aed", uses: 3, files: 2 });
     expect(first!.message).toBe("`#7c3aed` is used in 3 places across 2 files, and none of your tokens look like it, so it may belong in your system. Add it as a color token?");
     expect(first!.evidence).toMatch(/; used 3 times in 2 files$/);
-    expect(first!.fix.description).toMatch(/^If it belongs in the system, run `steward scan`: it'll suggest this color as a token, and `steward review` lets you accept or reject it\. Then use its class here\. If it should have been `[\w-]+`, use that instead\./);
+    expect(first!.fix.description).toMatch(/^If it belongs in the system, run `steward scan`: it'll suggest this color as a token, and you can accept or reject it on the Setup screen\. Then use its class here\. If it should have been `[\w-]+`, use that instead\./);
   });
 
   it("checks contrast before suggesting a text color as a token, and names the nearest shade that passes", () => {
@@ -86,7 +86,7 @@ describe("splitPatterns", () => {
   it("follows the token suggestion: pending and accepted say what's next, rejected is flagged again", () => {
     const uses = countColorUses(files, ctx);
     const status = (s: "pending" | "accepted" | "rejected") => reviewFiles(files, { ...ctx, tokenSuggestions: new Map([["#7c3aed", s]]) }, WARN, { kind: "all" }, { colorUses: uses });
-    expect(status("pending").tokenSuggestions[0]!.fix.description).toMatch(/^It's already suggested as a token and waiting for a decision in `steward review`\./);
+    expect(status("pending").tokenSuggestions[0]!.fix.description).toMatch(/^It's already suggested as a token and waiting for a decision on the Setup screen\./);
     expect(status("accepted").tokenSuggestions[0]!.fix.description).toMatch(/^You accepted it as a token, so it joins the system on the next `steward scan`\./);
     const rejected = status("rejected");
     expect(rejected.tokenSuggestions).toEqual([]);

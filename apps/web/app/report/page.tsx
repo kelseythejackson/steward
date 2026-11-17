@@ -1,13 +1,15 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { fixFor, ruleLabel } from "../../lib/fixes";
-import { A11Y_LIMIT, DRIFT_LIMIT, health, shownPart as part, MIN_PULL_REQUESTS, PERIODS, periodOf, pullRequestsIn, tiles, topSources, weeklyTrend, type Health, type MainSource } from "../../lib/health";
+import { A11Y_LIMIT, DRIFT_LIMIT, health, shownPart as part, MIN_PULL_REQUESTS, PERIODS, periodOf, pullRequestsIn, tiles, steadyChange, topSources, weeklyTrend, type Health, type MainSource, type TrendPoint } from "../../lib/health";
 import { loadRepo } from "../../lib/steward";
+import { cli, FROM_STEWARD } from "../../lib/commands";
 import { Button } from "../button";
 import { Panel, RepoProblem } from "../ui";
 import { TrendChart } from "./trend-chart";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Report" };
 
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600";
 const SOURCE_LABELS: Record<MainSource, string> = { "ai-agent": "AI agent", human: "Human", unknown: "Unknown", mixed: "Mixed" };
@@ -25,6 +27,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-2">
+          <p className="text-sm font-medium text-gray-700">Report</p>
           <h1 className="text-2xl font-semibold text-gray-900">System health</h1>
           <p className="text-sm text-gray-700">How consistent your product is, from Steward Review&apos;s checks on your pull requests.</p>
         </div>
@@ -50,34 +53,46 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
 
 async function ReportBody({ repo, period }: { repo: Awaited<ReturnType<typeof loadRepo>>; period: ReturnType<typeof periodOf> }) {
   if (repo.kind !== "ready") return <RepoProblem state={repo} />;
-  if (repo.historyProblem) return <Message title="Steward couldn't read the check history.">{repo.historyProblem}</Message>;
+  // Lines that couldn't be read are left out, never the whole history; say so wherever the page lands.
+  const notice = repo.historyProblem ? <p className="rounded-md border border-gray-500 bg-gray-50 p-3 text-sm text-gray-900">{repo.historyProblem}</p> : null;
   if (repo.history.length === 0) {
     return (
-      <Message title="No checks recorded yet.">
-        <p>
-          Each run of {code("steward check")} adds a line to {code(".steward/history.jsonl")}. The Report counts pull requests, so add the Steward Review GitHub Action to check
-          each one.
-        </p>
-      </Message>
+      <>
+        {notice}
+        <Message title="No checks recorded yet.">
+          <p>The Report fills in as Steward Review checks your pull requests. Add the Steward Review GitHub Action to your repo; results show here after it checks pull requests.</p>
+          <ForDevelopers>
+            <p>
+              Bring in the Action&apos;s results with {code(cli(`history import ${repo.path}`))} ({FROM_STEWARD}). It uses your GitHub login and only adds what isn&apos;t here yet.
+              Local runs of {code(cli("check <path>"))} are recorded too, but not counted, so the same changes aren&apos;t counted twice.
+            </p>
+          </ForDevelopers>
+        </Message>
+      </>
     );
   }
 
   const { pullRequests, localChecks } = pullRequestsIn(repo.history, period, new Date());
   if (pullRequests.length === 0) {
     return (
-      <Message title="No pull requests were checked in this period.">
-        {localChecks > 0 && (
-          <p>
-            {plural(localChecks, "local check")} {localChecks === 1 ? "is" : "are"} recorded, but the Report counts pull requests only, so the same changes aren&apos;t counted twice.
-          </p>
-        )}
-        <p>
-          Pull request checks run in the Steward Review GitHub Action and are saved as {code("steward-history")} artifacts, one per run. To add a run&apos;s record here, run{" "}
-          {code("gh run download <run-id> --pattern 'steward-history-*' --dir .steward/artifacts")}, then{" "}
-          {code("find .steward/artifacts -name record.jsonl -exec cat {} + >> .steward/history.jsonl")}.
-        </p>
-        <p>Or choose a longer period.</p>
-      </Message>
+      <>
+        {notice}
+        <Message title="No pull requests were checked in this period.">
+          <p>Choose a longer period, or bring in the latest results from GitHub.</p>
+          {localChecks > 0 && (
+            <p>
+              {plural(localChecks, "check")} on someone&apos;s own computer {localChecks === 1 ? "is" : "are"} recorded, but the Report only counts pull requests, so the same changes
+              aren&apos;t counted twice.
+            </p>
+          )}
+          <ForDevelopers>
+            <p>
+              The Steward Review GitHub Action saves each pull request&apos;s results on GitHub. Bring them in with {code(cli(`history import ${repo.path}`))} ({FROM_STEWARD}). It uses
+              your GitHub login and only adds what isn&apos;t here yet.
+            </p>
+          </ForDevelopers>
+        </Message>
+      </>
     );
   }
 
@@ -88,6 +103,7 @@ async function ReportBody({ repo, period }: { repo: Awaited<ReturnType<typeof lo
 
   return (
     <>
+      {notice}
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <ScoreCard h={h} trend={trend} />
         <section aria-labelledby="trend-title" className="flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-6">
@@ -165,6 +181,16 @@ async function ReportBody({ repo, period }: { repo: Awaited<ReturnType<typeof lo
   );
 }
 
+/** Commands and file names, tucked away so the empty state reads plainly for everyone else. */
+function ForDevelopers({ children }: { children: ReactNode }) {
+  return (
+    <details className="text-sm text-gray-700">
+      <summary className={`cursor-pointer rounded-md font-medium text-gray-900 ${FOCUS}`}>For developers</summary>
+      <div className="mt-2 flex flex-col gap-2">{children}</div>
+    </details>
+  );
+}
+
 function Message({ title, children }: { title: string; children: ReactNode }) {
   return (
     <Panel>
@@ -186,12 +212,10 @@ function Tile({ label, value, note }: { label: string; value: ReactNode; note?: 
   );
 }
 
-function ScoreCard({ h, trend }: { h: Health; trend: readonly { week: string; score: number }[] }) {
+function ScoreCard({ h, trend }: { h: Health; trend: readonly TrendPoint[] }) {
   const counted = h.parts.filter((p) => p.value !== null);
   const total = counted.reduce((s, p) => s + p.weight, 0);
-  const first = trend[0];
-  const last = trend.at(-1);
-  const change = first && last && trend.length > 1 ? last.score - first.score : null;
+  const steady = steadyChange(trend);
 
   return (
     <section aria-labelledby="score-title" className="flex flex-col gap-4 rounded-lg border border-gray-900 bg-white p-6">
@@ -210,10 +234,12 @@ function ScoreCard({ h, trend }: { h: Health; trend: readonly { week: string; sc
           <p className="text-gray-900">
             <span className="text-6xl font-semibold">{h.score}</span> <span className="text-base text-gray-700">/ 100</span>
           </p>
-          {change !== null && first && last && (
+          {steady && (
             <p className="text-sm text-gray-700">
-              For the whole period. Week by week it went {change === 0 ? "unchanged" : `${change > 0 ? "up" : "down"} ${plural(Math.abs(change), "point")}`}, from {first.score} in the
-              week of {day(first.week)} to {last.score}.
+              For the whole period. Week by week it went{" "}
+              {steady.change === 0 ? "unchanged" : `${steady.change > 0 ? "up" : "down"} ${plural(Math.abs(steady.change), "point")}`}, from {steady.first.score} in the week of{" "}
+              {day(steady.first.week)} to {steady.last.score}
+              {steady.weeks < trend.length ? `, counting only weeks with ${MIN_PULL_REQUESTS} or more pull requests` : ""}.
             </p>
           )}
         </div>

@@ -83,7 +83,7 @@ function accessibilityLines(s: ScanSummary): string[] {
   return lines;
 }
 
-/** e.g. "Rules: 8 starter rules (6 accessibility basics, 2 from changes you accepted)". Shared by `steward scan` and `steward review`. */
+/** e.g. "Rules: 8 starter rules (6 accessibility basics, 2 from changes you accepted)". Shared by `steward scan` and `steward decide`. */
 export function describeRules(rules: RuleSummary): string {
   const { basics, fromAccepted, yours, off } = rules;
   const starter = basics + fromAccepted;

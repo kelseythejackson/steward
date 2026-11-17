@@ -67,7 +67,7 @@ function checkClass(ctx: CheckContext, use: ClassUse): Hit | null {
  */
 export const noArbitrarySpacing: GuardRule = {
   id: "no-arbitrary-spacing",
-  description: "Use a step from the spacing scale instead of an arbitrary value or a step the scale doesn't have.",
+  description: "Use a step from the spacing scale instead of an arbitrary value or a step the scale doesn't have. Covers padding, margin and gap; widths and heights aren't checked.",
   category: "spacing",
   severity: "warn",
   covers: (ctx) => (ctx.spacing.length === 0 ? [] : [{ label: "spacing off the scale", systemRule: SYSTEM_RULE }]),

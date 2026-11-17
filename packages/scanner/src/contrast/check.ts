@@ -54,11 +54,6 @@ export interface ContrastReport {
   colorSuggestions: ColorMergeSuggestion[];
 }
 
-export interface ContrastOptions {
-  /** Past decisions. A rejected contrast fix is not suggested again (the pair is still reported). */
-  decisions?: readonly MergeDecision[];
-}
-
 /** Stable id: the same pair always gets the same id, and swapping foreground and background gives a different one. */
 export function contrastSuggestionId(foreground: string, background: string): string {
   return suggestionId("contrast", [`foreground ${foreground}`, `background ${background}`]);
@@ -111,10 +106,10 @@ function withIssues(token: ColorToken, ids: readonly string[] | undefined): Colo
  * (so near-duplicates are checked as the token they merge into). Each failing
  * pair gets a suggestion with the nearest passing alternative and a plain
  * reason. Failing tokens are marked so they aren't made official as they are.
+ * A fix someone declined is still suggested: its decision keeps it from
+ * waiting again, and the pair keeps showing as failing, with an Undo.
  */
-export function checkContrast(extraction: ContrastExtraction, colors: ColorSuggestions, options: ContrastOptions = {}): ContrastReport {
-  const decisions = options.decisions ?? [];
-
+export function checkContrast(extraction: ContrastExtraction, colors: ColorSuggestions): ContrastReport {
   // Raw color → token it belongs to.
   const tokenOf = new Map<string, ProposedColorToken>();
   for (const t of colors.tokens) {
@@ -182,7 +177,6 @@ export function checkContrast(extraction: ContrastExtraction, colors: ColorSugge
     if (pair.passes) continue;
 
     const id = contrastSuggestionId(g.fg, g.bg);
-    if (decisions.some((d) => d.kind === "contrast" && d.status === "rejected" && d.suggestionId === id)) continue;
     const fix = chooseFix(g.fg, g.bg, required, tokenRefs);
     if (!fix) continue;
 

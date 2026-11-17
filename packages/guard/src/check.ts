@@ -3,6 +3,9 @@ import type { CheckContext } from "./context.js";
 import { checkFile, type CheckResult } from "./engine.js";
 
 /** Said wherever accessibility checks report, so passing them is never read as "accessible". */
+/** What the spacing check leaves out, said wherever people read about it. Layout sizes are often one-offs on purpose, so flagging them would mostly be noise. */
+export const SPACING_SCOPE_NOTE = "Spacing is checked on padding, margin and gap; widths and heights (like `w-[320px]`) aren't checked.";
+
 export const STATIC_CHECKS_NOTE =
   "These are static checks. They catch some accessibility problems, not all, so passing them doesn't make a screen accessible on its own.";
 

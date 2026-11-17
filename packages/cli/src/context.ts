@@ -1,7 +1,7 @@
 import { readFile, rename, writeFile } from "node:fs/promises";
-import { basename, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import type { Readable, Writable } from "node:stream";
-import { DESIGN_MD_MARKER, generateDesignMd, serveOverStdio } from "@steward/context";
+import { DESIGN_MD_MARKER, generateDesignMd, projectName, serveOverStdio } from "@steward/context";
 import { readModel } from "./review.js";
 import { assertDirectory, StewardError } from "./scan.js";
 
@@ -23,7 +23,7 @@ export async function runContext(target: string, options: { file?: boolean; show
   const shown = options.shownAs ?? target;
   await assertDirectory(root, shown);
   const model = await readModel(root, shown);
-  const markdown = generateDesignMd(model, { name: basename(root) });
+  const markdown = generateDesignMd(model, { name: await projectName(root) });
   if (!options.file) return { markdown, writtenTo: null };
 
   const path = join(root, DESIGN_MD_FILE);
@@ -70,6 +70,6 @@ export async function runServe(target: string, options: ServeOptions): Promise<v
   const shown = options.shownAs ?? target;
   await assertDirectory(root, shown);
   await readModel(root, shown);
-  options.log(`Steward Brief is serving ${basename(root)}'s design system to AI tools over stdio. It reads only .steward/system.json, and nothing leaves this machine. Press Ctrl+C to stop.\n`);
+  options.log(`Steward Brief is serving ${await projectName(root)}'s design system to AI tools over stdio. It reads only .steward/system.json, and nothing leaves this machine. Press Ctrl+C to stop.\n`);
   await serveOverStdio(() => readModel(root, shown), { stdin: options.stdin, stdout: options.stdout });
 }

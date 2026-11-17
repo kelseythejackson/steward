@@ -6,7 +6,7 @@ import type { ReviewData } from "../../lib/review-data";
 import { Button } from "../button";
 import { plural, ReviewCard, StatusBadge } from "./parts";
 
-export function SpacingCard({ data, busy, run }: { data: ReviewData["spacing"]; busy: boolean; run: (d: Decision) => void }) {
+export function SpacingCard({ data, busy, run, notice }: { data: ReviewData["spacing"]; busy: boolean; run: (d: Decision) => void; notice?: string | null }) {
   const [open, setOpen] = useState(false);
   const titleId = useId();
   const listId = useId();
@@ -18,6 +18,7 @@ export function SpacingCard({ data, busy, run }: { data: ReviewData["spacing"]; 
   return (
     <ReviewCard
       id={titleId}
+      notice={notice}
       anchor="spacing"
       title="Spacing"
       summary={`${plural(found, "value")} → ${data.scale.length}-step scale`}
@@ -27,7 +28,7 @@ export function SpacingCard({ data, busy, run }: { data: ReviewData["spacing"]; 
             {waiting.length === 0 ? "Nothing waiting" : `Accept ${plural(waiting.length, "snap")}`}
           </Button>
           <Button aria-expanded={open} aria-controls={listId} onClick={() => setOpen((o) => !o)}>
-            {open ? "Hide affected files" : "Show affected files"}
+            {open ? "Hide each snap" : "Show each snap"}
           </Button>
         </>
       }
@@ -36,7 +37,7 @@ export function SpacingCard({ data, busy, run }: { data: ReviewData["spacing"]; 
         {data.scale.map((s) => (
           <li key={s.px} className="grid grid-cols-[48px_1fr] items-center gap-3 text-sm text-gray-700">
             <span>{s.px}px</span>
-            <span aria-hidden="true" className="h-2 rounded-md bg-gray-400" style={{ width: `${Math.max(4, (s.px / max) * 100)}%` }} />
+            <span aria-hidden="true" className="h-2 rounded-md bg-gray-500" style={{ width: `${Math.max(4, (s.px / max) * 100)}%` }} />
           </li>
         ))}
       </ul>
@@ -47,7 +48,7 @@ export function SpacingCard({ data, busy, run }: { data: ReviewData["spacing"]; 
       </p>
       <div id={listId} hidden={!open} className="flex flex-col gap-2">
         {data.snaps.map((s) => (
-          <section key={s.id} aria-label={`${s.values.join(", ")} to ${s.step}px`} className="flex flex-col gap-2 rounded-md border border-gray-200 p-3">
+          <section key={s.id} data-item={s.id} aria-label={`${s.values.join(", ")} to ${s.step}px`} className="flex flex-col gap-2 rounded-md border border-gray-200 p-3">
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-medium text-gray-900">
                 {s.values.join(", ")} → {s.step}px
@@ -63,13 +64,18 @@ export function SpacingCard({ data, busy, run }: { data: ReviewData["spacing"]; 
             </ul>
             <div className="flex flex-wrap gap-3">
               {s.status === "waiting" ? (
-                s.values.map((v) => (
-                  <Button key={v} variant="quiet" disabled={busy} onClick={() => run({ kind: "leave-off", id: s.id, values: [v] })}>
-                    Leave {v} off
+                <>
+                  <Button disabled={busy} aria-label={`Accept: snap ${s.values.join(", ")} to ${s.step}px`} onClick={() => run({ kind: "accept", ids: [s.id] })}>
+                    Accept
                   </Button>
-                ))
+                  {s.values.map((v) => (
+                    <Button key={v} variant="quiet" disabled={busy} onClick={() => run({ kind: "leave-off", id: s.id, values: [v] })}>
+                      Leave {v} off
+                    </Button>
+                  ))}
+                </>
               ) : (
-                <Button variant="quiet" disabled={busy} onClick={() => run({ kind: "undo", id: s.id })}>
+                <Button variant="quiet" disabled={busy} aria-label={`Undo the decision on ${s.values.join(", ")} to ${s.step}px`} onClick={() => run({ kind: "undo", id: s.id })}>
                   Undo
                 </Button>
               )}

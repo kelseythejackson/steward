@@ -121,7 +121,9 @@ async function changedSources(root: string, base: string): Promise<SourceFile[]>
     );
   }
 
-  const added = parseAddedLines(await git(root, ["diff", "-U0", "--no-color", "--no-renames", "--no-ext-diff", "--relative", mergeBase, "--"]));
+  // --find-renames: a moved file counts only its real changes, not every line. Explicit prefixes: a person's
+  // diff.mnemonicPrefix setting would otherwise change "b/" to "w/" and hide every file.
+  const added = parseAddedLines(await git(root, ["diff", "-U0", "--no-color", "--find-renames", "--no-ext-diff", "--src-prefix=a/", "--dst-prefix=b/", "--relative", mergeBase, "--"]));
   const untracked = zList(await git(root, ["ls-files", "-z", "--others", "--exclude-standard"]));
   const files = await readSources(root, [...added.keys(), ...untracked], added);
   // A new file that git doesn't track yet: every line is new.

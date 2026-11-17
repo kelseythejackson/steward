@@ -106,7 +106,7 @@ Use the name in Tailwind classes, e.g. `bg-blue-500`.
 
 ### Spacing
 
-Use the step in any spacing class (`p-6`, `gap-6`, `mt-6`). Don't use arbitrary values.
+Use the step in any spacing class (`p-6`, `gap-6`, `mt-6`). Don't use arbitrary values. Widths and heights aren't part of the scale, and Steward Review doesn't check them.
 
 | Step | Size |
 |---|---|

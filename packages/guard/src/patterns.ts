@@ -66,8 +66,8 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 
 /** What to do next, depending on where its token suggestion stands. */
 const NEXT_STEP: Readonly<Record<"none" | "pending" | "accepted", string>> = {
-  none: "If it belongs in the system, run `steward scan`: it'll suggest this color as a token, and `steward review` lets you accept or reject it. Then use its class here.",
-  pending: "It's already suggested as a token and waiting for a decision in `steward review`. Accepted, it joins the system on the next scan; then use its class here.",
+  none: "If it belongs in the system, run `steward scan`: it'll suggest this color as a token, and you can accept or reject it on the Setup screen. Then use its class here.",
+  pending: "It's already suggested as a token and waiting for a decision on the Setup screen. Accepted, it joins the system on the next scan; then use its class here.",
   accepted: "You accepted it as a token, so it joins the system on the next `steward scan`. Then use its class here.",
 };
 

@@ -26,7 +26,7 @@ describe("steward context", () => {
     app = join(work, "messy-app");
     // Keep the committed system.json (the accepted state) but leave node_modules behind.
     await cp(FIXTURE, app, { recursive: true, filter: (src) => !src.includes("node_modules") && !src.endsWith("design.md") });
-    expected = generateDesignMd(parseSystemModel(await readFile(join(app, ".steward/system.json"), "utf8")), { name: "messy-app" });
+    expected = generateDesignMd(parseSystemModel(await readFile(join(app, ".steward/system.json"), "utf8")), { name: "fixture-messy-app" }); // from its package.json name, without the @steward/ scope
   });
   afterEach(async () => {
     await rm(work, { recursive: true, force: true });
@@ -110,7 +110,7 @@ describe("steward context", () => {
       expect(await running).toBe(0);
       expect(stdout).toBe("");
       expect(stderr).toBe(
-        "Steward Brief is serving messy-app's design system to AI tools over stdio. It reads only .steward/system.json, and nothing leaves this machine. Press Ctrl+C to stop.\n",
+        "Steward Brief is serving fixture-messy-app's design system to AI tools over stdio. It reads only .steward/system.json, and nothing leaves this machine. Press Ctrl+C to stop.\n",
       );
     });
 

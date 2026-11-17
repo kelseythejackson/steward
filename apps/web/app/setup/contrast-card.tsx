@@ -17,17 +17,19 @@ function Sample({ foreground, background }: { foreground: string; background: st
   );
 }
 
-export function ContrastCard({ data, names, busy, run }: { data: ReviewData["contrast"]; names: Record<string, string>; busy: boolean; run: (d: Decision) => void }) {
+export function ContrastCard({ data, names, busy, run, notice }: { data: ReviewData["contrast"]; names: Record<string, string>; busy: boolean; run: (d: Decision) => void; notice?: string | null }) {
   const titleId = useId();
   const waiting = data.filter((c) => c.status === "waiting");
+  const accepted = data.filter((c) => c.status === "accepted").length;
   const name = (hex: string) => names[hex] ?? hex;
 
   return (
     <ReviewCard
       id={titleId}
+      notice={notice}
       anchor="contrast"
       title="Contrast"
-      summary={`${plural(data.length, "pair")} below WCAG AA`}
+      summary={`${plural(data.length, "pair")} below WCAG AA${accepted > 0 ? ` · ${accepted} with a fix accepted` : ""}`}
       actions={
         <Button variant="primary" disabled={busy || waiting.length === 0} onClick={() => run({ kind: "accept", ids: waiting.map((c) => c.id) })}>
           {waiting.length === 0 ? "Nothing waiting" : `Accept ${plural(waiting.length, "fix", "fixes")}`}
@@ -38,9 +40,9 @@ export function ContrastCard({ data, names, busy, run }: { data: ReviewData["con
         {data.map((c) => {
           const after = c.fix.replaces === "foreground" ? { foreground: c.fix.hex, background: c.background } : { foreground: c.foreground, background: c.fix.hex };
           return (
-            <li key={c.id} className="flex flex-col gap-2 rounded-md border border-gray-200 p-3">
+            <li key={c.id} data-item={c.id} className="flex flex-col gap-2 rounded-md border border-gray-200 p-3">
               <div className="flex justify-end">
-                <StatusBadge status={c.status} />
+                <StatusBadge status={c.status} stillFails />
               </div>
               <div className="flex flex-wrap items-center gap-2 text-sm text-gray-900">
                 <Sample foreground={c.foreground} background={c.background} />
@@ -59,15 +61,15 @@ export function ContrastCard({ data, names, busy, run }: { data: ReviewData["con
               <div className="flex flex-wrap gap-3">
                 {c.status === "waiting" ? (
                   <>
-                    <Button disabled={busy} aria-label={`Accept: use ${c.fix.name}`} onClick={() => run({ kind: "accept", ids: [c.id] })}>
+                    <Button disabled={busy} aria-label={`Accept: use ${c.fix.name} for ${name(c.foreground)} on ${name(c.background)}`} onClick={() => run({ kind: "accept", ids: [c.id] })}>
                       Accept
                     </Button>
-                    <Button variant="quiet" disabled={busy} onClick={() => run({ kind: "reject", ids: [c.id] })}>
+                    <Button variant="quiet" disabled={busy} aria-label={`Decline the fix for ${name(c.foreground)} on ${name(c.background)}`} onClick={() => run({ kind: "reject", ids: [c.id] })}>
                       Decline
                     </Button>
                   </>
                 ) : (
-                  <Button variant="quiet" disabled={busy} onClick={() => run({ kind: "undo", id: c.id })}>
+                  <Button variant="quiet" disabled={busy} aria-label={`Undo the decision on ${name(c.foreground)} on ${name(c.background)}`} onClick={() => run({ kind: "undo", id: c.id })}>
                     Undo
                   </Button>
                 )}

@@ -1,6 +1,6 @@
 import type { HistoryRecord } from "@steward/model";
 import { describe, expect, it } from "vitest";
-import { a11yOf, driftOf, health, shownPart, pullRequestsIn, tiles, topSources, weekOf, weeklyTrend, type PullRequest } from "./health.ts";
+import { a11yOf, driftOf, health, shownPart, pullRequestsIn, tiles, steadyChange, topSources, weekOf, weeklyTrend, type PullRequest } from "./health.ts";
 
 const NOW = new Date("2026-11-17T12:00:00.000Z");
 let day = 0;
@@ -137,5 +137,22 @@ describe("weeklyTrend", () => {
     expect(trend.map((t) => t.week)).toEqual(["2026-11-02", "2026-11-09"]);
     expect(trend[0]!.score).toBeLessThan(trend[1]!.score);
     expect(weekOf("2026-11-16T23:00:00.000Z")).toBe("2026-11-16");
+  });
+
+  it("marks weeks with fewer than 3 pull requests as thin, and compares only the others", () => {
+    const at = (date: string, problems: Record<string, number> = {}) => ({ first: rec({ date, problems }), latest: rec({ date, problems }) });
+    const week = (day: string, n: number, problems: Record<string, number> = {}) => Array.from({ length: n }, () => at(`${day}T10:00:00.000Z`, problems));
+    const trend = weeklyTrend([
+      ...week("2026-10-27", 3, { "no-hardcoded-color": 6 }),
+      ...week("2026-11-03", 1, { "no-hardcoded-color": 20 }), // one noisy pull request
+      ...week("2026-11-10", 4),
+      ...week("2026-11-17", 1, { "no-hardcoded-color": 20 }),
+    ]);
+    expect(trend.map((t) => [t.pullRequests, t.thin])).toEqual([[3, false], [1, true], [4, false], [1, true]]);
+    const steady = steadyChange(trend)!;
+    expect([steady.first.week, steady.last.week, steady.weeks]).toEqual(["2026-10-26", "2026-11-09", 2]);
+    expect(steady.change).toBe(steady.last.score - steady.first.score);
+    expect(steady.change).toBeGreaterThan(0); // the thin last week, worse, doesn't decide the direction
+    expect(steadyChange(trend.filter((t) => t.thin))).toBeNull();
   });
 });

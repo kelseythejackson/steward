@@ -16,5 +16,6 @@ await cp(fixture, copy, { recursive: true, filter: (src) => !src.includes("node_
 const { output } = await runScan(copy);
 console.log(`Scanned a fresh copy of the fixture at ${copy}: ${output.model.suggestions.length} suggestions waiting.`);
 
-const next = spawn("pnpm", ["exec", "next", "dev", ...process.argv.slice(2)], { stdio: "inherit", env: { ...process.env, STEWARD_REPO: copy } });
+// Only this computer can reach the app: it writes the repo's system.json, so it mustn't be open to the local network.
+const next = spawn("pnpm", ["exec", "next", "dev", "-H", "127.0.0.1", ...process.argv.slice(2)], { stdio: "inherit", env: { ...process.env, STEWARD_REPO: copy } });
 next.on("exit", (code) => process.exit(code ?? 0));

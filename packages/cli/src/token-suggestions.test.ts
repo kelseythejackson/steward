@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { decideSuggestions, parseSystemModel, serializeSystemModel, type SystemModel } from "@steward/model";
 import { colorsInModel } from "@steward/scanner";
+import { colorTokenGroups as colorTokenGroupsOf } from "@steward/model";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { CheckJson } from "./check.js";
 import { main } from "./main.js";
@@ -90,6 +91,23 @@ describe("token suggestions for new colors", () => {
     expect(m.suggestions.filter((x) => x.kind === "token")).toEqual([]);
   });
 
+  it("accepted, it keeps the name it was accepted as, even when it's close to another token", async () => {
+    // #3c83f8 is nearly blue-500 (#3b82f6): without its accepted name pinned, the next scan would fold it into blue-500.
+    const NEAR_BLUE = '      <span className="text-[#3c83f8]">New</span>';
+    await addLines("src/pages/Billing.tsx", 20, NEAR_BLUE, NEAR_BLUE, NEAR_BLUE);
+    await runScan(app, { now: NOW });
+    const suggestion = (await model()).suggestions.find((x) => x.kind === "token" && x.members.includes("#3c83f8"))!;
+    expect(suggestion).toBeDefined();
+    await steward("review", "app", "--accept-all");
+    await runScan(app, { now: NOW });
+    const m = await model();
+    const owner = (hex: string) => colorTokenGroupsOf(m).find((g) => g.members.includes(hex))?.path;
+    expect(owner("#3c83f8")).toBe(suggestion.proposed.path);
+    expect(owner("#3b82f6")).toBe("color.blue.500");
+    // No merge or token suggestion comes back for it. (A contrast fix may: it's used as text on white, below 4.5:1.)
+    expect(m.suggestions.filter((x) => (x.kind === "color" || x.kind === "token") && x.members.includes("#3c83f8"))).toEqual([]);
+  });
+
   it("rejected, it's never suggested again, and Review flags it as drift", async () => {
     await addLines("src/pages/Billing.tsx", 20, VIOLET, VIOLET, VIOLET);
     await runScan(app, { now: NOW });
@@ -101,18 +119,20 @@ describe("token suggestions for new colors", () => {
     expect(m.suggestions.filter((x) => x.kind === "token")).toEqual([]);
     expect(colorsInModel(m.tokens)).not.toContain("#7c3aed");
 
+    await writeFile(join(app, ".gitignore"), ".steward/history.jsonl\n"); // as a set-up repo has it; history.test.ts covers the reminder
     git("init", "--quiet", "--initial-branch=main");
     const check = JSON.parse((await steward("check", "app", "--all", "--json")).stdout) as CheckJson;
     expect(check.tokenSuggestions).toEqual([]);
     expect(check.findings.filter((f) => f.rule === "no-hardcoded-color" && f.found.includes("#7c3aed"))).toHaveLength(3);
   });
 
-  it("while it's waiting, Review suggests it rather than flags it, and points to steward review", async () => {
+  it("while it's waiting, Review suggests it rather than flags it, and points to the Setup screen", async () => {
     await addLines("src/pages/Billing.tsx", 20, VIOLET, VIOLET, VIOLET);
     await runScan(app, { now: NOW });
+    await writeFile(join(app, ".gitignore"), ".steward/history.jsonl\n"); // as a set-up repo has it; history.test.ts covers the reminder
     git("init", "--quiet", "--initial-branch=main");
     const check = JSON.parse((await steward("check", "app", "--all", "--json")).stdout) as CheckJson;
     expect(check.tokenSuggestions).toHaveLength(3);
-    expect(check.tokenSuggestions[0]!.fix.description).toMatch(/^It's already suggested as a token and waiting for a decision in `steward review`\./);
+    expect(check.tokenSuggestions[0]!.fix.description).toMatch(/^It's already suggested as a token and waiting for a decision on the Setup screen\./);
   });
 });

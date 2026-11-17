@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { appendHistory, checkHistoryRecord, HISTORY_FIELDS, HistoryError, parseHistory, readHistory, serializeHistoryRecord, type HistoryRecord } from "./history.js";
+import { appendHistory, checkHistoryRecord, HISTORY_FIELDS, HistoryError, parseHistory, parseHistoryLines, readHistory, serializeHistoryRecord, type HistoryRecord } from "./history.js";
 
 const record = (over: Partial<HistoryRecord> = {}): HistoryRecord => ({
   v: 1,
@@ -88,5 +88,28 @@ describe("appendHistory", () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+});
+
+describe("damaged history", () => {
+  it("starts a fresh line when the file doesn't end with one, so records never run together", async () => {
+    const root = await mkdtemp(join(tmpdir(), "steward-history-"));
+    try {
+      await mkdir(join(root, ".steward"));
+      await writeFile(join(root, ".steward/history.jsonl"), serializeHistoryRecord(record())); // no trailing newline
+      await appendHistory(root, record({ pr: 8 }));
+      expect((await readHistory(root)).map((r) => r.pr)).toEqual([7, 8]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps every valid record and lists the lines that aren't, such as git conflict markers", () => {
+    const text = [serializeHistoryRecord(record()), "<<<<<<< HEAD", serializeHistoryRecord(record({ pr: 8 })), "=======", '{"author":"x"}', ">>>>>>> branch", ""].join("\n");
+    const { records, problems } = parseHistoryLines(text);
+    expect(records.map((r) => r.pr)).toEqual([7, 8]);
+    expect(problems.map((p) => p.line)).toEqual([2, 4, 5, 6]);
+    expect(problems[0]!.message).toBe("isn't valid JSON");
+    expect(problems[2]!.message).toMatch(/"author", which history doesn't keep/);
   });
 });

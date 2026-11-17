@@ -60,7 +60,7 @@ describe("exceptions and repeated colors", () => {
         { rule: "use-system-component", file: "src/pages/Settings.tsx", found: '<button className="hero-cta">', reason: "marketing hero needs a custom button", firstSeen: "2026-11-17" },
       ]);
       expect(run.output.summary.exceptions).toBe(1);
-      const r = await steward("scan", app);
+      const r = await steward("scan", "app"); // relative to the CLI's working folder, not where Node started
       expect(r.stderr).toBe("");
       expect(r.stdout).toContain("\nExceptions: 1 flag marked intentional in the code, each with a reason (recorded in system.json)\n");
     });

@@ -140,7 +140,7 @@ function tokens(model: SystemModel, p: SystemView): string[] {
       "",
       "### Spacing",
       "",
-      `Use the step in any spacing class (${code(`p-${first}`)}, ${code(`gap-${first}`)}, ${code(`mt-${first}`)}). Don't use arbitrary values.`,
+      `Use the step in any spacing class (${code(`p-${first}`)}, ${code(`gap-${first}`)}, ${code(`mt-${first}`)}). Don't use arbitrary values. Widths and heights aren't part of the scale, and Steward Review doesn't check them.`,
       "",
       "| Step | Size |",
       "|---|---|",

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseSystemModel, type StewardConfig } from "@steward/model";
 import { describe, expect, it } from "vitest";
-import { STATIC_CHECKS_NOTE } from "./check.js";
+import { SPACING_SCOPE_NOTE, STATIC_CHECKS_NOTE } from "./check.js";
 import { checkContext } from "./context.js";
 import { fingerprintOf, lineComments, markdown, SUMMARY_MARKER, summaryComment, summaryHeadline } from "./github.js";
 import { reviewFiles, type SourceFile } from "./review.js";
@@ -81,7 +81,7 @@ describe("markdown", () => {
 describe("summary", () => {
   it("splits off-system values from accessibility issues and counts one-click fixes", () => {
     const { result } = review([3, 4, 5]);
-    expect(summaryHeadline(result, 3)).toBe("Steward Review found 4 off-system values and 1 accessibility issue · 3 can be fixed in one click");
+    expect(summaryHeadline(result, 3)).toBe("Steward Review found 3 off-system values, 1 component to swap and 1 accessibility issue · 3 can be fixed in one click");
     expect(summaryHeadline(review([5]).result, 0)).toBe("Steward Review found 1 accessibility issue");
     expect(summaryHeadline(review([3]).result, 2)).toBe("Steward Review found 2 off-system values · 2 can be fixed in one click");
     expect(summaryHeadline(review([1]).result, 0)).toBe("Steward Review found nothing to change on the changed lines");
@@ -90,12 +90,12 @@ describe("summary", () => {
 
   it("starts with the hidden marker, has a table by rule, the mode and the static-checks note", () => {
     const body = summaryComment(review([3, 4, 5]).result, { oneClick: 3 });
-    expect(body.startsWith(`${SUMMARY_MARKER}\n### Steward Review found 4 off-system values`)).toBe(true);
+    expect(body.startsWith(`${SUMMARY_MARKER}\n### Steward Review found 3 off-system values, 1 component to swap and 1 accessibility issue`)).toBe(true);
     expect(body).toContain("| Colors outside the system | 2 |\n| Spacing off the scale | 1 |\n| Components to swap for the system's | 1 |\n| Images without alt text | 1 |");
     expect(body).toContain("click **Apply suggestion** to fix it.");
     expect(body).toContain("Checked 3 changed lines in 1 file, compared with `origin/main`.");
     expect(body).toContain("Mode: warn, so this never fails the check.");
-    expect(body).toContain(`<sub>${STATIC_CHECKS_NOTE}</sub>`);
+    expect(body).toContain(`<sub>${SPACING_SCOPE_NOTE} ${STATIC_CHECKS_NOTE}</sub>`);
   });
 
   it("lists comments that couldn't go on their lines, and why posting failed", () => {
@@ -113,5 +113,24 @@ describe("summary", () => {
 
   it("never calls the code accessible", () => {
     expect(summaryComment(review([1]).result, { oneClick: 0 }).replace(STATIC_CHECKS_NOTE, "")).not.toMatch(/accessible/i);
+  });
+});
+
+describe("review fixes", () => {
+  it("gives a second identical line in the same file its own fingerprint, keeping the first one's as before", () => {
+    const dup = 'export const New = () => (\n  <div>\n    <img src="x.png" />\n    <img src="x.png" />\n  </div>\n);\n';
+    const one = review([3], WARN, dup).comments[0]!;
+    const both = review([3, 4], WARN, dup).comments;
+    expect(both.map((c) => c.line)).toEqual([3, 4]);
+    expect(both[0]!.fingerprint).toBe(one.fingerprint);
+    expect(both[1]!.fingerprint).not.toBe(one.fingerprint);
+  });
+
+  it("keeps the summary under GitHub's size limit when many comments couldn't be posted", () => {
+    const { result, comments } = review([3, 4, 5]);
+    const many = Array.from({ length: 400 }, (_, i) => ({ ...comments[0]!, line: i + 1, body: `${"x".repeat(400)}\n` }));
+    const body = summaryComment(result, { oneClick: 0, unposted: many });
+    expect(body.length).toBeLessThan(65_536);
+    expect(body).toMatch(/…and 375 more comments, left out to keep this comment within GitHub's size limit\./);
   });
 });

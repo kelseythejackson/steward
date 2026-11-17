@@ -95,8 +95,8 @@ pnpm build             # compile every package to dist/
 pnpm steward           # run the CLI from source via tsx (help); no build needed
 pnpm steward scan fixtures/messy-app          # writes fixtures/messy-app/.steward/system.json + prints the report
 pnpm steward scan fixtures/messy-app --json   # full result as JSON (summary, model, details)
-pnpm steward review fixtures/messy-app        # lists suggestions still waiting for a decision
-pnpm steward review fixtures/messy-app --accept-all   # accepts them all and rebuilds rules (stand-in until the review screen)
+pnpm steward decide fixtures/messy-app        # lists suggestions still waiting for a decision (`review` still works as an alias; "Review" is the PR checks)
+pnpm steward decide fixtures/messy-app --accept-all   # accepts them all and rebuilds rules (stand-in until the review screen)
 pnpm steward context fixtures/messy-app       # prints design.md (Steward Brief) built from system.json
 pnpm steward context fixtures/messy-app --file   # writes fixtures/messy-app/design.md (only over a design.md Steward wrote)
 pnpm build && node packages/cli/dist/bin.js context fixtures/messy-app --serve   # Steward Brief MCP server over stdio (get_tokens, find_component, get_rules, check_snippet)
@@ -108,7 +108,8 @@ node packages/cli/dist/bin.js check <path> --github   # in GitHub Actions only: 
 pnpm -F cli test       # includes the end-to-end scan test (builds first, runs dist/bin.js on a temp copy of the fixture)
 pnpm -F guard test     # Review rules engine (packages/guard: one module per rule in src/rules; checkFile + applyFixes, shared by check_snippet and, later, the Review action)
 pnpm -F context test   # design.md snapshot: packages/context/src/__snapshots__/messy-app.design.md (update with `pnpm -F context test -u`)
-STEWARD_REPO=fixtures/messy-app pnpm -F web dev   # web app (Setup, Brief, Review, Report) on http://localhost:3000, reading that repo's .steward/; decisions on Setup write its system.json and re-scan (relative paths resolve from where you ran it)
+pnpm steward history import <path>   # downloads the Action's steward-history artifacts (GitHub login: GITHUB_TOKEN, GH_TOKEN or gh auth) and appends new records to <path>/.steward/history.jsonl; --repo owner/name overrides the origin remote
+STEWARD_REPO=/path/to/app pnpm -F web dev   # web app (Setup, Brief, Review, Report) on http://127.0.0.1:3000, this computer only (it writes system.json); relative paths resolve from where you ran it. The committed fixture opens read-only (it has FIXTURE_NOTES.md): use `pnpm -F web demo` to try decisions
 pnpm -F web demo       # scans a fresh temp copy of the fixture (everything waiting) and starts the app on it; the committed fixture never changes
 # Brief's "See the difference" reads scored eval runs from eval/results/<with|without>/<label>.json (+ <label>.png screenshots); STEWARD_DEMO_DIR points elsewhere
 pnpm -F web theme      # regenerates apps/web/app/steward-theme.css from the fixture's tokens (the app uses only the system's colors and spacing)

@@ -36,6 +36,15 @@ describe("steward review", () => {
     expect(r.stderr).toBe("There's no Steward system in messy-app yet. Run `steward scan messy-app` first.\n");
   });
 
+  it("is called `steward decide`, and `steward review` still works the same", async () => {
+    await runScan(app);
+    const decide = await run(["decide", "messy-app"], work);
+    const review = await run(["review", "messy-app"], work);
+    expect(decide.code).toBe(0);
+    expect(decide.stdout).toBe(review.stdout);
+    expect(decide.stdout).toMatch(/suggestions are waiting for a decision/);
+  });
+
   it("without --accept-all, says what's waiting and changes nothing", async () => {
     await runScan(app);
     const before = await readFile(join(app, ".steward/system.json"), "utf8");
@@ -44,7 +53,7 @@ describe("steward review", () => {
     expect(r.stdout).toBe(
       "24 suggestions are waiting for a decision: 6 color merges, 7 spacing snaps, 2 component merges and 9 contrast fixes.\n" +
         `Review them one by one on the Setup screen: from the Steward repo, run \`STEWARD_REPO=${app} pnpm -F web dev\` and open http://localhost:3000/setup.\n` +
-        "Or `steward review --accept-all` accepts all of them.\n",
+        "Or `steward decide --accept-all` accepts all of them.\n",
     );
     expect(await readFile(join(app, ".steward/system.json"), "utf8")).toBe(before);
   });

@@ -85,7 +85,7 @@ function byKind(suggestions: readonly Suggestion[]): string {
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /**
- * Pure: what `steward review` prints. `root` is the repo's absolute path,
+ * Pure: what `steward decide` prints. `root` is the repo's absolute path,
  * for the command that opens the Setup screen on it.
  */
 export function formatReviewReport(run: ReviewRun, shownPath: string, acceptAll: boolean, root = "."): string {
@@ -107,7 +107,7 @@ export function formatReviewReport(run: ReviewRun, shownPath: string, acceptAll:
     lines.push(
       `${plural(pending.length, "suggestion")} ${pending.length === 1 ? "is" : "are"} waiting for a decision: ${byKind(pending)}.`,
       `Review them one by one on the Setup screen: from the Steward repo, run \`STEWARD_REPO=${root} pnpm -F web dev\` and open http://localhost:3000/setup.`,
-      "Or `steward review --accept-all` accepts all of them.",
+      "Or `steward decide --accept-all` accepts all of them.",
     );
   }
   return `${lines.join("\n")}\n`;

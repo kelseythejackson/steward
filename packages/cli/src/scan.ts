@@ -37,6 +37,8 @@ export async function assertDirectory(path: string, shown: string): Promise<void
 export interface ScanOptions {
   /** Today, for new exceptions' `firstSeen`. Defaults to now; tests pass a fixed one. */
   now?: string;
+  /** The folder as the person typed it, for messages. Defaults to `target`. */
+  shownAs?: string;
 }
 
 const exceptionKey = (e: Pick<Exception, "rule" | "file" | "found" | "reason">) => [e.rule, e.file, e.found, e.reason].join("\0");
@@ -71,7 +73,7 @@ export async function collectExceptions(root: string, paths: readonly string[], 
 /** Scans a repo and writes `.steward/system.json`, keeping earlier decisions and rules. */
 export async function runScan(target: string, options: ScanOptions = {}): Promise<ScanRun> {
   const root = resolve(target);
-  await assertDirectory(root, target);
+  await assertDirectory(root, options.shownAs ?? target);
 
   let previous: SystemModel | null;
   try {

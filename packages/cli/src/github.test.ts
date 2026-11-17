@@ -19,10 +19,16 @@ interface Comment {
   body: string;
   path?: string;
   line?: number;
+  original_line?: number;
+  user?: { type: string };
 }
 
 /** Just enough of GitHub's REST API, in memory. */
-function fakeGithub(options: { failReview?: number; rejectLines?: number[] } = {}) {
+/**
+ * Just enough of GitHub's REST API, in memory. `readOnly`: every write is refused (a fork's token).
+ * `rateLimitAfter`: single comments start failing with GitHub's rate limit after that many.
+ */
+function fakeGithub(options: { failReview?: number; rejectLines?: number[]; readOnly?: boolean; rateLimitAfter?: number } = {}) {
   const reviewComments: Comment[] = [];
   const issueComments: Comment[] = [];
   const calls: { method: string; path: string; body?: Record<string, unknown> }[] = [];
@@ -35,6 +41,7 @@ function fakeGithub(options: { failReview?: number; rejectLines?: number[] } = {
     const path = url.pathname.replace("/repos/acme/app", "");
     const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : undefined;
     calls.push({ method, path, ...(body ? { body } : {}) });
+    if (options.readOnly && method !== "GET") return json({ message: "Resource not accessible by integration" }, 403);
     expect(new Headers(init?.headers).get("authorization")).toBe("Bearer t0ken");
     const page = Number(url.searchParams.get("page") ?? "1");
 
@@ -44,17 +51,20 @@ function fakeGithub(options: { failReview?: number; rejectLines?: number[] } = {
       if (options.failReview) return json({ message: "Resource not accessible by integration" }, options.failReview);
       const comments = body!["comments"] as { path: string; line: number; body: string }[];
       if (comments.some((c) => options.rejectLines?.includes(c.line))) return json({ message: "Unprocessable Entity" }, 422);
-      for (const c of comments) reviewComments.push({ id: nextId++, ...c });
+      for (const c of comments) reviewComments.push({ id: nextId++, original_line: c.line, ...c });
       return json({ id: nextId++ });
     }
     if (method === "POST" && path === "/pulls/7/comments") {
       const c = body as unknown as { path: string; line: number; body: string };
+      if (options.rateLimitAfter !== undefined && reviewComments.length >= options.rateLimitAfter) {
+        return json({ message: "You have exceeded a secondary rate limit and have been temporarily blocked from content creation." }, 403);
+      }
       if (options.rejectLines?.includes(c.line)) return json({ message: "line must be part of the diff" }, 422);
-      reviewComments.push({ id: nextId++, ...c });
+      reviewComments.push({ id: nextId++, original_line: c.line, ...c });
       return json({ id: nextId - 1 }, 201);
     }
     if (method === "POST" && path === "/issues/7/comments") {
-      issueComments.push({ id: nextId++, body: body!["body"] as string });
+      issueComments.push({ id: nextId++, body: body!["body"] as string, user: { type: "Bot" } });
       return json({ id: nextId - 1 }, 201);
     }
     const patch = /^\/issues\/comments\/(\d+)$/.exec(path);
@@ -162,7 +172,7 @@ describe("steward check --github", () => {
   });
 
   it("in warn mode, a token that can't comment (like on a fork) doesn't fail the check; the findings go to the run summary", async () => {
-    const gh = fakeGithub({ failReview: 403 });
+    const gh = fakeGithub({ readOnly: true });
     const r = await steward(gh);
     expect(r.code).toBe(0);
     expect(r.stdout).toContain("::warning title=Steward Review::GitHub didn't let this workflow's token comment on the pull request (403");
@@ -191,6 +201,40 @@ describe("steward check --github", () => {
     expect(gh.issueComments[0]!.body).toContain("<details><summary>1 comment couldn't be posted on its line</summary>");
     expect(gh.issueComments[0]!.body).toContain("**app/src/pages/Settings.tsx:27**");
     expect(r.stdout).toContain("::warning title=Steward Review::1 comment couldn't go on its line, so it's in the summary comment.");
+  });
+
+  it("when GitHub's rate limit stops posting partway, still writes the summary with what's left, and says why", async () => {
+    // A refused line makes Steward post one at a time; the rate limit then hits after the first comment.
+    const gh = fakeGithub({ rejectLines: [27], rateLimitAfter: 1 });
+    const r = await steward(gh);
+    expect(r.code).toBe(0);
+    expect(gh.reviewComments.map((c) => c.line)).toEqual([26]);
+    const summary = gh.issueComments[0]!.body;
+    expect(summary).toContain("GitHub's rate limit for this token was reached after 1 comment was posted. The rest are listed here, and the next push posts them.");
+    expect(summary).toContain("<details><summary>1 comment couldn't be posted on its line</summary>");
+    expect(summary).toContain("**app/src/pages/Settings.tsx:27**");
+    expect(summary).not.toContain("**app/src/pages/Settings.tsx:26**");
+    expect(r.stdout).toContain("::warning title=Steward Review::GitHub's rate limit for this token was reached");
+  });
+
+  it("only updates a summary Steward wrote, never a person's comment that quotes its marker", async () => {
+    const gh = fakeGithub();
+    gh.issueComments.push({ id: 900, body: "> <!-- steward-review:summary -->\n> quoting the bot", user: { type: "User" } });
+    await steward(gh);
+    expect(gh.issueComments.find((c) => c.id === 900)!.body).toContain("quoting the bot");
+    expect(gh.issueComments.filter((c) => c.body.startsWith("<!-- steward-review:summary -->"))).toHaveLength(1);
+    await steward(gh);
+    expect(gh.issueComments.filter((c) => c.body.startsWith("<!-- steward-review:summary -->"))).toHaveLength(1);
+  });
+
+  it("comments on a second copy of a line that already has a comment", async () => {
+    const gh = fakeGithub();
+    await steward(gh);
+    await addLine("src/pages/Settings.tsx", 27, '      <img src="/team.png" />');
+    git("commit", "--quiet", "-am", "another copy");
+    await writeFile(env["GITHUB_EVENT_PATH"]!, JSON.stringify({ pull_request: { number: 7, base: { ref: "main" }, head: { sha: git("rev-parse", "HEAD") } } }));
+    await steward(gh);
+    expect(gh.reviewComments.filter((c) => c.body.startsWith("This image has no alt text")).map((c) => c.line)).toEqual([27, 28]);
   });
 
   it("on a push (not a pull request), prints the report and comments on nothing", async () => {
@@ -294,7 +338,7 @@ describe("steward check --github", () => {
 
     it("if GitHub can't be reached, still records the run, with fixes accepted unknown", async () => {
       await writeEvent([]);
-      await steward(fakeGithub({ failReview: 403 }));
+      await steward(fakeGithub({ readOnly: true }));
       expect((await history())[0]).toMatchObject({ pr: 7, fixesAccepted: null });
     });
   });

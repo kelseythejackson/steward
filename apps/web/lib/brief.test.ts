@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { allLines } from "@steward/guard";
 // The eval's own scoring, so these results are in exactly the format `pnpm eval:score` writes.
 import { promptOf, scoreFile, totalsOf, type RunResult } from "../../../eval/src/score.ts";
-import { CURSOR_RULE, demoDir, loadComparison, mcpConfig, namesSteward, stewardBin, toolStatus } from "./brief.ts";
+import { claudeMcpAdd, CURSOR_RULE, demoDir, loadComparison, mcpConfig, namesSteward, stewardBin, toolStatus } from "./brief.ts";
 
 const FIXTURE = fileURLToPath(new URL("../../../fixtures/messy-app", import.meta.url));
 const ctx = checkContext(parseSystemModel(readFileSync(join(FIXTURE, ".steward/system.json"), "utf8")));
@@ -34,6 +34,12 @@ describe("setup steps", () => {
     expect(namesSteward("not json")).toBe(false);
   });
 
+  it("builds the `claude mcp add` command, quoting paths with spaces", () => {
+    expect(claudeMcpAdd("/s/bin.js", "/work/app")).toBe("claude mcp add steward -- node /s/bin.js context /work/app --serve");
+    expect(claudeMcpAdd("/s/bin.js", "/Users/me/My App")).toBe("claude mcp add steward -- node /s/bin.js context '/Users/me/My App' --serve");
+    expect(claudeMcpAdd("/s/bin.js", "/Users/me/it's")).toBe("claude mcp add steward -- node /s/bin.js context '/Users/me/it'\\''s' --serve");
+  });
+
   it("gives Cursor a rule that always includes design.md", () => {
     expect(CURSOR_RULE).toMatch(/^---\n[\s\S]*alwaysApply: true\n---\n@design\.md\n$/);
   });
@@ -47,19 +53,27 @@ describe("setup steps", () => {
 
 describe("toolStatus", () => {
   it("reports what the repo itself sets up for each tool", async () => {
-    expect(await toolStatus(dir)).toEqual({ claudeCode: { server: false, designMd: false }, cursor: { server: false, designMd: false } });
+    expect(await toolStatus(dir, join(dir, "home"))).toEqual({ claudeCode: { server: false, designMd: false }, cursor: { server: false, designMd: false } });
     await writeFile(join(dir, ".mcp.json"), mcpConfig("/s/packages/cli/dist/bin.js", dir));
     await writeFile(join(dir, "CLAUDE.md"), "# App\n\n@design.md\n");
     await mkdir(join(dir, ".cursor/rules"), { recursive: true });
     await writeFile(join(dir, ".cursor/mcp.json"), mcpConfig("/s/packages/cli/dist/bin.js", dir));
     await writeFile(join(dir, ".cursor/rules/design-system.mdc"), CURSOR_RULE);
-    expect(await toolStatus(dir)).toEqual({ claudeCode: { server: true, designMd: true }, cursor: { server: true, designMd: true } });
+    expect(await toolStatus(dir, join(dir, "home"))).toEqual({ claudeCode: { server: true, designMd: true }, cursor: { server: true, designMd: true } });
+  });
+
+  it("sees a server added with `claude mcp add` (Claude Code's settings for this repo), not just .mcp.json", async () => {
+    const home = join(dir, "home");
+    await mkdir(home);
+    await writeFile(join(home, ".claude.json"), JSON.stringify({ projects: { [dir]: { mcpServers: { steward: { type: "stdio", command: "node", args: ["/s/packages/cli/dist/bin.js", "context", dir, "--serve"] } } }, "/other": {} } }));
+    expect((await toolStatus(dir, home)).claudeCode.server).toBe(true);
+    expect((await toolStatus(join(dir, "elsewhere"), home)).claudeCode.server).toBe(false);
   });
 
   it("matches the real eval copy's setup", async () => {
     await writeFile(join(dir, ".mcp.json"), '{"mcpServers":{"steward":{"type":"stdio","command":"node","args":["/Users/x/steward/packages/cli/dist/bin.js","context","/Users/x/steward-eval/with","--serve"]}}}');
     await writeFile(join(dir, "CLAUDE.md"), "# Acme Metrics\n\nThis is Acme Metrics.\n\n@design.md\n");
-    expect((await toolStatus(dir)).claudeCode).toEqual({ server: true, designMd: true });
+    expect((await toolStatus(dir, join(dir, "home"))).claudeCode).toEqual({ server: true, designMd: true });
   });
 });
 

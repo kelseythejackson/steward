@@ -133,19 +133,56 @@ export function historyPath(repoRoot: string): string {
 
 /** Appends one record to `.steward/history.jsonl`, creating it if needed. Never rewrites what's there. Returns the path. */
 export async function appendHistory(repoRoot: string, record: HistoryRecord): Promise<string> {
-  const line = `${serializeHistoryRecord(record)}\n`;
   await mkdir(join(repoRoot, ".steward"), { recursive: true });
   const path = historyPath(repoRoot);
-  await appendFile(path, line, "utf8");
+  // If the last line has no newline (a hand edit, or a crash mid-write), start a fresh line so the records don't run together.
+  let start = "";
+  try {
+    const existing = await readFile(path, "utf8");
+    if (existing.length > 0 && !existing.endsWith("\n")) start = "\n";
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+  }
+  await appendFile(path, `${start}${serializeHistoryRecord(record)}\n`, "utf8");
   return path;
 }
 
-/** Reads `.steward/history.jsonl`; empty when there isn't one yet. */
-export async function readHistory(repoRoot: string): Promise<HistoryRecord[]> {
+/** A line of history.jsonl that couldn't be read, and why. */
+export interface HistoryProblem {
+  line: number;
+  message: string;
+}
+
+/**
+ * Pure: reads history.jsonl text, keeping every valid record and listing
+ * the lines that aren't (a damaged write, a hand edit, git conflict
+ * markers). One bad line never hides the rest.
+ */
+export function parseHistoryLines(text: string): { records: HistoryRecord[]; problems: HistoryProblem[] } {
+  const records: HistoryRecord[] = [];
+  const problems: HistoryProblem[] = [];
+  text.split("\n").forEach((line, i) => {
+    if (line.trim() === "") return;
+    try {
+      records.push(checkHistoryRecord(JSON.parse(line)));
+    } catch (err) {
+      problems.push({ line: i + 1, message: err instanceof SyntaxError ? "isn't valid JSON" : err instanceof Error ? err.message : String(err) });
+    }
+  });
+  return { records, problems };
+}
+
+/** Reads `.steward/history.jsonl`, with any lines that couldn't be read. Empty when there isn't one yet. */
+export async function readHistoryLines(repoRoot: string): Promise<{ records: HistoryRecord[]; problems: HistoryProblem[] }> {
   try {
-    return parseHistory(await readFile(historyPath(repoRoot), "utf8"));
+    return parseHistoryLines(await readFile(historyPath(repoRoot), "utf8"));
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return { records: [], problems: [] };
     throw err;
   }
+}
+
+/** Reads `.steward/history.jsonl`'s valid records, skipping lines that can't be read; empty when there isn't one yet. */
+export async function readHistory(repoRoot: string): Promise<HistoryRecord[]> {
+  return (await readHistoryLines(repoRoot)).records;
 }

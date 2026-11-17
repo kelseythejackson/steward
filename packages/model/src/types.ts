@@ -212,7 +212,7 @@ export interface MergeDecision {
    * token, even a single color. Only on accepted color decisions.
    */
   edited?: true;
-  /** Colors: the token name a person chose, e.g. `color.gray.150`. Scans use it. */
+  /** Colors: the token name a person chose, e.g. `color.gray.150`; new color tokens: the name it was accepted as. Scans use it. */
   path?: string;
   /** Components: the one to keep, when a person chose a different one from the suggestion. */
   keep?: string;

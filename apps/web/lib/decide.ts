@@ -3,7 +3,7 @@
  * re-runs the scan (as `steward scan` would) so tokens and rules reflect it
  * right away. Only `.steward/system.json` changes; the person's code never does.
  */
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { runScan } from "@steward/cli";
 import {
   acceptSuggestions,
@@ -20,7 +20,9 @@ import {
   type ColorGroupEdit,
   type SystemModel,
 } from "@steward/model";
+import { isFixture } from "./steward.ts";
 import { versionOf } from "./version.ts";
+import { cli, FROM_STEWARD } from "./commands.ts";
 
 export type Decision =
   | { kind: "accept"; ids: string[] }
@@ -70,7 +72,16 @@ function apply(model: SystemModel, d: Decision, now: string): { model: SystemMod
       return { model: acceptSuggestions(model, ids, now), message: `Accepted all ${plural(ids.length, "suggestion")}.` };
     }
     case "reject":
-      return { model: rejectSuggestions(model, d.ids, now), message: d.ids.length === 1 ? "Kept as it is. Steward won't suggest it again." : `Kept ${d.ids.length} as they are.` };
+      {
+        // A declined contrast fix isn't settled: the pair still fails, so say that rather than "kept".
+        const contrast = d.ids.length === 1 && model.suggestions.some((s) => s.id === d.ids[0] && s.kind === "contrast");
+        const message = contrast
+          ? "Fix declined. The pair still fails WCAG AA, so it stays on the Contrast card; you can undo this there."
+          : d.ids.length === 1
+            ? "Kept as it is. Steward won't suggest it again."
+            : `Kept ${d.ids.length} as they are.`;
+        return { model: rejectSuggestions(model, d.ids, now), message };
+      }
     case "undo":
       return { model: undoDecision(model, d.id), message: "Undone. It's waiting for a decision again." };
     case "color-groups":
@@ -82,16 +93,34 @@ function apply(model: SystemModel, d: Decision, now: string): { model: SystemMod
   }
 }
 
+/** Saves waiting for their turn, by repo. One save at a time per repo, so none is lost. */
+const queues = new Map<string, Promise<unknown>>();
+
+/**
+ * Applies one decision to the repo at `root`, after any save already in
+ * progress there. A second save made from the same page version then sees
+ * the file changed and asks the person to reload, instead of silently
+ * overwriting the first.
+ */
+export function applyDecision(root: string, version: string, decision: Decision, now = new Date().toISOString()): Promise<DecideResult> {
+  const turn = (queues.get(root) ?? Promise.resolve()).then(() => applyNow(root, version, decision, now));
+  queues.set(root, turn.catch(() => undefined));
+  return turn;
+}
+
 /**
  * Applies one decision to the repo at `root`. `version` is the fingerprint
  * the page loaded; if system.json changed since, nothing is written.
  */
-export async function applyDecision(root: string, version: string, decision: Decision, now = new Date().toISOString()): Promise<DecideResult> {
+async function applyNow(root: string, version: string, decision: Decision, now: string): Promise<DecideResult> {
   let text: string;
   try {
     text = await readFile(systemModelPath(root), "utf8");
   } catch {
-    return { ok: false, message: "There's no system.json to save to. Run `steward scan` first." };
+    return { ok: false, message: `There's no system.json to save to. Scan the repo first: ${FROM_STEWARD}, run \`${cli("scan <path>")}\`.` };
+  }
+  if (await isFixture(root)) {
+    return { ok: false, message: "This is Steward's own test fixture, and its tests depend on it, so decisions aren't saved here. Run `pnpm -F web demo` for a copy you can change." };
   }
   if (versionOf(text) !== version) return { ok: false, message: "The system changed since this page loaded, so nothing was saved. Reload to see the latest, then try again." };
 
@@ -104,6 +133,13 @@ export async function applyDecision(root: string, version: string, decision: Dec
   }
   await writeSystemModel(root, result.model);
   // Re-scan so tokens and rules reflect the decision now, as `steward scan` would.
-  await runScan(root, { now });
+  // If that fails, put system.json back exactly as it was: a decision must never leave the system unscannable.
+  try {
+    await runScan(root, { now });
+  } catch (err) {
+    await writeFile(systemModelPath(root), text, "utf8");
+    const detail = err instanceof Error ? err.message : String(err);
+    return { ok: false, message: `Steward couldn't re-scan with that decision (${detail}), so nothing was saved and the system is as it was.` };
+  }
   return { ok: true, message: result.message, version: versionOf(await readFile(systemModelPath(root), "utf8")) };
 }

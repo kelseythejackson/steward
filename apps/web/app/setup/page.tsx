@@ -6,6 +6,7 @@ import { plural } from "./parts";
 import { SetupReview } from "./review";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Setup" };
 
 export default async function SetupPage() {
   const repo = await loadRepo();
@@ -19,5 +20,5 @@ export default async function SetupPage() {
   }
   const s = setupSummary(repo.model);
   const summary = `${plural(s.colors, "color token")}, ${plural(s.spacing, "spacing step")} and ${plural(s.components, "component")}.`;
-  return <SetupReview data={reviewData(repo.model)} version={repo.version} summary={summary} />;
+  return <SetupReview data={reviewData(repo.model)} version={repo.version} summary={summary} readOnly={repo.readOnly} />;
 }

@@ -16,7 +16,7 @@ interface Group {
 
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600";
 
-export function ColorsCard({ data, busy, run }: { data: ReviewData["colors"]; busy: boolean; run: (d: Decision) => void }) {
+export function ColorsCard({ data, busy, run, notice }: { data: ReviewData["colors"]; busy: boolean; run: (d: Decision) => void; notice?: string | null }) {
   const [editing, setEditing] = useState(false);
   const waiting = data.merges.filter((m) => m.status === "waiting");
   const titleId = useId();
@@ -31,6 +31,7 @@ export function ColorsCard({ data, busy, run }: { data: ReviewData["colors"]; bu
   return (
     <ReviewCard
       id={titleId}
+      notice={notice}
       anchor="colors"
       title="Colors"
       summary={`${plural(data.found.length, "color")} → ${plural(data.tokens.length, "token")}`}
@@ -53,10 +54,10 @@ export function ColorsCard({ data, busy, run }: { data: ReviewData["colors"]; bu
         <>
           <div className="flex flex-col gap-2">
             <h3 className="text-sm text-gray-700">Found in code</h3>
-            <ul className="flex flex-wrap gap-1" aria-label="Colors found in code">
+            <ul className="flex flex-wrap gap-3" aria-label="Colors found in code">
               {data.found.map((hex) => (
                 <li key={hex}>
-                  <Swatch hex={hex} />
+                  <Swatch hex={hex} caption />
                 </li>
               ))}
             </ul>
@@ -79,10 +80,10 @@ export function ColorsCard({ data, busy, run }: { data: ReviewData["colors"]; bu
               <h3 className="text-sm text-gray-700">Merges</h3>
               <ul className="flex flex-col gap-2">
                 {data.merges.map((m) => (
-                  <li key={m.id} className="flex flex-col gap-2 rounded-md border border-gray-200 p-3">
+                  <li key={m.id} data-item={m.id} className="flex flex-col gap-2 rounded-md border border-gray-200 p-3">
                     <div className="flex flex-wrap items-center gap-2">
                       {m.members.map((hex) => (
-                        <Swatch key={hex} hex={hex} />
+                        <Swatch key={hex} hex={hex} caption />
                       ))}
                       <span aria-hidden="true" className="text-gray-500">
                         →
@@ -106,7 +107,7 @@ export function ColorsCard({ data, busy, run }: { data: ReviewData["colors"]; bu
                       </div>
                     ) : (
                       <div>
-                        <Button variant="quiet" disabled={busy} onClick={() => run({ kind: "undo", id: m.id })}>
+                        <Button variant="quiet" disabled={busy} aria-label={`Undo the ${m.name} merge`} onClick={() => run({ kind: "undo", id: m.id })}>
                           Undo
                         </Button>
                       </div>
@@ -206,7 +207,7 @@ function EditGroups({ tokens, busy, onCancel, onSave }: { tokens: ReviewData["co
                   {g.members.map((hex) => (
                     <li key={hex} className="flex items-center gap-2">
                       <span draggable onDragStart={(e) => onDragStart(e, hex)} className="cursor-grab">
-                        <Swatch hex={hex} />
+                        <Swatch hex={hex} caption />
                       </span>
                     </li>
                   ))}

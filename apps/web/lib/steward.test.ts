@@ -55,7 +55,7 @@ describe("loadRepo", () => {
 
   it("reads the system, history and whether design.md exists", async () => {
     const app = join(work, "app");
-    await cp(FIXTURE, app, { recursive: true, filter: (src) => !src.includes("node_modules") && !src.endsWith("history.jsonl") });
+    await cp(FIXTURE, app, { recursive: true, filter: (src) => !src.includes("node_modules") && !src.endsWith("history.jsonl") && !src.endsWith("FIXTURE_NOTES.md") });
     await writeFile(join(app, ".steward/history.jsonl"), `${JSON.stringify(RECORD)}\n`);
     const repo = await loadRepo({ STEWARD_REPO: app });
     expect(repo.kind).toBe("ready");
@@ -63,14 +63,23 @@ describe("loadRepo", () => {
     expect(repo.model.components.length).toBeGreaterThan(0);
     expect(repo.history).toHaveLength(1);
     expect(repo.hasDesignMd).toBe(true);
+    expect(repo.readOnly).toBe(false);
     expect(repo.historyProblem).toBeUndefined();
   });
 
-  it("still works when the history can't be read, and says why", async () => {
+  it("treats Steward's own fixture as read-only", async () => {
+    const repo = await loadRepo({ STEWARD_REPO: FIXTURE });
+    expect(repo.kind === "ready" && repo.readOnly).toBe(true);
+  });
+
+  it("keeps the readable history when a line can't be read, and says which", async () => {
     const app = join(work, "app");
     await cp(FIXTURE, app, { recursive: true, filter: (src) => !src.includes("node_modules") && !src.endsWith("history.jsonl") });
-    await writeFile(join(app, ".steward/history.jsonl"), '{"author":"jane"}\n');
+    await writeFile(join(app, ".steward/history.jsonl"), `{"author":"jane"}\n${JSON.stringify(RECORD)}\n`);
     const repo = await loadRepo({ STEWARD_REPO: app });
-    expect(repo.kind === "ready" && repo.historyProblem).toMatch(/line 1: .*"author", which history doesn't keep/);
+    expect(repo.kind === "ready" && repo.history).toHaveLength(1);
+    expect(repo.kind === "ready" && repo.historyProblem).toBe(
+      `1 line of .steward/history.jsonl couldn't be read, so it's left out (line 1 has "author", which history doesn't keep). The rest are counted.`,
+    );
   });
 });

@@ -214,7 +214,7 @@ class Checker {
       if (d["edited"] !== undefined && (d["edited"] !== true || d["kind"] !== "color" || d["status"] !== "accepted")) {
         this.fail(`${path}.edited`, "a value that should only be true, on an accepted color decision");
       }
-      if (d["path"] !== undefined && (typeof d["path"] !== "string" || !COLOR_PATH.test(d["path"]) || d["kind"] !== "color")) {
+      if (d["path"] !== undefined && (typeof d["path"] !== "string" || !COLOR_PATH.test(d["path"]) || (d["kind"] !== "color" && d["kind"] !== "token"))) {
         this.fail(`${path}.path`, 'a value that should be a color token name like "color.gray.150"');
       }
       if (d["keep"] !== undefined && (d["kind"] !== "component" || typeof d["keep"] !== "string" || !(d["members"] as string[]).includes(d["keep"]))) {

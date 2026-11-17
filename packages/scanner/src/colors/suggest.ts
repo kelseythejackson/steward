@@ -110,7 +110,9 @@ function pinnedGroups(colors: readonly ExtractedColor[], decisions: readonly Mer
   const byValue = new Map(colors.map((c) => [c.value, c]));
   const out: { cluster: ColorCluster; path: string }[] = [];
   for (const d of decisions) {
-    if (d.kind !== "color" || d.status !== "accepted" || !d.edited || !d.path) continue;
+    // Groups a person arranged, and new colors a person accepted as tokens: both keep exactly their colors and name.
+    const pinned = d.status === "accepted" && !!d.path && ((d.kind === "color" && d.edited) || d.kind === "token");
+    if (!pinned || !d.path) continue;
     const members = d.members
       .map((m) => byValue.get(m.toLowerCase()))
       .filter((c): c is ExtractedColor => c !== undefined)

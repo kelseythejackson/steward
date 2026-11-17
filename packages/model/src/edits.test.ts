@@ -103,3 +103,28 @@ describe("keepComponent", () => {
     expect(() => keepComponent(fresh(), merge().id, "Button", NOW)).toThrow(/Button isn't in this group/);
   });
 });
+
+describe("editColorGroups: names that nest", () => {
+  const group = (path: string) => colorTokenGroups(fresh()).find((g) => g.path === path)!;
+
+  it.each([
+    ["a name above another token", "color.gray", /color\.gray can't sit beside color\.gray\.\d+: one name can't contain the other/],
+    ["a name below another token", "color.gray.900.dark", /color\.gray\.900\.dark can't sit beside color\.gray\.900/],
+  ])("refuses %s, since the scan couldn't place both", (_, path, message) => {
+    expect(() => editColorGroups(fresh(), [{ members: group("color.gray.500").members, path }], NOW)).toThrow(message);
+  });
+
+  it("refuses a name that nests under one a person chose earlier for other colors", () => {
+    const chosen = editColorGroups(fresh(), [{ members: ["#e4e4e7"], path: "color.zinc" }], NOW);
+    expect(() => editColorGroups(chosen, [{ members: ["#f3f4f6"], path: "color.zinc.100" }], NOW)).toThrow(/can't sit beside color\.zinc/);
+  });
+
+  it("refuses two groups in one save whose names nest", () => {
+    expect(() => editColorGroups(fresh(), [{ members: ["#e4e4e7"], path: "color.zinc" }, { members: ["#f3f4f6"], path: "color.zinc.100" }], NOW)).toThrow(/color\.zinc and color\.zinc\.100 can't both be names/);
+  });
+
+  it("still allows a group to keep or rename its own name", () => {
+    expect(() => editColorGroups(fresh(), [{ members: group("color.gray.500").members, path: "color.gray.500" }], NOW)).not.toThrow();
+    expect(() => editColorGroups(fresh(), [{ members: group("color.gray.500").members, path: "color.slate.500" }], NOW)).not.toThrow();
+  });
+});

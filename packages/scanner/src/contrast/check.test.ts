@@ -115,14 +115,10 @@ describe("checkContrast", () => {
     expect(merge.proposed.token.$extensions?.[STEWARD_EXTENSION]?.contrastIssues).toEqual([report.suggestions[0]!.id]);
   });
 
-  it("does not re-suggest a rejected contrast fix", () => {
-    const id = contrastSuggestionId("#9ca3af", "#ffffff");
-    const decisions: MergeDecision[] = [
-      { suggestionId: id, kind: "contrast", members: ["#9ca3af", "#ffffff"], status: "rejected", decidedAt: "2026-11-01T00:00:00.000Z" },
-    ];
-    const report = checkContrast(extraction([occ("#9ca3af", "#ffffff", "a.tsx", 1)]), colors(), { decisions });
-    expect(report.suggestions).toEqual([]);
-    expect(report.pairs[0]?.passes).toBe(false); // still reported honestly
+  it("keeps the same suggestion id for a pair, so a declined fix stays matched to its decision", () => {
+    const report = checkContrast(extraction([occ("#9ca3af", "#ffffff", "a.tsx", 1)]), colors());
+    expect(report.suggestions.map((s) => s.id)).toEqual([contrastSuggestionId("#9ca3af", "#ffffff")]);
+    expect(report.pairs[0]?.passes).toBe(false);
   });
 
   it("has an id that depends on which color is the foreground", () => {

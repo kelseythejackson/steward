@@ -184,7 +184,7 @@ export function scanFiles(files: readonly SourceFile[], options: ScanOptions = {
   const { kept, held } = splitNewColors(colors.colors, options.knownColors, decisions);
   const colorSuggestions = suggestColorTokens(kept, { decisions, ...(options.colorNames ? { previousNames: options.colorNames } : {}) });
   const spacingSuggestions = suggestSpacingScale(spacing.values, { decisions, rootPx: setup.rootPx });
-  const contrast = checkContrast(contrastPairs, colorSuggestions, { decisions });
+  const contrast = checkContrast(contrastPairs, colorSuggestions);
 
   const storyColors = collectColors(stories, setup.theme);
   const storySpacing = collectSpacing(stories, setup.version, setup.rootPx);

@@ -19,7 +19,10 @@ The action runs `steward check --github` on every pull request:
    `ai-agent` from an `ai-agent` label or an AI agent's bot account, `human`
    from a `human` label, otherwise `unknown`) as a small `steward-history-*`
    artifact for the Report dashboard. No names, emails or usernames are ever
-   stored.
+   stored. Bring those records in with `steward history import`. Add
+   `.steward/history.jsonl` to your `.gitignore`: it also records local
+   `steward check` runs, so committing it would mix everyone's runs and
+   cause merge conflicts. Local `steward check` reminds you if it isn't.
 
 **Modes.** These are set in `.steward/config.json`, as `"mode": "warn"` or
 `"mode": "error"`.
@@ -41,6 +44,26 @@ The action runs `steward check --github` on every pull request:
 The repo also needs a `.steward/system.json` from `steward scan`.
 
 ---
+
+## What it looks like
+
+These are screenshots from a test pull request that added three off-system lines.
+
+The summary comment, kept up to date on every push:
+
+![Summary comment: "Steward Review found 4 off-system values and 1 accessibility issue · 3 can be fixed in one click", a table by rule, and "Mode: warn, so this never fails the check"](images/steward-review-summary-comment.png)
+
+A line where every problem has a safe fix, so one **Apply suggestion** fixes both:
+
+![Line comment on mt-[13px] text-[#6b7280] with a suggested change to mt-3 text-gray-500](images/steward-review-line-comment.png)
+
+A line where only part can be fixed in one click. The color has a suggestion; swapping in `Button` also needs an import, so it gets advice:
+
+![Line comment on a raw button: advice to use Button, and a suggested change from bg-[#2563eb] to bg-blue-600](images/steward-review-partial-fix.png)
+
+A line with no safe fix, so the comment explains what to do and leaves it to a person:
+
+![Line comment on an image with no alt text, asking for alt text or alt="" if it's decoration](images/steward-review-advice-only.png)
 
 ## Testing it on a throwaway repo
 

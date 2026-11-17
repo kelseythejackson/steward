@@ -4,10 +4,11 @@ import type { Readable, Writable } from "node:stream";
 import { componentUse, formatReview, historyRecord } from "@steward/guard";
 import { checkJson, runCheck } from "./check.js";
 import { runGithubCheck } from "./github.js";
+import { formatImport, githubToken, importHistory, originRepo } from "./history-import.js";
 import { writeHistory } from "./history.js";
 import { formatScanReport } from "./report.js";
 import { formatContextReport, runContext, runServe } from "./context.js";
-import { formatReviewReport, runReview } from "./review.js";
+import { formatReviewReport, readModel, runReview } from "./review.js";
 import { runScan, StewardError } from "./scan.js";
 
 export interface Io {
@@ -27,25 +28,29 @@ export interface Io {
 
 const COMMANDS = [
   ["scan [path]", "Steward Setup: scan a React + Tailwind repo and build the system model"],
-  ["review [path]", "List the scan's suggestions waiting for a decision, or accept them all"],
+  ["decide [path]", "List the scan's suggestions waiting for a decision, or accept them all (the Setup screen does this too)"],
   ["context [path]", "Steward Brief: give AI coding tools your system (design.md or an MCP server)"],
+  ["history import [path]", "Bring the pull request checks' history in from GitHub, for the Report"],
   ["check [path]", "Steward Review: check the lines changed since the base branch (or every file with --all)"],
 ] as const;
 
 function help(): string {
   const lines = ["Usage: steward <command> [options]", "", "Commands:"];
-  for (const [name, text] of COMMANDS) lines.push(`  ${name.padEnd(14)} ${text}`);
+  for (const [name, text] of COMMANDS) lines.push(`  ${name.padEnd(22)} ${text}`);
   lines.push(
     "",
     "Options for scan:",
     "  --json        Print the full result as JSON instead of the report",
     "",
-    "Options for review:",
+    "Options for decide (also works as `steward review`):",
     "  --accept-all  Accept every suggestion that has no decision yet",
     "",
     "Options for context:",
     "  --file        Write design.md to the repo root instead of printing it",
     "  --serve       Start the MCP server over stdio for AI coding tools",
+    "",
+    "Options for history import:",
+    "  --repo <owner/name>  GitHub repo to read (default: the folder's origin remote). Uses GITHUB_TOKEN, GH_TOKEN or `gh auth login`",
     "",
     "Options for check:",
     "  --base <ref>  Branch to compare with (default: \"base\" in .steward/config.json, then the repo's default branch)",
@@ -76,9 +81,11 @@ async function scan(args: string[], io: Io): Promise<number> {
   }
   if (positionals.length > 1) throw new StewardError(`scan takes one folder, but got ${positionals.length}: ${positionals.join(" ")}`);
 
-  const { output, writtenTo } = await runScan(positionals[0] ?? ".");
+  // From the CLI's own working folder, like check and review, not wherever Node happened to start.
+  const target = positionals[0] ?? ".";
+  const { output, writtenTo } = await runScan(resolve(io.cwd, target), { shownAs: target });
   if (values.json) io.stdout(`${JSON.stringify(output, null, 2)}\n`);
-  else io.stdout(formatScanReport(output.summary, displayPath(io.cwd, writtenTo), positionals[0] ?? "."));
+  else io.stdout(formatScanReport(output.summary, displayPath(io.cwd, writtenTo), target));
   return 0;
 }
 
@@ -170,6 +177,30 @@ async function check(args: string[], io: Io): Promise<number> {
   return result.failed ? 1 : 0;
 }
 
+async function history(args: string[], io: Io): Promise<number> {
+  const [sub, ...rest] = args;
+  if (sub !== "import") throw new StewardError("history has one command: `steward history import [path]`, which brings the pull request checks' history in from GitHub.");
+  const { values, positionals } = parseArgs({ args: rest, allowPositionals: true, options: { repo: { type: "string" }, help: { type: "boolean", short: "h", default: false } } });
+  if (values.help) {
+    io.stdout(help());
+    return 0;
+  }
+  if (positionals.length > 1) throw new StewardError(`history import takes one folder, but got ${positionals.length}: ${positionals.join(" ")}`);
+  const target = positionals[0] ?? ".";
+  const root = resolve(io.cwd, target);
+  await readModel(root, target);
+  const repo = values.repo ?? (await originRepo(root));
+  if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo)) {
+    throw new StewardError(`I couldn't tell which GitHub repo ${target} is${values.repo ? ` ("${values.repo}" isn't owner/name)` : ": its origin remote isn't on GitHub"}. Name it with --repo owner/name.`);
+  }
+  const env = io.env ?? process.env;
+  const token = await githubToken(env);
+  if (!token) throw new StewardError("Steward needs your GitHub login to download the history. Run `gh auth login`, or set GITHUB_TOKEN.");
+  const result = await importHistory(root, { repo, token, ...(env["GITHUB_API_URL"] ? { apiUrl: env["GITHUB_API_URL"] } : {}), ...(io.fetch ? { fetch: io.fetch } : {}) });
+  io.stdout(formatImport(result, target));
+  return 0;
+}
+
 /** Runs the CLI and returns the exit code. Kept apart from `bin.ts` so it can be tested in-process. */
 export async function main(argv: string[], io: Io): Promise<number> {
   const [command, ...rest] = argv;
@@ -179,9 +210,11 @@ export async function main(argv: string[], io: Io): Promise<number> {
       return 0;
     }
     if (command === "scan") return await scan(rest, io);
-    if (command === "review") return await review(rest, io);
+    // "decide": Review is the pull request checks. "review" still works for anyone who learned it first.
+    if (command === "decide" || command === "review") return await review(rest, io);
     if (command === "context") return await context(rest, io);
     if (command === "check") return await check(rest, io);
+    if (command === "history") return await history(rest, io);
     io.stderr(`I don't know the command "${command}".\n\n${help()}`);
     return 1;
   } catch (err) {

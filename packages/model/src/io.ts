@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { serializeSystemModel } from "./canonical.js";
@@ -31,7 +32,8 @@ export async function readSystemModel(repoRoot: string): Promise<SystemModel | n
 export async function writeSystemModel(repoRoot: string, model: SystemModel): Promise<string> {
   const target = systemModelPath(repoRoot);
   await mkdir(join(repoRoot, STEWARD_DIR), { recursive: true });
-  const tmp = `${target}.tmp`;
+  // A temp name of its own, so two writers (the app and a CLI scan, say) never write into the same temp file.
+  const tmp = `${target}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
   await writeFile(tmp, serializeSystemModel(model), "utf8");
   await rename(tmp, target);
   return target;

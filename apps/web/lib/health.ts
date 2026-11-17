@@ -146,7 +146,15 @@ export function weekOf(iso: string): string {
 }
 
 /** Pure: the score for each week's pull requests (by their latest check), oldest first. */
-export function weeklyTrend(prs: readonly PullRequest[]): { week: string; score: number; pullRequests: number }[] {
+/** One week on the trend line. `thin`: fewer than MIN_PULL_REQUESTS pull requests, so one pull request can move it a lot. */
+export interface TrendPoint {
+  week: string;
+  score: number;
+  pullRequests: number;
+  thin: boolean;
+}
+
+export function weeklyTrend(prs: readonly PullRequest[]): TrendPoint[] {
   const weeks = new Map<string, PullRequest[]>();
   for (const p of prs) {
     const w = weekOf(p.latest.date);
@@ -154,8 +162,21 @@ export function weeklyTrend(prs: readonly PullRequest[]): { week: string; score:
   }
   return [...weeks]
     .sort(([a], [b]) => (a < b ? -1 : 1))
-    .map(([week, list]) => ({ week, score: health(list, 1).score, pullRequests: list.length }))
-    .filter((w): w is { week: string; score: number; pullRequests: number } => w.score !== null);
+    .map(([week, list]) => ({ week, score: health(list, 1).score, pullRequests: list.length, thin: list.length < MIN_PULL_REQUESTS }))
+    .filter((w): w is TrendPoint => w.score !== null);
+}
+
+/**
+ * Pure: the change from the first to the last week with enough pull
+ * requests (thin weeks are drawn, but never the ends of this comparison).
+ * Null until two such weeks exist.
+ */
+export function steadyChange(trend: readonly TrendPoint[]): { first: TrendPoint; last: TrendPoint; change: number; weeks: number } | null {
+  const steady = trend.filter((p) => !p.thin);
+  const first = steady[0];
+  const last = steady.at(-1);
+  if (!first || !last || steady.length < 2) return null;
+  return { first, last, change: last.score - first.score, weeks: steady.length };
 }
 
 export interface Tiles {

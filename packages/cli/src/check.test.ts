@@ -39,6 +39,7 @@ describe("steward check", () => {
     work = await mkdtemp(join(tmpdir(), "steward-check-"));
     app = join(work, "app");
     await cp(FIXTURE, app, { recursive: true, filter: (src) => !src.includes("node_modules") });
+    await writeFile(join(app, ".gitignore"), ".steward/history.jsonl\n"); // as a set-up repo has it; history.test.ts covers the reminder
     git("init", "--quiet", "--initial-branch=main");
     git("add", ".");
     git("commit", "--quiet", "-m", "baseline");
@@ -170,6 +171,36 @@ describe("steward check", () => {
     const r = await steward(["check", "plain"], work);
     expect(r.code).toBe(1);
     expect(r.stderr).toMatch(/isn't in a git repo/);
+  });
+
+  it("reviews committed files whose names have spaces, quotes or emoji", async () => {
+    const bad = 'export const X = () => <p className="p-[13px]">Hi</p>;\n';
+    for (const name of ["Pricing Card.tsx", 'Say "Hi".tsx', "Party 🎉.tsx"]) await writeFile(join(app, "src/pages", name), bad);
+    git("add", ".");
+    git("commit", "--quiet", "-m", "odd names");
+    const json = JSON.parse((await steward(["check", "app", "--json"], work)).stdout) as CheckJson;
+    expect(json.files.sort()).toEqual(["src/pages/Party 🎉.tsx", "src/pages/Pricing Card.tsx", 'src/pages/Say "Hi".tsx'].sort());
+    expect(json.findings.map((f) => f.rule)).toEqual(["no-arbitrary-spacing", "no-arbitrary-spacing", "no-arbitrary-spacing"]);
+  });
+
+  it("doesn't flag old code in a moved file: only its real changes count", async () => {
+    git("mv", "src/pages/Settings.tsx", "src/pages/AccountSettings.tsx");
+    git("commit", "--quiet", "-m", "move");
+    expect(JSON.parse((await steward(["check", "app", "--json"], work)).stdout).files).toEqual([]);
+
+    const lines = (await readFile(join(app, "src/pages/AccountSettings.tsx"), "utf8")).split("\n");
+    lines.splice(25, 0, BAD_LINE);
+    await writeFile(join(app, "src/pages/AccountSettings.tsx"), lines.join("\n"));
+    const json = JSON.parse((await steward(["check", "app", "--json"], work)).stdout) as CheckJson;
+    expect(json.changedLines).toBe(1);
+    expect(new Set(json.findings.map((f) => f.line))).toEqual(new Set([26]));
+  });
+
+  it("works with a person's diff.mnemonicPrefix setting", async () => {
+    git("config", "diff.mnemonicPrefix", "true");
+    await addLine("src/pages/Settings.tsx", 25, BAD_LINE);
+    const json = JSON.parse((await steward(["check", "app", "--json"], work)).stdout) as CheckJson;
+    expect(json.files).toEqual(["src/pages/Settings.tsx"]);
   });
 
   it("refuses --all with --base", async () => {

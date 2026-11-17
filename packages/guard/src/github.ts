@@ -5,11 +5,15 @@
  * talks to the GitHub API.
  */
 import { createHash } from "node:crypto";
-import { STATIC_CHECKS_NOTE } from "./check.js";
+import { SPACING_SCOPE_NOTE, STATIC_CHECKS_NOTE } from "./check.js";
 import { applyFixes } from "./engine.js";
 import type { Finding, Note, RuleId } from "./findings.js";
 import type { ReviewResult, SourceFile } from "./review.js";
 import { RULES } from "./rules/index.js";
+
+/** At most this many comments are listed in the summary when they couldn't be posted; the comment must stay under GitHub's 65,536 characters. */
+const MAX_UNPOSTED = 25;
+const MAX_SUMMARY_CHARS = 55_000;
 
 /** Hidden in the summary comment so a new push updates it instead of adding another. */
 export const SUMMARY_MARKER = "<!-- steward-review:summary -->";
@@ -99,6 +103,7 @@ export function lineComments(result: ReviewResult, files: readonly SourceFile[],
   for (const n of result.notes) groupAt(n.file ?? "", n.line).notes.push(n);
 
   const out: LineComment[] = [];
+  const seenLines = new Map<string, number>();
   for (const [, { file, line, findings, notes }] of [...groups].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
     const source = code.get(file) ?? "";
     const range = lineRange(source, line);
@@ -113,8 +118,12 @@ export function lineComments(result: ReviewResult, files: readonly SourceFile[],
       const fence = suggestion.includes("```") ? "````" : "```";
       parts.push(`One-click fix${which}:`, [`${fence}suggestion`, suggestion, fence].join("\n"));
     }
+    const base = [file, original.trim(), ...findings.map((f) => `${f.rule}:${f.found}:${f.pattern ? "pattern" : "flag"}`).sort(), ...notes.map((n) => n.message)].join("\n");
+    // A second identical line in the same file is its own comment: count copies (the first keeps the plain fingerprint).
+    const copy = seenLines.get(base) ?? 0;
+    seenLines.set(base, copy + 1);
     const fingerprint = createHash("sha256")
-      .update([file, original.trim(), ...findings.map((f) => `${f.rule}:${f.found}:${f.pattern ? "pattern" : "flag"}`).sort(), ...notes.map((n) => n.message)].join("\n"))
+      .update(copy === 0 ? base : `${base}\n#${copy}`)
       .digest("hex")
       .slice(0, 16);
     parts.push(`<!-- steward-review:fp=${fingerprint} -->`);
@@ -135,11 +144,18 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 export function summaryHeadline(result: ReviewResult, oneClick: number): string {
   if (result.files.length === 0) return "Steward Review: no TSX or JSX files changed, so there was nothing to check";
   const a11y = result.findings.filter((f) => f.category === "accessibility").length;
-  const system = result.findings.length - a11y;
+  // Component swaps (a raw <button>, a merged-away duplicate) aren't values, so they're counted on their own.
+  const components = result.findings.filter((f) => f.category === "component").length;
+  const system = result.findings.length - a11y - components;
   const colors = new Set(result.tokenSuggestions.map((f) => f.pattern?.value)).size;
   const tokens = colors > 0 ? ` · ${plural(colors, "color")} could become ${colors === 1 ? "a token" : "tokens"}` : "";
-  if (system + a11y === 0) return `Steward Review found nothing to change on the changed lines${tokens}`;
-  const found = [system > 0 ? plural(system, "off-system value") : "", a11y > 0 ? plural(a11y, "accessibility issue") : ""].filter(Boolean).join(" and ");
+  if (system + components + a11y === 0) return `Steward Review found nothing to change on the changed lines${tokens}`;
+  const parts = [
+    system > 0 ? plural(system, "off-system value") : "",
+    components > 0 ? plural(components, "component to swap", "components to swap") : "",
+    a11y > 0 ? plural(a11y, "accessibility issue") : "",
+  ].filter(Boolean);
+  const found = parts.length <= 1 ? (parts[0] ?? "") : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
   return `Steward Review found ${found}${oneClick > 0 ? ` · ${oneClick} can be fixed in one click` : ""}${tokens}`;
 }
 
@@ -184,7 +200,17 @@ export function summaryComment(result: ReviewResult, options: SummaryOptions): s
   if (options.postingProblem) out.push(`> ${markdown(options.postingProblem)}`, "");
   if (options.unposted && options.unposted.length > 0) {
     out.push(`<details><summary>${plural(options.unposted.length, "comment")} couldn't be posted on ${options.unposted.length === 1 ? "its line" : "their lines"}</summary>`, "");
-    for (const c of options.unposted) out.push(`**${c.path}:${c.line}**`, "", c.body.replace(FINGERPRINT_MARKER, "").trim(), "");
+    // GitHub refuses comments over 65,536 characters, so the list stops well before that.
+    let size = out.join("\n").length;
+    let shown = 0;
+    for (const c of options.unposted) {
+      const entry = [`**${c.path}:${c.line}**`, "", c.body.replace(FINGERPRINT_MARKER, "").trim(), ""];
+      size += entry.join("\n").length;
+      if (shown === MAX_UNPOSTED || size > MAX_SUMMARY_CHARS) break;
+      out.push(...entry);
+      shown++;
+    }
+    if (shown < options.unposted.length) out.push(`…and ${plural(options.unposted.length - shown, "more comment")}, left out to keep this comment within GitHub's size limit.`, "");
     out.push("</details>", "");
   }
   if (result.unreadable.length > 0) out.push(`Couldn't read as JSX, so not checked: ${result.unreadable.map((u) => `\`${u.path}\``).join(", ")}.`, "");
@@ -196,7 +222,7 @@ export function summaryComment(result: ReviewResult, options: SummaryOptions): s
         ? "Mode: error, so this check fails until these lines change, or a rule is turned off in `.steward/config.json`."
         : "Mode: error. Nothing was found, so the check passes.",
     "",
-    `<sub>${STATIC_CHECKS_NOTE}</sub>`,
+    `<sub>${SPACING_SCOPE_NOTE} ${STATIC_CHECKS_NOTE}</sub>`,
   );
   return `${out.join("\n")}\n`;
 }
@@ -205,8 +231,13 @@ export function summaryComment(result: ReviewResult, options: SummaryOptions): s
 export interface PostedComment {
   path: string;
   line: number | null;
+  /** The line it was first made on; null when GitHub didn't say. */
+  originalLine?: number | null;
   body: string;
 }
+
+/** How far from its original line an applied suggestion may have moved (other changes above it shift lines). */
+const NEAR_LINES = 10;
 
 const SUGGESTION = /^(`{3,})suggestion\n([\s\S]*?)\n\1$/m;
 
@@ -228,7 +259,11 @@ export function acceptedSuggestions(comments: readonly PostedComment[], current:
     const code = current(c.path);
     if (code === undefined) continue;
     const wanted = m[2]!.trim();
-    if (code.split("\n").some((l) => l.trim() === wanted)) n++;
+    if (wanted === "") continue; // an empty suggestion would match any blank line
+    const lines = code.split("\n");
+    // Near where the comment was made, so an identical line elsewhere in the file doesn't count.
+    const near = c.originalLine ? lines.slice(Math.max(0, c.originalLine - 1 - NEAR_LINES), c.originalLine + NEAR_LINES) : lines;
+    if (near.some((l) => l.trim() === wanted)) n++;
   }
   return n;
 }

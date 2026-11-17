@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { GITIGNORE_TIP } from "./history.js";
 import { main } from "./main.js";
 
 const FIXTURE = fileURLToPath(new URL("../../../fixtures/messy-app", import.meta.url));
@@ -78,6 +79,16 @@ describe("steward check history (local)", () => {
     const all = await readFile(join(app, ".steward/history.jsonl"), "utf8");
     expect(all.startsWith(first)).toBe(true);
     expect((await lines()).map((l) => JSON.parse(l).scope)).toEqual(["changes", "changes", "all"]);
+  });
+
+  it("suggests ignoring history.jsonl while git would commit it, on stderr so --json stays clean", async () => {
+    const first = await steward("check", "app", "--json");
+    expect(first.stderr).toBe(GITIGNORE_TIP);
+    JSON.parse(first.stdout);
+    expect(await readFile(join(app, ".gitignore"), "utf8").catch(() => "")).not.toContain("history.jsonl"); // suggests, never edits
+
+    await writeFile(join(app, ".gitignore"), ".steward/history.jsonl\n");
+    expect((await steward("check", "app")).stderr).toBe("");
   });
 
   it("doesn't fail the check when history can't be written, and says so", async () => {

@@ -110,3 +110,21 @@ describe("acceptedSuggestions", () => {
     expect(acceptedSuggestions(comments, () => undefined)).toBe(0);
   });
 });
+
+describe("acceptedSuggestions near the comment's line", () => {
+  const body = (line: string, fp: string) => `Use mt-3\n\nOne-click fix:\n\n\`\`\`suggestion\n${line}\n\`\`\`\n\n<!-- steward-review:fp=${fp} -->\n`;
+  const file = (at: number, line: string) => Array.from({ length: 60 }, (_, i) => (i + 1 === at ? line : `  <div>${i}</div>`)).join("\n");
+  const fixed = '      <p className="mt-3">Saved.</p>';
+
+  it("counts the suggestion when it's at or near its original line", () => {
+    expect(acceptedSuggestions([{ path: "a.tsx", line: null, originalLine: 20, body: body(fixed, "a1") }], () => file(22, fixed))).toBe(1);
+  });
+
+  it("doesn't count an identical line far from where the comment was made", () => {
+    expect(acceptedSuggestions([{ path: "a.tsx", line: null, originalLine: 20, body: body(fixed, "a2") }], () => file(55, fixed))).toBe(0);
+  });
+
+  it("never counts an empty suggestion (a line removed), which would match any blank line", () => {
+    expect(acceptedSuggestions([{ path: "a.tsx", line: null, originalLine: 2, body: body("", "a3") }], () => "a\n\nb")).toBe(0);
+  });
+});

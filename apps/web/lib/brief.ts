@@ -4,6 +4,7 @@
  * Server-side; reads files, never writes.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 type Env = Readonly<Record<string, string | undefined>>;
@@ -74,7 +75,27 @@ const readText = async (p: string) => {
 };
 
 /** What's set up in the repo itself. A tool can also be set up outside the repo (user settings), which Steward can't see. */
-export async function toolStatus(repo: string): Promise<{ claudeCode: ToolStatus; cursor: ToolStatus }> {
+/** Pure: the `claude mcp add` command that adds Steward's server for this repo, private to you (Claude Code's "local" scope). */
+export function claudeMcpAdd(bin: string, repo: string): string {
+  const q = (s: string) => (/^[\w./@:-]+$/.test(s) ? s : `'${s.replaceAll("'", "'\\''")}'`);
+  return `claude mcp add steward -- node ${q(bin)} context ${q(repo)} --serve`;
+}
+
+/**
+ * Claude Code keeps servers added with `claude mcp add` (local scope) in
+ * ~/.claude.json, under the project's path. Read only to show the status;
+ * nothing from it is shown or sent anywhere.
+ */
+async function claudeLocalServers(home: string, repo: string): Promise<string> {
+  try {
+    const projects = (JSON.parse((await readText(join(home, ".claude.json"))) ?? "{}") as { projects?: Record<string, { mcpServers?: unknown }> }).projects ?? {};
+    return JSON.stringify({ mcpServers: projects[repo]?.mcpServers ?? {} });
+  } catch {
+    return "";
+  }
+}
+
+export async function toolStatus(repo: string, home = homedir()): Promise<{ claudeCode: ToolStatus; cursor: ToolStatus }> {
   const claudeMd = (await readText(join(repo, "CLAUDE.md"))) ?? "";
   let cursorRules = false;
   try {
@@ -83,7 +104,10 @@ export async function toolStatus(repo: string): Promise<{ claudeCode: ToolStatus
     // no rules folder
   }
   return {
-    claudeCode: { server: namesSteward((await readText(join(repo, ".mcp.json"))) ?? ""), designMd: /(^|\s)@design\.md\b/m.test(claudeMd) },
+    claudeCode: {
+      server: namesSteward((await readText(join(repo, ".mcp.json"))) ?? "") || namesSteward(await claudeLocalServers(home, repo)),
+      designMd: /(^|\s)@design\.md\b/m.test(claudeMd),
+    },
     cursor: { server: namesSteward((await readText(join(repo, ".cursor/mcp.json"))) ?? ""), designMd: cursorRules },
   };
 }

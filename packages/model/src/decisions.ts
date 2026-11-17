@@ -19,7 +19,10 @@ export function decideSuggestions(model: SystemModel, suggestions: readonly Sugg
   for (const s of suggestions) {
     if (decided.has(s.id)) continue;
     decided.add(s.id);
-    added.push({ suggestionId: s.id, kind: s.kind, members: [...s.members], status, decidedAt });
+    const decision: MergeDecision = { suggestionId: s.id, kind: s.kind, members: [...s.members], status, decidedAt };
+    // An accepted new color keeps the name it was accepted as, so the next scan makes exactly that token.
+    if (s.kind === "token" && status === "accepted") decision.path = s.proposed.path;
+    added.push(decision);
   }
   return { ...model, decisions: [...model.decisions, ...added] };
 }
@@ -107,10 +110,25 @@ export function editColorGroups(model: SystemModel, groups: readonly ColorGroupE
       seen.set(m, g.path);
     }
   }
-  // A name already used by a token these groups don't touch would clash.
-  for (const t of colorTokenGroups(model)) {
-    if (paths.has(t.path) && !t.members.some((m) => seen.has(m))) throw new DecisionError(`${t.path} is already the name of another token. Pick a different name.`);
+  // Names these groups don't own: other tokens, and names people chose earlier for other colors.
+  const others = [
+    ...colorTokenGroups(model)
+      .filter((t) => !t.members.some((m) => seen.has(m)))
+      .map((t) => t.path),
+    ...model.decisions.filter((d) => d.kind === "color" && d.path && !d.members.some((m) => seen.has(m.toLowerCase()))).map((d) => d.path!),
+  ];
+  for (const path of paths) {
+    for (const other of others) {
+      if (other === path) throw new DecisionError(`${path} is already the name of another token. Pick a different name.`);
+      // Token names nest with dots, so one can't sit inside another: color.gray beside color.gray.500 would clash.
+      const [outer, inner] = other.length < path.length ? [other, path] : [path, other];
+      if (inner.startsWith(`${outer}.`)) {
+        throw new DecisionError(`${path} can't sit beside ${other}: one name can't contain the other. Try ${path === outer ? `${path}-base` : path.replaceAll(".", "-").replace(/^color-/, "color.")} instead.`);
+      }
+    }
   }
+  // The same between the groups being saved.
+  for (const a of paths) for (const b of paths) if (a !== b && b.startsWith(`${a}.`)) throw new DecisionError(`${a} and ${b} can't both be names: one contains the other.`);
 
   const touched = (d: MergeDecision) => d.kind === "color" && d.members.some((m) => seen.has(m.toLowerCase()));
   const added: MergeDecision[] = normalized.map((g) => ({

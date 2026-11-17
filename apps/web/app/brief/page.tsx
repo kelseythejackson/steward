@@ -1,12 +1,14 @@
 import { RULE_LABELS, type RuleId } from "@steward/guard";
 import type { ReactNode } from "react";
-import { CURSOR_RULE, demoDir, loadComparison, mcpConfig, stewardBin, toolStatus, type PromptComparison, type Side, type ToolStatus } from "../../lib/brief";
+import { claudeMcpAdd, CURSOR_RULE, demoDir, loadComparison, mcpConfig, stewardBin, toolStatus, type PromptComparison, type Side, type ToolStatus } from "../../lib/brief";
 import { loadRepo } from "../../lib/steward";
+import { cli, FROM_STEWARD } from "../../lib/commands";
 import { Button } from "../button";
 import { Panel, RepoProblem } from "../ui";
 import { CopyBlock } from "./copy-block";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Brief" };
 
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600";
 const code = (text: string) => <code className="rounded-md bg-gray-100 px-1 font-mono text-sm text-gray-900">{text}</code>;
@@ -21,6 +23,7 @@ export default async function BriefPage({ searchParams }: { searchParams: Promis
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
+        <p className="text-sm font-medium text-gray-700">Brief</p>
         <h1 className="text-2xl font-semibold text-gray-900">Connect your AI tools</h1>
         <p className="text-sm text-gray-700">Your AI tools build with your components and tokens instead of generic ones. Each tool needs one MCP server entry and a pointer to design.md.</p>
       </header>
@@ -61,7 +64,7 @@ function ToolCard({ name, status, children }: { name: string; status: ToolStatus
         <h3 className="text-lg font-semibold text-gray-900">{name}</h3>
         <Status status={status} />
       </div>
-      <ol className="flex flex-col gap-4">{children}</ol>
+      <ol className="flex list-decimal flex-col gap-4 pl-6 text-xs text-gray-700 marker:font-medium">{children}</ol>
     </section>
   );
 }
@@ -83,28 +86,33 @@ async function Tools({ repo }: { repo: string }) {
       <div className="grid gap-6 xl:grid-cols-2">
         <ToolCard name="Claude Code" status={status.claudeCode}>
           <li>
-            <CopyBlock label="1. Add Steward's server to .mcp.json in your repo" text={config} />
+            <CopyBlock label={`Write design.md for your repo (run this ${FROM_STEWARD})`} text={cli(`context ${repo} --file`)} />
           </li>
           <li>
-            <CopyBlock label="2. Add this line to CLAUDE.md, so Claude Code reads your design system" text="@design.md" />
+            <CopyBlock label="Add this line to your repo's CLAUDE.md, so Claude Code reads your design system" text="@design.md" />
           </li>
           <li>
-            <CopyBlock label="3. Write design.md, if your repo doesn't have one yet" text={`steward context ${repo} --file`} />
+            <CopyBlock
+              label="Add Steward's MCP server, just for you: run this in your repo. It uses paths on this computer, so it stays out of git."
+              text={claudeMcpAdd(bin ?? "<path to steward>/packages/cli/dist/bin.js", repo)}
+            />
           </li>
         </ToolCard>
         <ToolCard name="Cursor" status={status.cursor}>
           <li>
-            <CopyBlock label="1. Add the same server to .cursor/mcp.json" text={config} />
+            <CopyBlock label={`Write design.md for your repo (run this ${FROM_STEWARD})`} text={cli(`context ${repo} --file`)} />
           </li>
           <li>
-            <CopyBlock label="2. Save this as .cursor/rules/design-system.mdc, so Cursor always reads design.md" text={CURSOR_RULE} />
+            <CopyBlock label="Save this as .cursor/rules/design-system.mdc, so Cursor always reads design.md" text={CURSOR_RULE} />
           </li>
           <li>
-            <CopyBlock label="3. Write design.md, if your repo doesn't have one yet" text={`steward context ${repo} --file`} />
+            <CopyBlock label="Add Steward's MCP server to .cursor/mcp.json. It uses paths on this computer, so add .cursor/mcp.json to .gitignore." text={config} />
           </li>
         </ToolCard>
       </div>
-      <p className="text-sm text-gray-700">The status comes from files in the repo. A tool set up in your own user settings works too, but doesn&apos;t show here.</p>
+      <p className="text-sm text-gray-700">
+        The status comes from your repo&apos;s files and, for Claude Code, its settings for this repo. A server added to a tool&apos;s global settings works too, but doesn&apos;t show here.
+      </p>
     </section>
   );
 }
@@ -123,7 +131,7 @@ function AnyOtherTool() {
         <a
           href="/brief/design.md"
           download="design.md"
-          className={`inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 ${FOCUS}`}
+          className={`inline-flex items-center justify-center rounded-md border border-gray-500 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 ${FOCUS}`}
         >
           Download design.md
         </a>
@@ -171,18 +179,21 @@ function NoComparison() {
   return (
     <Panel>
       <div className="flex flex-col gap-3 text-sm text-gray-700">
-        <p className="font-medium text-gray-900">No before/after comparison saved yet.</p>
-        <p>It shows the same prompt built by an AI tool with and without your system, and what Steward Review found in each. To make one (the steps are in {code("eval/README.md")}):</p>
-        <ol className="flex list-decimal flex-col gap-1 pl-6">
-          <li>Run {code("eval/setup.sh")} to make the two copies of the app: one with Steward, one without.</li>
-          <li>Give your AI tool the same prompt in each copy, such as the pricing card.</li>
-          <li>
-            Score each: {code("pnpm eval:score ~/steward-eval/with --label pricing-1")}, then the same for {code("without")}.
-          </li>
-          <li>
-            Save a screenshot of each result as {code("eval/results/<with or without>/pricing-1.png")}.
-          </li>
-        </ol>
+        <p className="font-medium text-gray-900">No before/after comparison yet.</p>
+        <p>Once there is one, this shows the same request built by an AI tool with and without your system, side by side, and what Steward Review found in each.</p>
+        <details>
+          <summary className={`cursor-pointer rounded-md font-medium text-gray-900 ${FOCUS}`}>How to make one (for developers)</summary>
+          <ol className="mt-2 flex list-decimal flex-col gap-1 pl-6">
+            <li>Run {code("eval/setup.sh")} to make the two copies of the app: one with Steward, one without.</li>
+            <li>Give your AI tool the same prompt in each copy, such as the pricing card.</li>
+            <li>
+              Score each: {code("pnpm eval:score ~/steward-eval/with --label pricing-1")}, then the same for {code("without")}.
+            </li>
+            <li>
+              Save a screenshot of each result as {code("eval/results/<with or without>/pricing-1.png")}. The steps are in {code("eval/README.md")}.
+            </li>
+          </ol>
+        </details>
       </div>
     </Panel>
   );
