@@ -6,7 +6,7 @@ The action runs `steward check --github` on every pull request:
    where the branch split off its base. Older code isn't flagged.
 2. It posts one review with a comment on each line that has findings. When a
    fix is safe and stays on that line (colors, spacing, focus styles, contrast),
-   the comment has a GitHub suggestion, so **Commit suggestion** applies it in
+   the comment has a GitHub suggestion, so clicking **Apply suggestion** fixes it in
    one click. Fixes that also change another line, like swapping in `Button`
    and adding its import, get advice instead.
 3. It posts one summary comment, for example *"Steward Review found 4
@@ -15,6 +15,11 @@ The action runs `steward check --github` on every pull request:
    line comments already there aren't posted again. Old comments are never
    deleted, since people may have replied to them.
 4. It writes the same summary to the run's summary page.
+5. It saves the run's history record (counts and the code's source type only:
+   `ai-agent` from an `ai-agent` label or an AI agent's bot account, `human`
+   from a `human` label, otherwise `unknown`) as a small `steward-history-*`
+   artifact for the Report dashboard. No names, emails or usernames are ever
+   stored.
 
 **Modes.** These are set in `.steward/config.json`, as `"mode": "warn"` or
 `"mode": "error"`.
@@ -114,7 +119,7 @@ Open the pull request (`gh pr view --web`).
 
 ### 6. Commit a suggestion and confirm nothing is duplicated
 
-On line 26, click **Commit suggestion** and then **Commit changes**. That push
+On line 26, click **Apply suggestion** and then **Commit changes**. That push
 runs the workflow again. When it finishes:
 
 - The summary is the same comment, edited. It now reads *"Steward Review found

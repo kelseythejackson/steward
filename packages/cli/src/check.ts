@@ -8,7 +8,7 @@ import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { allLines, countColorUses, isReviewable, parseAddedLines, reviewFiles, RULES, unknownRules, type ReviewResult, type ReviewScope, type SourceFile } from "@steward/guard";
-import { readStewardConfig, STEWARD_DIR, CONFIG_FILE, StewardConfigError, type StewardConfig } from "@steward/model";
+import { readStewardConfig, STEWARD_DIR, CONFIG_FILE, StewardConfigError, type StewardConfig, type SystemModel } from "@steward/model";
 import { readModel } from "./review.js";
 
 export { isReviewable };
@@ -136,6 +136,10 @@ export interface CheckRun {
   result: ReviewResult;
   /** The files checked, with their code, for building fixes. */
   files: SourceFile[];
+  /** The system model the check used. */
+  model: SystemModel;
+  /** The config the check used. */
+  config: StewardConfig;
   /** The checked folder's path inside the git repo, like `apps/web/`, or `""` at the top. GitHub wants paths from the top. */
   gitPrefix: string;
 }
@@ -165,7 +169,7 @@ export async function runCheck(target: string, options: CheckOptions = {}): Prom
   }
   const colorUses = countColorUses(everything, model);
   const gitPrefix = (await gitOk(root, ["rev-parse", "--show-prefix"])) ?? "";
-  return { result: reviewFiles(files, model, config, scope, { colorUses }), files, gitPrefix };
+  return { result: reviewFiles(files, model, config, scope, { colorUses }), files, gitPrefix, model, config };
 }
 
 /** Pure: the `--json` output, with totals for scripts and CI. */

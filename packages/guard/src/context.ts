@@ -69,6 +69,8 @@ export interface CheckContext {
   contrastFixes: ReadonlyMap<string, ContrastFix>;
   /** System rules by id, so a rule a person turned off is skipped and their severity is used. */
   rules: ReadonlyMap<string, Rule>;
+  /** Names of the components in the system (from Setup's inventory), for measuring how much they're used. */
+  componentNames: ReadonlySet<string>;
   /** Where each new color's token suggestion stands, by lowercase hex. Colors with none aren't listed. */
   tokenSuggestions: ReadonlyMap<string, "pending" | "accepted" | "rejected">;
 }
@@ -180,5 +182,6 @@ export function checkContext(model: SystemModel): CheckContext {
     contrastFixes: findContrastFixes(model),
     rules: new Map(model.rules.map((r) => [r.id, r])),
     tokenSuggestions: findTokenSuggestions(model),
+    componentNames: new Set(model.components.map((c) => c.name)),
   };
 }

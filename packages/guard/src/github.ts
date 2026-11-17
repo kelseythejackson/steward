@@ -164,7 +164,7 @@ export function summaryComment(result: ReviewResult, options: SummaryOptions): s
     out.push("");
     out.push(
       options.oneClick > 0
-        ? "Each one has a comment on its line. Where you see a suggested change, **Commit suggestion** applies it."
+        ? "Each one has a comment on its line. Where you see a suggested change, click **Apply suggestion** to fix it."
         : "Each one has a comment on its line, with the reason and a suggested fix.",
       "",
     );
@@ -199,4 +199,36 @@ export function summaryComment(result: ReviewResult, options: SummaryOptions): s
     `<sub>${STATIC_CHECKS_NOTE}</sub>`,
   );
   return `${out.join("\n")}\n`;
+}
+
+/** A review comment as the GitHub API returns it: `line` is null once the line it was on has changed. */
+export interface PostedComment {
+  path: string;
+  line: number | null;
+  body: string;
+}
+
+const SUGGESTION = /^(`{3,})suggestion\n([\s\S]*?)\n\1$/m;
+
+/**
+ * Pure: how many of Steward's one-click suggestions on a pull request are
+ * now in the code. A suggestion counts when its comment is outdated (the
+ * line changed) and the suggested line is in the file as it is now, which
+ * is what **Apply suggestion** does. `current` gives a file's code by the
+ * comment's path, or undefined if it isn't known.
+ */
+export function acceptedSuggestions(comments: readonly PostedComment[], current: (path: string) => string | undefined): number {
+  const seen = new Set<string>();
+  let n = 0;
+  for (const c of comments) {
+    const fp = fingerprintOf(c.body);
+    const m = SUGGESTION.exec(c.body);
+    if (!fp || !m || c.line !== null || seen.has(fp)) continue;
+    seen.add(fp);
+    const code = current(c.path);
+    if (code === undefined) continue;
+    const wanted = m[2]!.trim();
+    if (code.split("\n").some((l) => l.trim() === wanted)) n++;
+  }
+  return n;
 }

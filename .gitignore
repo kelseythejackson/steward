@@ -4,3 +4,6 @@ dist/
 .DS_Store
 coverage/
 .next/
+
+# Local Steward history from running `steward check` on the fixture
+fixtures/messy-app/.steward/history.jsonl

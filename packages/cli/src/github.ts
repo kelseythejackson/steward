@@ -6,9 +6,22 @@
  */
 import { appendFile, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { fingerprintOf, formatReview, lineComments, SUMMARY_MARKER, summaryComment, type LineComment } from "@steward/guard";
-import { readStewardConfig, type ReviewMode } from "@steward/model";
+import {
+  acceptedSuggestions,
+  componentUse,
+  fingerprintOf,
+  formatReview,
+  historyRecord,
+  lineComments,
+  sourceType,
+  SUMMARY_MARKER,
+  summaryComment,
+  type LineComment,
+  type PostedComment,
+} from "@steward/guard";
+import { readStewardConfig, type ReviewMode, type SourceHints, type SourceType, type StewardConfig } from "@steward/model";
 import { runCheck } from "./check.js";
+import { writeHistory } from "./history.js";
 import { StewardError } from "./scan.js";
 
 export type Env = Readonly<Record<string, string | undefined>>;
@@ -23,6 +36,8 @@ export interface PullRequestContext {
   number: number;
   baseRef: string;
   headSha: string;
+  /** Where the code came from, from labels or a known AI bot account. The account itself isn't kept. */
+  source: SourceType;
 }
 
 const PR_EVENTS = new Set(["pull_request", "pull_request_target"]);
@@ -31,7 +46,7 @@ const PR_EVENTS = new Set(["pull_request", "pull_request_target"]);
  * Reads the pull request from the Actions environment. Returns `null` when
  * the run isn't for a pull request (a push, say), so there's nothing to comment on.
  */
-export async function readPullRequest(env: Env): Promise<PullRequestContext | null> {
+export async function readPullRequest(env: Env, hints: Partial<SourceHints> = {}): Promise<PullRequestContext | null> {
   if (!env["GITHUB_ACTIONS"]) throw new StewardError("--github is for GitHub Actions: it reads the pull request from the environment Actions sets. Run `steward check` without it locally.");
   if (!PR_EVENTS.has(env["GITHUB_EVENT_NAME"] ?? "")) return null;
   const eventPath = env["GITHUB_EVENT_PATH"];
@@ -39,10 +54,15 @@ export async function readPullRequest(env: Env): Promise<PullRequestContext | nu
   if (!eventPath || !repo) throw new StewardError("GitHub Actions didn't say which pull request this is (GITHUB_EVENT_PATH or GITHUB_REPOSITORY is missing).");
   const token = env["GITHUB_TOKEN"];
   if (!token) throw new StewardError("There's no GITHUB_TOKEN, so I can't comment on the pull request. Pass `github-token` to the action, or set GITHUB_TOKEN for this step.");
-  const event = JSON.parse(await readFile(eventPath, "utf8")) as { pull_request?: { number?: number; base?: { ref?: string }; head?: { sha?: string } } };
+  const event = JSON.parse(await readFile(eventPath, "utf8")) as {
+    pull_request?: { number?: number; base?: { ref?: string }; head?: { sha?: string }; labels?: { name?: string }[]; user?: { login?: string } };
+  };
   const pr = event.pull_request;
   if (!pr?.number || !pr.base?.ref || !pr.head?.sha) throw new StewardError("The pull_request event is missing its number, base branch or head commit.");
-  return { apiUrl: env["GITHUB_API_URL"] ?? "https://api.github.com", repo, token, number: pr.number, baseRef: pr.base.ref, headSha: pr.head.sha };
+  // The author's account is only checked against known AI bots, then dropped: only the source type goes on.
+  const labels = (pr.labels ?? []).map((l) => l.name ?? "").filter((n) => n !== "");
+  const source = sourceType({ labels, ...(pr.user?.login ? { author: pr.user.login } : {}) }, hints);
+  return { apiUrl: env["GITHUB_API_URL"] ?? "https://api.github.com", repo, token, number: pr.number, baseRef: pr.base.ref, headSha: pr.head.sha, source };
 }
 
 // ---------------------------------------------------------------------------
@@ -62,6 +82,8 @@ export class GithubApiError extends Error {
 interface Comment {
   id: number;
   body?: string | null;
+  path?: string;
+  line?: number | null;
 }
 
 export function githubApi(pr: PullRequestContext, fetchImpl: Fetch = globalThis.fetch) {
@@ -110,6 +132,8 @@ export interface PublishResult {
   /** Comments GitHub wouldn't place on their line (it only allows lines in the diff); listed in the summary instead. */
   unposted: LineComment[];
   summary: "created" | "updated";
+  /** Steward's line comments that were already on the pull request, for counting accepted suggestions. */
+  earlier: PostedComment[];
 }
 
 /**
@@ -118,7 +142,11 @@ export interface PublishResult {
  * may have replied to them.
  */
 export async function publish(api: GithubApi, pr: PullRequestContext, comments: readonly LineComment[], summaryFor: (unposted: LineComment[]) => string): Promise<PublishResult> {
-  const existing = new Set((await api.all<Comment>(`/pulls/${pr.number}/comments`)).map((c) => fingerprintOf(c.body ?? "")).filter((f) => f !== null));
+  const posted = await api.all<Comment>(`/pulls/${pr.number}/comments`);
+  const earlier: PostedComment[] = posted
+    .filter((c) => fingerprintOf(c.body ?? "") !== null)
+    .map((c) => ({ path: c.path ?? "", line: c.line ?? null, body: c.body ?? "" }));
+  const existing = new Set(earlier.map((c) => fingerprintOf(c.body)));
   const fresh = comments.filter((c) => !existing.has(c.fingerprint));
   const unposted: LineComment[] = [];
   const asReviewComment = (c: LineComment) => ({ path: c.path, line: c.line, side: "RIGHT", body: c.body });
@@ -144,7 +172,7 @@ export async function publish(api: GithubApi, pr: PullRequestContext, comments: 
   const summary = (await api.all<Comment>(`/issues/${pr.number}/comments`)).find((c) => (c.body ?? "").includes(SUMMARY_MARKER));
   if (summary) await api.request("PATCH", `/issues/comments/${summary.id}`, { body });
   else await api.request("POST", `/issues/${pr.number}/comments`, { body });
-  return { posted: fresh.length - unposted.length, alreadyThere: comments.length - fresh.length, unposted, summary: summary ? "updated" : "created" };
+  return { posted: fresh.length - unposted.length, alreadyThere: comments.length - fresh.length, unposted, summary: summary ? "updated" : "created", earlier };
 }
 
 /** Pure: why posting failed, in words a person can act on. */
@@ -173,13 +201,15 @@ export interface GithubCheckIo {
   cwd: string;
   env: Env;
   fetch?: Fetch;
+  now?: () => Date;
 }
 
-async function modeOf(root: string): Promise<ReviewMode> {
+/** The config if it can be read; a broken one is reported by the check itself. */
+async function configOf(root: string): Promise<StewardConfig | null> {
   try {
-    return (await readStewardConfig(root)).mode;
+    return await readStewardConfig(root);
   } catch {
-    return "warn";
+    return null;
   }
 }
 
@@ -190,22 +220,36 @@ async function modeOf(root: string): Promise<ReviewMode> {
  */
 export async function runGithubCheck(target: string, io: GithubCheckIo, options: { base?: string } = {}): Promise<number> {
   const root = resolve(io.cwd, target);
-  const mode = await modeOf(root);
+  const config = await configOf(root);
+  const mode: ReviewMode = config?.mode ?? "warn";
   try {
-    const pr = await readPullRequest(io.env);
+    const pr = await readPullRequest(io.env, config?.source ?? {});
     const base = options.base ?? (pr ? `origin/${pr.baseRef}` : undefined);
     const run = await runCheck(root, { shownAs: target, ...(base === undefined ? {} : { base }) });
     io.stdout(formatReview(run.result));
+    const record = (fixesAccepted: number | null) =>
+      historyRecord(run.result, {
+        date: (io.now?.() ?? new Date()).toISOString(),
+        pr: pr?.number ?? null,
+        source: pr?.source ?? "unknown",
+        fixesAccepted,
+        components: componentUse(run.files, run.model),
+      });
+    const history = { log: io.stdout, runnerTemp: io.env["RUNNER_TEMP"] };
     if (!pr) {
       io.stdout(annotation("notice", "This run isn't for a pull request, so there's nothing to comment on. The report is above."));
+      await writeHistory(root, record(null), history);
       return run.result.failed ? 1 : 0;
     }
 
     const comments = lineComments(run.result, run.files, { pathPrefix: run.gitPrefix });
     const oneClick = comments.reduce((n, c) => n + c.oneClick, 0);
+    const codeByPath = new Map(run.files.map((f) => [`${run.gitPrefix}${f.path}`, f.code]));
     let pageSummary: string;
+    let fixesAccepted: number | null = null;
     try {
       const result = await publish(githubApi(pr, io.fetch), pr, comments, (unposted) => summaryComment(run.result, { oneClick, unposted }));
+      fixesAccepted = acceptedSuggestions(result.earlier, (path) => codeByPath.get(path));
       pageSummary = summaryComment(run.result, { oneClick, unposted: result.unposted });
       io.stdout(
         `\nPosted ${result.posted === 1 ? "1 line comment" : `${result.posted} line comments`} on pull request #${pr.number}` +
@@ -223,6 +267,7 @@ export async function runGithubCheck(target: string, io: GithubCheckIo, options:
     }
     const summaryFile = io.env["GITHUB_STEP_SUMMARY"];
     if (summaryFile) await appendFile(summaryFile, pageSummary.replace(`${SUMMARY_MARKER}\n`, ""));
+    await writeHistory(root, record(fixesAccepted), history);
     return run.result.failed ? 1 : 0;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

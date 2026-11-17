@@ -26,7 +26,29 @@ export interface StewardConfig {
    * the rules live in `@steward/guard`.
    */
   rules: Record<string, RuleSwitch>;
+  /**
+   * How history tells AI-written pull requests from others: by label, or a
+   * known AI bot account. Only the resulting source type is stored, never
+   * the account. Unset lists use the defaults in `DEFAULT_SOURCE_HINTS`.
+   */
+  source?: Partial<SourceHints>;
 }
+
+export interface SourceHints {
+  /** PR labels that mean the code came from an AI agent. */
+  aiLabels: string[];
+  /** PR labels that mean a person wrote it. */
+  humanLabels: string[];
+  /** Bot accounts that open pull requests for AI coding agents. */
+  aiBots: string[];
+}
+
+/** A starting list: the labels Steward suggests, and AI coding agents' bot accounts as GitHub shows them. */
+export const DEFAULT_SOURCE_HINTS: Readonly<SourceHints> = Object.freeze({
+  aiLabels: ["ai-agent"],
+  humanLabels: ["human"],
+  aiBots: ["Copilot", "copilot-swe-agent[bot]", "devin-ai-integration[bot]", "claude[bot]", "cursor[bot]", "chatgpt-codex-connector[bot]", "google-labs-jules[bot]"],
+});
 
 /** A problem with the contents of `config.json`, phrased so a person can fix it. */
 export class StewardConfigError extends Error {
@@ -34,7 +56,8 @@ export class StewardConfigError extends Error {
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
-const KEYS = new Set(["mode", "base", "rules"]);
+const KEYS = new Set(["mode", "base", "rules", "source"]);
+const SOURCE_KEYS = new Set(["aiLabels", "humanLabels", "aiBots"]);
 
 /** Pure: parses and checks `config.json` text. Throws `StewardConfigError` with a calm, specific message. */
 export function parseStewardConfig(text: string, source = `.steward/${CONFIG_FILE}`): StewardConfig {
@@ -50,7 +73,7 @@ export function parseStewardConfig(text: string, source = `.steward/${CONFIG_FIL
   if (!isRecord(raw)) return fail('should be an object like { "mode": "warn" }.');
 
   const unknown = Object.keys(raw).filter((k) => !KEYS.has(k)).sort();
-  if (unknown.length > 0) fail(`has ${unknown.map((k) => `"${k}"`).join(", ")}, which Steward doesn't use. It knows "mode", "base" and "rules".`);
+  if (unknown.length > 0) fail(`has ${unknown.map((k) => `"${k}"`).join(", ")}, which Steward doesn't use. It knows "mode", "base", "rules" and "source".`);
 
   const mode = raw["mode"] ?? "warn";
   if (mode !== "warn" && mode !== "error") fail(`has mode ${JSON.stringify(mode)}. Use "warn" (never fails the build) or "error" (fails it when Review finds something).`);
@@ -69,6 +92,19 @@ export function parseStewardConfig(text: string, source = `.steward/${CONFIG_FIL
 
   const config: StewardConfig = { mode: mode as ReviewMode, rules };
   if (typeof base === "string") config.base = base.trim();
+
+  const sourceRaw = raw["source"];
+  if (sourceRaw !== undefined) {
+    if (!isRecord(sourceRaw)) return fail('has "source" that should be an object, like { "aiLabels": ["ai-agent"] }.');
+    const source: Partial<SourceHints> = {};
+    for (const key of Object.keys(sourceRaw).sort()) {
+      if (!SOURCE_KEYS.has(key)) fail(`has "source.${key}", which Steward doesn't use. It knows "aiLabels", "humanLabels" and "aiBots".`);
+      const v = sourceRaw[key];
+      if (!Array.isArray(v) || !v.every((x) => typeof x === "string" && x.trim() !== "")) fail(`has "source.${key}" that should be a list of names.`);
+      source[key as keyof SourceHints] = (v as string[]).map((x) => x.trim());
+    }
+    config.source = source;
+  }
   return config;
 }
 

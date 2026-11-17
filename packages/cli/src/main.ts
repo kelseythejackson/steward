@@ -1,9 +1,10 @@
 import { isAbsolute, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Readable, Writable } from "node:stream";
-import { formatReview } from "@steward/guard";
+import { componentUse, formatReview, historyRecord } from "@steward/guard";
 import { checkJson, runCheck } from "./check.js";
 import { runGithubCheck } from "./github.js";
+import { writeHistory } from "./history.js";
 import { formatScanReport } from "./report.js";
 import { formatContextReport, runContext, runServe } from "./context.js";
 import { formatReviewReport, runReview } from "./review.js";
@@ -20,6 +21,8 @@ export interface Io {
   env?: Readonly<Record<string, string | undefined>>;
   /** For `check --github`'s API calls; tests pass a fake. Defaults to the global fetch. */
   fetch?: typeof globalThis.fetch;
+  /** The time, for history records. Defaults to now; tests pass a fixed one. */
+  now?: () => Date;
 }
 
 const COMMANDS = [
@@ -144,15 +147,26 @@ async function check(args: string[], io: Io): Promise<number> {
   if (positionals.length > 1) throw new StewardError(`check takes one folder, but got ${positionals.length}: ${positionals.join(" ")}`);
   if (values.github && (values.all || values.json)) throw new StewardError("--github checks the pull request's changes and comments on them, so it doesn't go with --all or --json.");
   if (values.github) {
-    const githubIo = { stdout: io.stdout, cwd: io.cwd, env: io.env ?? process.env, ...(io.fetch ? { fetch: io.fetch } : {}) };
+    const githubIo = { stdout: io.stdout, cwd: io.cwd, env: io.env ?? process.env, ...(io.fetch ? { fetch: io.fetch } : {}), ...(io.now ? { now: io.now } : {}) };
     return runGithubCheck(positionals[0] ?? ".", githubIo, values.base === undefined ? {} : { base: values.base });
   }
   if (values.all && values.base !== undefined) throw new StewardError("Use --all or --base, not both: --all checks every file, --base picks what to compare changes with.");
 
   const target = positionals[0] ?? ".";
   const options = { all: values.all, shownAs: target, ...(values.base === undefined ? {} : { base: values.base }) };
-  const { result } = await runCheck(resolve(io.cwd, target), options);
+  const root = resolve(io.cwd, target);
+  const run = await runCheck(root, options);
+  const { result } = run;
   io.stdout(values.json ? `${JSON.stringify(checkJson(result), null, 2)}\n` : formatReview(result));
+  // Outside a pull request there's no PR number, no labels to read the source from, and no suggestions to accept.
+  const record = historyRecord(result, {
+    date: (io.now?.() ?? new Date()).toISOString(),
+    pr: null,
+    source: "unknown",
+    fixesAccepted: null,
+    components: componentUse(run.files, run.model),
+  });
+  await writeHistory(root, record, { log: io.stderr });
   return result.failed ? 1 : 0;
 }
 

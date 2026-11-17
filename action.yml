@@ -46,3 +46,15 @@ runs:
         STEWARD_PATH: ${{ inputs.path }}
         STEWARD_BIN: ${{ github.action_path }}/packages/cli/dist/bin.js
       run: node "$STEWARD_BIN" check "$STEWARD_PATH" --github
+
+    # One small file per run: this check's history record (counts and source type only).
+    # The runner is thrown away, so Report collects these artifacts later. Never fails the check.
+    - name: Save Steward history
+      if: always() && steps.build.outputs.ok == 'true'
+      continue-on-error: true
+      uses: actions/upload-artifact@v4
+      with:
+        name: steward-history-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/steward-history/record.jsonl
+        retention-days: 90
+        if-no-files-found: ignore

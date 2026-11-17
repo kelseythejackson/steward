@@ -45,3 +45,14 @@ describe("readStewardConfig", () => {
     }
   });
 });
+
+describe("source hints", () => {
+  it("reads label and bot lists for telling AI-written PRs apart", () => {
+    expect(parseStewardConfig('{"source":{"aiLabels":["ai-generated"," copilot "]}}').source).toEqual({ aiLabels: ["ai-generated", "copilot"] });
+  });
+
+  it("explains unknown keys and values that aren't lists of names", () => {
+    expect(() => parseStewardConfig('{"source":{"authors":["jane"]}}')).toThrow(/"source\.authors", which Steward doesn't use/);
+    expect(() => parseStewardConfig('{"source":{"aiBots":"claude[bot]"}}')).toThrow(/"source\.aiBots" that should be a list of names/);
+  });
+});

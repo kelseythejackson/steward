@@ -92,7 +92,7 @@ describe("summary", () => {
     const body = summaryComment(review([3, 4, 5]).result, { oneClick: 3 });
     expect(body.startsWith(`${SUMMARY_MARKER}\n### Steward Review found 4 off-system values`)).toBe(true);
     expect(body).toContain("| Colors outside the system | 2 |\n| Spacing off the scale | 1 |\n| Components to swap for the system's | 1 |\n| Images without alt text | 1 |");
-    expect(body).toContain("**Commit suggestion** applies it.");
+    expect(body).toContain("click **Apply suggestion** to fix it.");
     expect(body).toContain("Checked 3 changed lines in 1 file, compared with `origin/main`.");
     expect(body).toContain("Mode: warn, so this never fails the check.");
     expect(body).toContain(`<sub>${STATIC_CHECKS_NOTE}</sub>`);

@@ -210,6 +210,95 @@ describe("steward check --github", () => {
     expect(r.stdout).toContain("::warning title=Steward Review::Steward Review couldn't run: There's no Steward system in app yet.");
   });
 
+  describe("history", () => {
+    const AUTHOR = "jane-doe";
+    const EMAIL = "jane@example.com";
+    /** Every author-like key GitHub or git could hand Steward. A record must have none of them, at any depth. */
+    const AUTHOR_KEYS = /^(author|authors|user|users|login|username|email|name|committer|assignee|assignees|reviewer|reviewers|sender|actor|owner)$/i;
+    const keysDeep = (v: unknown): string[] =>
+      v && typeof v === "object" ? Object.entries(v as Record<string, unknown>).flatMap(([k, x]) => [k, ...keysDeep(x)]) : [];
+
+    /** A pull_request event as GitHub sends it: full of people, so the test can show none of it is kept. */
+    async function writeEvent(labels: string[], login = AUTHOR) {
+      const person = { login, id: 42, type: "User", email: EMAIL, name: "Jane Doe" };
+      await writeFile(
+        env["GITHUB_EVENT_PATH"]!,
+        JSON.stringify({
+          pull_request: {
+            number: 7,
+            base: { ref: "main" },
+            head: { sha: git("rev-parse", "HEAD"), user: person },
+            labels: labels.map((name) => ({ name })),
+            user: person,
+            assignees: [person],
+            requested_reviewers: [person],
+          },
+          sender: person,
+          repository: { owner: person },
+        }),
+      );
+    }
+    const history = async () => (await readFile(join(repo, "app/.steward/history.jsonl"), "utf8")).trim().split("\n").map((l) => JSON.parse(l) as Record<string, unknown>);
+
+    it("appends a record for each run: PR number, source type from the label, problems by rule, component share", async () => {
+      env["RUNNER_TEMP"] = join(work, "runner-temp");
+      await writeEvent(["ai-agent"]);
+      const r = await steward(fakeGithub());
+      expect(r.code).toBe(0);
+      const [record] = await history();
+      expect(record).toMatchObject({ v: 1, scope: "changes", pr: 7, source: "ai-agent", files: 1, changedLines: 2, fixesAccepted: 0 });
+      expect(record!["problems"]).toMatchObject({ "no-hardcoded-color": 1, "no-arbitrary-spacing": 1, "a11y-img-alt": 1, "use-system-component": 0 });
+      // The artifact file holds just this run's record.
+      expect(JSON.parse(await readFile(join(work, "runner-temp/steward-history/record.jsonl"), "utf8"))).toEqual(record);
+    });
+
+    it("never stores an author: no author field anywhere, and no name, login or email, even when the event is full of them", async () => {
+      env["RUNNER_TEMP"] = join(work, "runner-temp");
+      await writeEvent(["human"]);
+      await steward(fakeGithub());
+      await writeEvent([], "claude[bot]");
+      await steward(fakeGithub());
+      const text = await readFile(join(repo, "app/.steward/history.jsonl"), "utf8");
+      const artifact = await readFile(join(work, "runner-temp/steward-history/record.jsonl"), "utf8");
+      for (const t of [text, artifact]) {
+        for (const line of t.trim().split("\n")) expect(keysDeep(JSON.parse(line)).filter((k) => AUTHOR_KEYS.test(k))).toEqual([]);
+        expect(t).not.toContain(AUTHOR);
+        expect(t).not.toContain(EMAIL);
+        expect(t).not.toContain("Jane");
+        expect(t).not.toContain("claude[bot]");
+      }
+      expect((await history()).map((r) => r["source"])).toEqual(["human", "ai-agent"]);
+    });
+
+    it("a person's own account is unknown, not human", async () => {
+      await writeEvent([]);
+      await steward(fakeGithub());
+      expect((await history())[0]!["source"]).toBe("unknown");
+    });
+
+    it("counts a committed one-click suggestion as a fix accepted", async () => {
+      await writeEvent([]);
+      const gh = fakeGithub();
+      await steward(gh);
+      // "Apply suggestion" on line 26: the line becomes the suggestion, and GitHub marks the comment outdated.
+      const suggested = /```suggestion\n(.*)\n```/.exec(gh.reviewComments.find((c) => c.line === 26)!.body)![1]!;
+      const lines = (await readFile(join(repo, "app/src/pages/Settings.tsx"), "utf8")).split("\n");
+      lines[25] = suggested;
+      await writeFile(join(repo, "app/src/pages/Settings.tsx"), lines.join("\n"));
+      git("commit", "--quiet", "-am", "Apply suggestion from Steward Review");
+      gh.reviewComments.find((c) => c.line === 26)!.line = null as unknown as number;
+      await writeEvent([]);
+      await steward(gh);
+      expect((await history()).map((r) => r["fixesAccepted"])).toEqual([0, 1]);
+    });
+
+    it("if GitHub can't be reached, still records the run, with fixes accepted unknown", async () => {
+      await writeEvent([]);
+      await steward(fakeGithub({ failReview: 403 }));
+      expect((await history())[0]).toMatchObject({ pr: 7, fixesAccepted: null });
+    });
+  });
+
   it("refuses --github with --all or --json", async () => {
     const r = await main(["check", "--github", "--json"], { stdout: () => {}, stderr: () => {}, cwd: repo, env });
     expect(r).toBe(1);
