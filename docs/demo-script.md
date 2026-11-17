@@ -103,11 +103,11 @@ To run it again, repeat the setup commands. They give you a fresh copy with ever
 
 **Say:** "It comments right on the changed lines. A hardcoded color. A clickable div that keyboard users can't reach. A raw button instead of our Button."
 
-**Show:** Point at the comment on the `<div onClick>` line, then at a suggested change.
+**Show:** Point at the comment on the `<div onClick>` line.
 
-**Say:** "Where a fix is safe, it's one click: Apply suggestion. It never fails the build unless the team turns that on."
+**Say:** "Every comment says why, and suggests a fix. It never fails the build unless the team turns that on."
 
-**Show:** Switch to the Conversation tab. Point at the summary comment: "Steward Review found 1 off-system value, 1 component to swap and 1 accessibility issue · 1 can be fixed in one click."
+**Show:** Switch to the Conversation tab. Point at the summary comment: "Steward Review found 1 off-system value, 1 component to swap and 1 accessibility issue."
 
 ## [2:50–3:00] Show the dashboard
 
