@@ -41,6 +41,23 @@ export function colorsInModel(tokens: TokenGroup): string[] {
   return [...out].sort(compareStrings);
 }
 
+/** Pure: each color token's own color → its path (`#f9fafb` → `color.gray.50`), so a re-scan can keep the names. */
+export function colorNamesInModel(tokens: TokenGroup): Map<string, string> {
+  const out = new Map<string, string>();
+  const walk = (group: TokenGroup, at: string[]) => {
+    for (const [k, node] of Object.entries(group)) {
+      if (k.startsWith("$") || !node || typeof node !== "object") continue;
+      if (isToken(node)) {
+        if (node.$type === "color") out.set(tokenHex(node.$value.hex, node.$value.alpha), [...at, k].join("."));
+      } else {
+        walk(node as TokenGroup, [...at, k]);
+      }
+    }
+  };
+  walk(tokens, []);
+  return out;
+}
+
 const tokenMembers = (decisions: readonly MergeDecision[], status: MergeDecision["status"]) =>
   new Set(decisions.filter((d) => d.kind === "token" && d.status === status).flatMap((d) => d.members));
 

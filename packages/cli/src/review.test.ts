@@ -43,7 +43,8 @@ describe("steward review", () => {
     expect(r.code).toBe(0);
     expect(r.stdout).toBe(
       "24 suggestions are waiting for a decision: 6 color merges, 7 spacing snaps, 2 component merges and 9 contrast fixes.\n" +
-        "The review screen is coming soon. For now, `steward review --accept-all` accepts all of them, or edit the file by hand.\n",
+        `Review them one by one on the Setup screen: from the Steward repo, run \`STEWARD_REPO=${app} pnpm -F web dev\` and open http://localhost:3000/setup.\n` +
+        "Or `steward review --accept-all` accepts all of them.\n",
     );
     expect(await readFile(join(app, ".steward/system.json"), "utf8")).toBe(before);
   });

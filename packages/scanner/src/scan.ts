@@ -41,6 +41,8 @@ export interface ScanOptions {
    * token suggestion instead. Leave out on a first scan.
    */
   knownColors?: readonly string[];
+  /** Names colors already had (hex → token path), so tokens keep their names across scans. See `colorNamesInModel`. */
+  colorNames?: ReadonlyMap<string, string>;
 }
 
 /** Everything one scan found and suggested. Plain data, safe to print as JSON. */
@@ -180,7 +182,7 @@ export function scanFiles(files: readonly SourceFile[], options: ScanOptions = {
   const contrastPairs = collectContrast(sorted);
 
   const { kept, held } = splitNewColors(colors.colors, options.knownColors, decisions);
-  const colorSuggestions = suggestColorTokens(kept, { decisions });
+  const colorSuggestions = suggestColorTokens(kept, { decisions, ...(options.colorNames ? { previousNames: options.colorNames } : {}) });
   const spacingSuggestions = suggestSpacingScale(spacing.values, { decisions, rootPx: setup.rootPx });
   const contrast = checkContrast(contrastPairs, colorSuggestions, { decisions });
 

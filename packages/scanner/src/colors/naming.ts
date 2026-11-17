@@ -75,6 +75,9 @@ export function stepsByFit(hex: string): number[] {
     .map(([step]) => step);
 }
 
+/** How many of the best-fitting lightness steps a color may be named after before falling back to its hex. */
+export const NEAR_STEPS = 2;
+
 /** Tailwind palette hex (v3 and v4) → its step (`#dc2626` → 600), so Tailwind's own colors keep their familiar numbers. */
 const PALETTE_STEPS = new Map<string, number>();
 for (const palette of [TAILWIND_PALETTE, TAILWIND_V4_PALETTE]) {
@@ -90,8 +93,9 @@ for (const palette of [TAILWIND_PALETTE, TAILWIND_V4_PALETTE]) {
  * `color.gray.500`, `color.white`. A Tailwind palette color keeps its
  * Tailwind step when it's free (`#dc2626` → `color.red.600`). Colors are named in the order given, so
  * pass the most important first: if two colors want the same step, the
- * later one takes the nearest free step instead. Names are always unique,
- * including against `alreadyTaken` (paths that exist in the system already).
+ * later one takes its other nearby step, or a name from its hex
+ * (`color.gray.e4e4e7`) rather than a far, misleading one. Names are always
+ * unique, including against `alreadyTaken` (paths that exist in the system already).
  */
 export function proposeColorPaths(hexes: readonly string[], alreadyTaken: Iterable<string> = []): Map<string, string> {
   const taken = new Set<string>(alreadyTaken);
@@ -108,7 +112,10 @@ export function proposeColorPaths(hexes: readonly string[], alreadyTaken: Iterab
       path = `color.${family}${suffix}`;
     } else {
       const paletteStep = PALETTE_STEPS.get(hex.slice(0, 7));
-      const steps = paletteStep === undefined ? stepsByFit(hex) : [paletteStep, ...stepsByFit(hex)];
+      // Only steps that fit: Tailwind's own step for a palette color, or the two nearest by lightness.
+      // A far step (a near-white called 600) would be a misleading name; the hex below is honest instead.
+      const near = stepsByFit(hex).slice(0, NEAR_STEPS);
+      const steps = paletteStep === undefined ? near : [paletteStep, ...near];
       path = steps
         .map((step) => `color.${family}.${step}${suffix}`)
         .find((p) => !taken.has(p));

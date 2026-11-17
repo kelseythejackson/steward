@@ -28,6 +28,8 @@ const RULE_SOURCES = new Set(["generated", "user", "learned"]);
 const RULE_CATEGORIES = new Set(["color", "spacing", "component", "accessibility"]);
 const TARGET_KINDS = new Set(["token", "token-group", "component", "element"]);
 const HEX = /^#[0-9a-f]{6}([0-9a-f]{2})?$/i;
+/** `color.gray.150`, `color.brand`, `color.black-40`: lowercase words and numbers. */
+export const COLOR_PATH = /^color(\.[a-z0-9]+(?:-[a-z0-9]+)*)+$/;
 
 class Checker {
   constructor(readonly source: string) {}
@@ -207,7 +209,17 @@ class Checker {
       const d = this.record(item, path, "a merge decision");
       this.string(d, "suggestionId", path, { nonEmpty: true });
       this.oneOf(d, "kind", path, KINDS);
-      this.stringArray(d, "members", path, d["kind"] === "token" ? 1 : 2);
+      const single = d["kind"] === "token" || (d["kind"] === "color" && d["edited"] === true);
+      this.stringArray(d, "members", path, single ? 1 : 2);
+      if (d["edited"] !== undefined && (d["edited"] !== true || d["kind"] !== "color" || d["status"] !== "accepted")) {
+        this.fail(`${path}.edited`, "a value that should only be true, on an accepted color decision");
+      }
+      if (d["path"] !== undefined && (typeof d["path"] !== "string" || !COLOR_PATH.test(d["path"]) || d["kind"] !== "color")) {
+        this.fail(`${path}.path`, 'a value that should be a color token name like "color.gray.150"');
+      }
+      if (d["keep"] !== undefined && (d["kind"] !== "component" || typeof d["keep"] !== "string" || !(d["members"] as string[]).includes(d["keep"]))) {
+        this.fail(`${path}.keep`, "a value that should be one of the decision's components");
+      }
       this.oneOf(d, "status", path, STATUSES);
       this.string(d, "decidedAt", path);
       if (Number.isNaN(Date.parse(d["decidedAt"] as string))) {

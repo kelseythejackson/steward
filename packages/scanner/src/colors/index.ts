@@ -3,7 +3,7 @@ import type { ColorExtraction } from "./types.js";
 import { listFiles, readSourceFiles } from "./walk.js";
 
 export * from "./types.js";
-export { colorsInModel, NEW_TOKEN_MIN_USES, splitNewColors, suggestNewTokens } from "./new-tokens.js";
+export { colorNamesInModel, colorsInModel, NEW_TOKEN_MIN_USES, splitNewColors, suggestNewTokens } from "./new-tokens.js";
 export { clusterColors, DEFAULT_MAX_DELTA_E, deltaE, type ClusterOptions, type ColorCluster } from "./cluster.js";
 export { collectColors, isColorSourceFile } from "./collect.js";
 export { colorFamily, grayMaxChroma, LIGHTNESS_STEPS, proposeColorPaths, stepsByFit } from "./naming.js";

@@ -5,17 +5,20 @@
   "description": "Steward's web app: Setup, Brief, Review and Report, reading a repo's .steward folder",
   "type": "module",
   "scripts": {
-    "predev": "pnpm run model",
+    "predev": "pnpm run packages",
     "dev": "next dev",
-    "prebuild": "pnpm run model",
+    "prebuild": "pnpm run packages",
     "build": "next build",
     "start": "next start",
-    "model": "tsc -b ../../packages/model",
     "theme": "tsx --conditions=source scripts/theme.ts",
-    "typecheck": "pnpm run model && tsc --noEmit",
-    "test": "vitest run"
+    "typecheck": "pnpm run packages && tsc --noEmit",
+    "test": "vitest run",
+    "packages": "tsc -b ../../packages/cli",
+    "demo": "tsx --conditions=source scripts/demo.ts",
+    "predemo": "pnpm run packages"
   },
   "dependencies": {
+    "@steward/cli": "workspace:*",
     "@steward/model": "workspace:*",
     "next": "16.4.6",
     "react": "19.3.1",

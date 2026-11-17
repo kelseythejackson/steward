@@ -1,11 +1,13 @@
 /**
  * Reads the repo the app is pointed at (`STEWARD_REPO`): its system model
- * and check history. Server-side only, and read-only: the app never writes
- * to the repo. Every way this can go wrong is a state the pages can explain.
+ * and check history. Server-side only. Saving decisions is `decide.ts`; it
+ * only ever writes `.steward/system.json`. Every way reading can go wrong is
+ * a state the pages can explain.
  */
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
-import { HistoryError, readHistory, readSystemModel, SystemModelError, type HistoryRecord, type SystemModel } from "@steward/model";
+import { HistoryError, parseSystemModel, readHistory, SystemModelError, systemModelPath, type HistoryRecord, type SystemModel } from "@steward/model";
+import { versionOf } from "./version.ts";
 
 export const REPO_ENV = "STEWARD_REPO";
 
@@ -22,6 +24,8 @@ export type RepoState =
       /** Set when history.jsonl couldn't be read; the rest still works. */
       historyProblem?: string;
       hasDesignMd: boolean;
+      /** Fingerprint of system.json as read, so a save never overwrites newer changes. */
+      version: string;
     };
 
 type Env = Readonly<Record<string, string | undefined>>;
@@ -60,16 +64,22 @@ export async function loadRepo(env: Env = process.env): Promise<RepoState> {
   if (!path) return { kind: "not-set" };
   if (!(await isDirectory(path))) return { kind: "missing", path };
 
-  let model: SystemModel | null;
+  let text: string;
   try {
-    model = await readSystemModel(path);
+    text = await readFile(systemModelPath(path), "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return { kind: "no-system", path };
+    throw err;
+  }
+  let model: SystemModel;
+  try {
+    model = parseSystemModel(text);
   } catch (err) {
     if (err instanceof SystemModelError) return { kind: "broken", path, message: err.message };
     throw err;
   }
-  if (!model) return { kind: "no-system", path };
 
-  const state: Extract<RepoState, { kind: "ready" }> = { kind: "ready", path, model, history: [], hasDesignMd: await exists(join(path, "design.md")) };
+  const state: Extract<RepoState, { kind: "ready" }> = { kind: "ready", path, model, history: [], hasDesignMd: await exists(join(path, "design.md")), version: versionOf(text) };
   try {
     state.history = await readHistory(path);
   } catch (err) {

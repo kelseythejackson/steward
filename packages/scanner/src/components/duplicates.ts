@@ -256,7 +256,9 @@ export function findDuplicates(components: readonly ComponentInfo[], options: Du
   for (const group of groups) {
     if (group.length < 2) continue;
     const members = group.map((c) => labelOf.get(c)!).sort(compareStrings);
-    const keeper = [...group].sort(byUsage)[0]!;
+    // A person may have chosen which one to keep; otherwise keep the most-used.
+    const chosen = decisions.find((d) => d.kind === "component" && d.status === "accepted" && d.suggestionId === suggestionId("component", members))?.keep;
+    const keeper = group.find((c) => chosen !== undefined && labelOf.get(c) === chosen) ?? [...group].sort(byUsage)[0]!;
     const others = group.filter((c) => c !== keeper).sort((a, b) => compareStrings(a.name, b.name));
 
     const evidence: Record<string, number | string> = { members: group.length, keeperUsages: keeper.usages };

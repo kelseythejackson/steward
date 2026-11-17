@@ -27,7 +27,7 @@ export interface Io {
 
 const COMMANDS = [
   ["scan [path]", "Steward Setup: scan a React + Tailwind repo and build the system model"],
-  ["review [path]", "Review the scan's suggestions (the review screen is coming soon)"],
+  ["review [path]", "List the scan's suggestions waiting for a decision, or accept them all"],
   ["context [path]", "Steward Brief: give AI coding tools your system (design.md or an MCP server)"],
   ["check [path]", "Steward Review: check the lines changed since the base branch (or every file with --all)"],
 ] as const;
@@ -78,7 +78,7 @@ async function scan(args: string[], io: Io): Promise<number> {
 
   const { output, writtenTo } = await runScan(positionals[0] ?? ".");
   if (values.json) io.stdout(`${JSON.stringify(output, null, 2)}\n`);
-  else io.stdout(formatScanReport(output.summary, displayPath(io.cwd, writtenTo)));
+  else io.stdout(formatScanReport(output.summary, displayPath(io.cwd, writtenTo), positionals[0] ?? "."));
   return 0;
 }
 
@@ -97,7 +97,7 @@ async function review(args: string[], io: Io): Promise<number> {
   const target = positionals[0] ?? ".";
   const run = await runReview(resolve(io.cwd, target), { acceptAll: values["accept-all"], shownAs: target });
   const shown = run.writtenTo ? displayPath(io.cwd, run.writtenTo) : "";
-  io.stdout(formatReviewReport(run, shown, values["accept-all"]));
+  io.stdout(formatReviewReport(run, shown, values["accept-all"], resolve(io.cwd, target)));
   return 0;
 }
 

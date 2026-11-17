@@ -206,6 +206,16 @@ export interface MergeDecision {
   status: DecisionStatus;
   /** ISO 8601 timestamp. */
   decidedAt: string;
+  /**
+   * Colors: a person arranged this group themselves (moved a swatch or
+   * renamed the token). Scans keep exactly these colors together as one
+   * token, even a single color. Only on accepted color decisions.
+   */
+  edited?: true;
+  /** Colors: the token name a person chose, e.g. `color.gray.150`. Scans use it. */
+  path?: string;
+  /** Components: the one to keep, when a person chose a different one from the suggestion. */
+  keep?: string;
 }
 
 // ---------------------------------------------------------------------------

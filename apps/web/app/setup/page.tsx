@@ -1,31 +1,23 @@
 import { loadRepo } from "../../lib/steward";
+import { reviewData } from "../../lib/review-data";
 import { setupSummary } from "../../lib/summary";
-import { PageHeader, RepoProblem, Stats } from "../ui";
+import { PageHeader, RepoProblem } from "../ui";
+import { plural } from "./parts";
+import { SetupReview } from "./review";
 
 export const dynamic = "force-dynamic";
 
 export default async function SetupPage() {
   const repo = await loadRepo();
-  return (
-    <>
-      <PageHeader title="Setup" description="What Steward found in your code, and the suggestions waiting for a decision." />
-      {repo.kind === "ready" ? (
-        (() => {
-          const s = setupSummary(repo.model);
-          return (
-            <Stats
-              items={[
-                { label: "Color tokens", value: s.colors },
-                { label: "Spacing steps", value: s.spacing },
-                { label: "Components", value: s.components },
-                { label: "Suggestions waiting", value: s.waiting },
-              ]}
-            />
-          );
-        })()
-      ) : (
+  if (repo.kind !== "ready") {
+    return (
+      <>
+        <PageHeader title="Setup" description="What Steward found in your code, and the suggestions waiting for a decision." />
         <RepoProblem state={repo} />
-      )}
-    </>
-  );
+      </>
+    );
+  }
+  const s = setupSummary(repo.model);
+  const summary = `${plural(s.colors, "color token")}, ${plural(s.spacing, "spacing step")} and ${plural(s.components, "component")}.`;
+  return <SetupReview data={reviewData(repo.model)} version={repo.version} summary={summary} />;
 }

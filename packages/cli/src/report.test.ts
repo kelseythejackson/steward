@@ -29,7 +29,7 @@ const summary: ScanSummary = {
 describe("formatScanReport", () => {
   it("prints the scanner's findings, then where the model went and what to do next", () => {
     expect(formatScanReport(summary, ".steward/system.json")).toBe(
-      [...describeScan(summary), "Wrote .steward/system.json", "Next: open that file to see the suggestions. The review screen is coming soon.", ""].join("\n"),
+      [...describeScan(summary), "Wrote .steward/system.json", "Next: run `steward review .` to see the suggestions waiting for a decision.", ""].join("\n"),
     );
   });
 });

@@ -7,7 +7,7 @@ import {
   type MergeDecision,
 } from "@steward/model";
 import { converter, formatHex, parse } from "culori";
-import { clusterColors, DEFAULT_MAX_DELTA_E, type ColorCluster } from "./cluster.js";
+import { clusterColors, DEFAULT_MAX_DELTA_E, deltaE, type ColorCluster } from "./cluster.js";
 import { colorFamily, proposeColorPaths } from "./naming.js";
 import type { ExtractedColor } from "./types.js";
 
@@ -25,6 +25,12 @@ export interface ColorSuggestionOptions {
    * again, even if the group would change; each can still merge with others.
    */
   decisions?: readonly MergeDecision[];
+  /**
+   * The names colors already had (hex → token path, from the previous
+   * model). A color that was a token keeps its name on every scan, so code
+   * using `bg-gray-50` never silently points at a different color.
+   */
+  previousNames?: ReadonlyMap<string, string>;
 }
 
 export interface ProposedColorToken {
@@ -73,6 +79,52 @@ export function mergeReasonSummary(cluster: ColorCluster, family: string): strin
   return `${what} ${closeness}. Used ${plural(cluster.uses, "time")} in ${plural(cluster.files.length, "file")}.`;
 }
 
+/**
+ * Each group keeps the name its color had before: its kept color's name
+ * first, else a member's (most-used first). A name goes to one group only;
+ * names already taken (a person's choice) are skipped.
+ */
+function keepPreviousNames(clusters: readonly ColorCluster[], previous: ReadonlyMap<string, string>, taken: ReadonlySet<string>): Map<string, string> {
+  const out = new Map<string, string>();
+  const used = new Set(taken);
+  // Own names first, so a color that was a token keeps its name even if another group held it as a merged member.
+  for (const pass of ["own", "member"] as const) {
+    for (const c of clusters) {
+      if (out.has(c.value)) continue;
+      const candidates = pass === "own" ? [c.value] : c.members.map((m) => m.value);
+      const name = candidates.map((v) => previous.get(v)).find((p) => p !== undefined && !used.has(p));
+      if (name) {
+        out.set(c.value, name);
+        used.add(name);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Color groups a person arranged themselves (accepted, edited decisions),
+ * built from the colors still in the code. The most-used member is kept.
+ */
+function pinnedGroups(colors: readonly ExtractedColor[], decisions: readonly MergeDecision[]): { cluster: ColorCluster; path: string }[] {
+  const byValue = new Map(colors.map((c) => [c.value, c]));
+  const out: { cluster: ColorCluster; path: string }[] = [];
+  for (const d of decisions) {
+    if (d.kind !== "color" || d.status !== "accepted" || !d.edited || !d.path) continue;
+    const members = d.members
+      .map((m) => byValue.get(m.toLowerCase()))
+      .filter((c): c is ExtractedColor => c !== undefined)
+      .sort((a, b) => b.uses - a.uses || compareStrings(a.value, b.value));
+    if (members.length === 0) continue;
+    let maxDeltaE = 0;
+    // A person can group colors Steward wouldn't (even a see-through one with a solid one): only finite distances count.
+    for (const a of members) for (const b of members) if (a.value < b.value && Number.isFinite(deltaE(a.value, b.value))) maxDeltaE = Math.max(maxDeltaE, deltaE(a.value, b.value));
+    const files = [...new Set(members.flatMap((m) => m.locations.map((l) => l.file)))].sort(compareStrings);
+    out.push({ cluster: { value: members[0]!.value, members, uses: members.reduce((n, m) => n + m.uses, 0), files, maxDeltaE }, path: d.path });
+  }
+  return out;
+}
+
 /** Colors in a rejected merge stay apart for good, even when new near-duplicates appear later. */
 const rejectedSets = (decisions: readonly MergeDecision[]) => decisions.filter((d) => d.kind === "color" && d.status === "rejected").map((d) => d.members);
 
@@ -85,10 +137,21 @@ export function suggestColorTokens(colors: readonly ExtractedColor[], options: C
   const maxDeltaE = options.maxDeltaE ?? DEFAULT_MAX_DELTA_E;
   const decisions = options.decisions ?? [];
 
-  const clusters = clusterColors(colors, { maxDeltaE, keepApart: rejectedSets(decisions) });
+  // Groups a person arranged (moved swatches, renamed) stay exactly as they are, under their name.
+  const pinned = pinnedGroups(colors, decisions);
+  const pinnedValues = new Set(pinned.flatMap((p) => p.cluster.members.map((m) => m.value)));
+  const clustered = clusterColors(
+    colors.filter((c) => !pinnedValues.has(c.value)),
+    { maxDeltaE, keepApart: rejectedSets(decisions) },
+  );
+  const clusters = [...pinned.map((p) => p.cluster), ...clustered];
 
-  // Most-used groups get first pick of names.
-  const paths = proposeColorPaths(clusters.map((c) => c.value));
+  // Names a person chose come first, then names colors already had, then new names
+  // for the rest (most-used groups get first pick).
+  const chosen = new Map(pinned.map((p) => [p.cluster.value, p.path]));
+  const kept = keepPreviousNames(clustered, options.previousNames ?? new Map(), new Set(chosen.values()));
+  const fresh = clustered.filter((c) => !kept.has(c.value)).map((c) => c.value);
+  const paths = new Map([...chosen, ...kept, ...proposeColorPaths(fresh, [...chosen.values(), ...kept.values()])]);
 
   const tokens: ProposedColorToken[] = [];
   const suggestions: ColorMergeSuggestion[] = [];
@@ -100,13 +163,16 @@ export function suggestColorTokens(colors: readonly ExtractedColor[], options: C
     tokens.push({ path, token });
     if (cluster.members.length < 2) continue;
 
+    const byPerson = chosen.has(cluster.value);
     suggestions.push({
       id: suggestionId("color", memberValues),
       kind: "color",
       members: [...memberValues].sort(compareStrings),
       proposed: { path, token },
       reason: {
-        summary: mergeReasonSummary(cluster, colorFamily(cluster.value)),
+        summary: byPerson
+          ? `You grouped these ${cluster.members.length} colors as one token. Used ${plural(cluster.uses, "time")} in ${plural(cluster.files.length, "file")}.`
+          : mergeReasonSummary(cluster, colorFamily(cluster.value)),
         evidence: {
           keep: cluster.value,
           maxDeltaE: round(cluster.maxDeltaE, 2),

@@ -68,7 +68,7 @@ describe("steward scan (end to end)", () => {
     ]);
     expect(lines.slice(9)).toEqual([
       "Wrote messy-app/.steward/system.json",
-      "Next: open that file to see the suggestions. The review screen is coming soon.",
+      "Next: run `steward review messy-app` to see the suggestions waiting for a decision.",
       "",
     ]);
   });
