@@ -4,8 +4,10 @@
  */
 export const PACKAGE_NAME = "@steward/guard" as const;
 export { checkCode, describeCheck, STATIC_CHECKS_NOTE } from "./check.js";
-export { applyFixes, checkFile, type CheckOptions, type CheckResult, type FixResult } from "./engine.js";
+export { applyFixes, checkFile, coverage, type CheckOptions, type CheckResult, type FixResult } from "./engine.js";
 export { checkContext, importLine, type ButtonRef, type CheckContext, type ColorRef, type ComponentRef, type ContrastFix, type ReplacedComponent, type SpacingStep } from "./context.js";
+export { allLines, parseAddedLines, type AddedLines } from "./diff.js";
+export { formatReview, reviewFiles, rulesOff, unknownRules, type ReviewResult, type ReviewScope, type SourceFile } from "./review.js";
 export type { Finding, Fix, RuleId, Severity, TextEdit } from "./findings.js";
 export { hasTextContent, parseFile, readSnippet, SnippetParseError, type ClassUse, type ElementUse, type ParsedFile, type Position, type Range, type Snippet, type StyleUse } from "./parse.js";
 export type { Coverage, GuardRule, Hit } from "./rule.js";

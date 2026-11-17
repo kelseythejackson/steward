@@ -1,7 +1,9 @@
 import { isAbsolute, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { formatScanReport } from "./report.js";
 import type { Readable, Writable } from "node:stream";
+import { formatReview } from "@steward/guard";
+import { checkJson, runCheck } from "./check.js";
+import { formatScanReport } from "./report.js";
 import { formatContextReport, runContext, runServe } from "./context.js";
 import { formatReviewReport, runReview } from "./review.js";
 import { runScan, StewardError } from "./scan.js";
@@ -19,12 +21,12 @@ const COMMANDS = [
   ["scan [path]", "Steward Setup: scan a React + Tailwind repo and build the system model"],
   ["review [path]", "Review the scan's suggestions (the review screen is coming soon)"],
   ["context [path]", "Steward Brief: give AI coding tools your system (design.md or an MCP server)"],
-  ["check", "Run Review locally on the working tree (coming soon)"],
+  ["check [path]", "Steward Review: check the lines changed since the base branch (or every file with --all)"],
 ] as const;
 
 function help(): string {
   const lines = ["Usage: steward <command> [options]", "", "Commands:"];
-  for (const [name, text] of COMMANDS) lines.push(`  ${name.padEnd(13)} ${text}`);
+  for (const [name, text] of COMMANDS) lines.push(`  ${name.padEnd(14)} ${text}`);
   lines.push(
     "",
     "Options for scan:",
@@ -36,6 +38,13 @@ function help(): string {
     "Options for context:",
     "  --file        Write design.md to the repo root instead of printing it",
     "  --serve       Start the MCP server over stdio for AI coding tools",
+    "",
+    "Options for check:",
+    "  --base <ref>  Branch to compare with (default: \"base\" in .steward/config.json, then the repo's default branch)",
+    "  --all         Check every TSX and JSX file, not just changed lines",
+    "  --json        Print the full result as JSON",
+    "  Stories and tests are left out. In .steward/config.json, \"mode\": \"error\" fails the build when",
+    "  anything is found (the default, \"warn\", never does), and \"rules\": { \"<rule>\": \"off\" } turns a rule off.",
   );
   return `${lines.join("\n")}\n`;
 }
@@ -110,6 +119,31 @@ async function context(args: string[], io: Io): Promise<number> {
   return 0;
 }
 
+async function check(args: string[], io: Io): Promise<number> {
+  const { values, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    options: {
+      base: { type: "string" },
+      all: { type: "boolean", default: false },
+      json: { type: "boolean", default: false },
+      help: { type: "boolean", short: "h", default: false },
+    },
+  });
+  if (values.help) {
+    io.stdout(help());
+    return 0;
+  }
+  if (positionals.length > 1) throw new StewardError(`check takes one folder, but got ${positionals.length}: ${positionals.join(" ")}`);
+  if (values.all && values.base !== undefined) throw new StewardError("Use --all or --base, not both: --all checks every file, --base picks what to compare changes with.");
+
+  const target = positionals[0] ?? ".";
+  const options = { all: values.all, shownAs: target, ...(values.base === undefined ? {} : { base: values.base }) };
+  const result = await runCheck(resolve(io.cwd, target), options);
+  io.stdout(values.json ? `${JSON.stringify(checkJson(result), null, 2)}\n` : formatReview(result));
+  return result.failed ? 1 : 0;
+}
+
 /** Runs the CLI and returns the exit code. Kept apart from `bin.ts` so it can be tested in-process. */
 export async function main(argv: string[], io: Io): Promise<number> {
   const [command, ...rest] = argv;
@@ -121,10 +155,7 @@ export async function main(argv: string[], io: Io): Promise<number> {
     if (command === "scan") return await scan(rest, io);
     if (command === "review") return await review(rest, io);
     if (command === "context") return await context(rest, io);
-    if (COMMANDS.some(([name]) => name.split(" ")[0] === command)) {
-      io.stderr(`steward ${command} isn't built yet. For now, try \`steward scan <path>\`.\n`);
-      return 1;
-    }
+    if (command === "check") return await check(rest, io);
     io.stderr(`I don't know the command "${command}".\n\n${help()}`);
     return 1;
   } catch (err) {

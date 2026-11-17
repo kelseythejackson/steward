@@ -1,8 +1,7 @@
 import { join } from "node:path";
-import { checkContext } from "@steward/guard";
+import { allLines, checkContext, parseAddedLines } from "@steward/guard";
 import { readSystemModel, type SystemModel } from "@steward/model";
 import { beforeAll, describe, expect, it } from "vitest";
-import { allLines, parseAddedLines } from "./diff.js";
 import { promptOf, scoreFile, totalsOf, type RunResult } from "./score.js";
 import { summarize } from "./summary.js";
 

@@ -9,9 +9,8 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { checkContext } from "@steward/guard";
+import { allLines, checkContext, parseAddedLines } from "@steward/guard";
 import { compareStrings, readSystemModel } from "@steward/model";
-import { allLines, parseAddedLines } from "./diff.js";
 import { EVAL_CHECKS, isScored, promptOf, scoreFile, totalsOf, type FileScore, type RunResult } from "./score.js";
 import { summarize } from "./summary.js";
 

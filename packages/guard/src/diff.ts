@@ -1,6 +1,7 @@
 /**
- * Which lines an AI tool added, read from `git diff -U0`. Only these lines
- * are scored, so problems already in the fixture never count against a run.
+ * Which lines a change added, read from `git diff -U0`. `steward check` and
+ * the eval check only these lines, so problems already in the code don't
+ * count against a change.
  */
 
 /** Added line numbers (1-based, in the new file) by repo-relative path. */

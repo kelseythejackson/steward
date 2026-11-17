@@ -17,6 +17,8 @@ export interface CheckResult {
 export interface CheckOptions {
   /** Run only these rules. Default: all of them. */
   rules?: readonly RuleId[];
+  /** Rules a person turned off (in `.steward/config.json`). Listed under `skipped`, like system rules that are off. */
+  off?: readonly RuleId[];
 }
 
 const ORDER = new Map(RULES.map((r, i) => [r.id, i]));
@@ -58,6 +60,10 @@ export function checkFile(input: ParsedFile | { path?: string; code: string }, m
   for (const rule of RULES) {
     if (options.rules && !options.rules.includes(rule.id)) continue;
     const covers = rule.covers(ctx);
+    if (options.off?.includes(rule.id)) {
+      result.skipped.push(...covers.map((c) => c.label));
+      continue;
+    }
     const on = covers.filter((c) => isOn(c.systemRule));
     result.checked.push(...on.map((c) => c.label));
     result.skipped.push(...covers.filter((c) => !isOn(c.systemRule)).map((c) => c.label));
@@ -66,6 +72,21 @@ export function checkFile(input: ParsedFile | { path?: string; code: string }, m
   }
   result.findings.sort((a, b) => a.line - b.line || a.column - b.column || ORDER.get(a.rule)! - ORDER.get(b.rule)!);
   return result;
+}
+
+/** What `checkFile` would check and skip, without a file: for reports that cover many files, or none. */
+export function coverage(model: SystemModel | CheckContext, options: CheckOptions = {}): Pick<CheckResult, "checked" | "skipped"> {
+  const ctx = contextOf(model);
+  const isOn = (systemRule: string | undefined) => systemRule === undefined || ctx.rules.get(systemRule)?.enabled !== false;
+  const out: Pick<CheckResult, "checked" | "skipped"> = { checked: [], skipped: [] };
+  for (const rule of RULES) {
+    if (options.rules && !options.rules.includes(rule.id)) continue;
+    const covers = rule.covers(ctx);
+    const off = options.off?.includes(rule.id) ?? false;
+    out.checked.push(...covers.filter((c) => !off && isOn(c.systemRule)).map((c) => c.label));
+    out.skipped.push(...covers.filter((c) => off || !isOn(c.systemRule)).map((c) => c.label));
+  }
+  return out;
 }
 
 const same = (a: TextEdit, b: TextEdit) => a.start === b.start && a.end === b.end && a.text === b.text;
