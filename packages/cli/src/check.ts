@@ -99,13 +99,22 @@ async function readSources(root: string, paths: Iterable<string>, lines?: Map<st
 /** Every changed line since `base` split off: commits on this branch, uncommitted edits and new files. */
 async function changedSources(root: string, base: string): Promise<SourceFile[]> {
   if ((await gitOk(root, ["rev-parse", "--verify", "--quiet", `${base}^{commit}`])) === null) {
-    throw new StewardError(`I couldn't find "${base}" in this repo to compare with. Check the name, or fetch it first (for example \`git fetch origin ${base}\`).`);
+    const remote = base.startsWith("origin/") ? base.slice("origin/".length) : null;
+    throw new StewardError(
+      remote
+        ? `I couldn't find "${base}" in this repo to compare with. Fetch it first (\`git fetch origin ${remote}\`). In GitHub Actions, check out with \`fetch-depth: 0\`.`
+        : `I couldn't find "${base}" in this repo to compare with. Check the name, or fetch it first (for example \`git fetch origin ${base}\`).`,
+    );
   }
   if ((await gitOk(root, ["rev-parse", "--verify", "--quiet", "HEAD"])) === null) {
     throw new StewardError("This repo has no commits yet, so there's nothing to compare with. Use --all to check every file.");
   }
   const mergeBase = await gitOk(root, ["merge-base", base, "HEAD"]);
-  if (!mergeBase) throw new StewardError(`This branch and ${base} share no history, so I can't tell what changed. Use --all to check every file.`);
+  if (!mergeBase) {
+    throw new StewardError(
+      `This branch and ${base} share no history here, so I can't tell what changed. If this is a shallow clone, fetch the full history (in GitHub Actions, \`fetch-depth: 0\`). Otherwise, use --all to check every file.`,
+    );
+  }
 
   const added = parseAddedLines(await git(root, ["diff", "-U0", "--no-color", "--no-renames", "--no-ext-diff", "--relative", mergeBase, "--"]));
   const untracked = zList(await git(root, ["ls-files", "-z", "--others", "--exclude-standard"]));
@@ -118,8 +127,16 @@ async function allSources(root: string): Promise<SourceFile[]> {
   return readSources(root, zList(await git(root, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"])));
 }
 
-/** Runs Review on a repo and returns the result. Throws `StewardError` with a calm message when it can't. */
-export async function runCheck(target: string, options: CheckOptions = {}): Promise<ReviewResult> {
+export interface CheckRun {
+  result: ReviewResult;
+  /** The files checked, with their code, for building fixes. */
+  files: SourceFile[];
+  /** The checked folder's path inside the git repo, like `apps/web/`, or `""` at the top. GitHub wants paths from the top. */
+  gitPrefix: string;
+}
+
+/** Runs Review on a repo. Throws `StewardError` with a calm message when it can't. */
+export async function runCheck(target: string, options: CheckOptions = {}): Promise<CheckRun> {
   const root = resolve(target);
   const shown = options.shownAs ?? target;
   await assertDirectory(root, shown);
@@ -139,7 +156,8 @@ export async function runCheck(target: string, options: CheckOptions = {}): Prom
     scope = { kind: "changes", base };
     files = await changedSources(root, base);
   }
-  return reviewFiles(files, model, config, scope);
+  const gitPrefix = (await gitOk(root, ["rev-parse", "--show-prefix"])) ?? "";
+  return { result: reviewFiles(files, model, config, scope), files, gitPrefix };
 }
 
 /** Pure: the `--json` output, with totals for scripts and CI. */

@@ -1,0 +1,48 @@
+name: Steward Review
+description: Comments on off-system colors, spacing and components, and on accessibility basics, in the lines a pull request changes, with one-click fixes.
+author: Steward
+branding:
+  icon: check-circle
+  color: blue
+
+inputs:
+  path:
+    description: The folder that holds .steward/system.json, relative to the repo root.
+    required: false
+    default: "."
+  github-token:
+    description: Token used to post comments. Needs `pull-requests: write`.
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    # Steward isn't published yet, so the action builds it from its own source.
+    # If that fails, the run warns instead of failing the check.
+    - name: Build Steward
+      id: build
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        if npx --yes pnpm@12.18.0 install --frozen-lockfile && npx --yes pnpm@12.18.0 build; then
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "::warning title=Steward Review::Steward couldn't be installed or built, so nothing was checked."
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    # Inputs go through env, never straight into the script.
+    - name: Steward Review
+      if: steps.build.outputs.ok == 'true'
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        STEWARD_PATH: ${{ inputs.path }}
+        STEWARD_BIN: ${{ github.action_path }}/packages/cli/dist/bin.js
+      run: node "$STEWARD_BIN" check "$STEWARD_PATH" --github

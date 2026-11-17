@@ -99,6 +99,8 @@ pnpm build && node packages/cli/dist/bin.js context fixtures/messy-app --serve  
 pnpm steward check fixtures/messy-app         # Steward Review on lines changed since the base branch (git diff against the merge-base, plus untracked files)
 pnpm steward check fixtures/messy-app --all   # every TSX/JSX file (stories and tests left out); add --json for the full result, --base <ref> to pick the branch
                                               # .steward/config.json: { "mode": "warn" | "error", "base": "main", "rules": { "<rule-id>": "off" } }; "error" exits 1 when anything is found
+node packages/cli/dist/bin.js check <path> --github   # in GitHub Actions only: line comments with one-click suggestions + one summary comment (warn mode never fails)
+                                              # action.yml (repo root) is the composite action; example workflow + throwaway-repo test steps: docs/github-action.md
 pnpm -F cli test       # includes the end-to-end scan test (builds first, runs dist/bin.js on a temp copy of the fixture)
 pnpm -F guard test     # Review rules engine (packages/guard: one module per rule in src/rules; checkFile + applyFixes, shared by check_snippet and, later, the Review action)
 pnpm -F context test   # design.md snapshot: packages/context/src/__snapshots__/messy-app.design.md (update with `pnpm -F context test -u`)

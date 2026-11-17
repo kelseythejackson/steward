@@ -1,0 +1,26 @@
+# Steward Review on pull requests. Copy to .github/workflows/steward-review.yml
+# in your app's repo. Warn mode (the default) never fails this check.
+name: Steward Review
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write # to post line comments and the summary comment
+
+jobs:
+  steward-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The pull request's own commit (not GitHub's merge preview), so
+          # comments land on the lines you see in "Files changed".
+          ref: ${{ github.event.pull_request.head.sha }}
+          # Full history, so Steward can find where the branch split off.
+          fetch-depth: 0
+
+      - uses: kelseythejackson/steward@main
+        with:
+          path: . # the folder with .steward/system.json

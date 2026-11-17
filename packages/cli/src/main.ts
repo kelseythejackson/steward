@@ -3,6 +3,7 @@ import { parseArgs } from "node:util";
 import type { Readable, Writable } from "node:stream";
 import { formatReview } from "@steward/guard";
 import { checkJson, runCheck } from "./check.js";
+import { runGithubCheck } from "./github.js";
 import { formatScanReport } from "./report.js";
 import { formatContextReport, runContext, runServe } from "./context.js";
 import { formatReviewReport, runReview } from "./review.js";
@@ -15,6 +16,10 @@ export interface Io {
   /** Raw streams for `context --serve`, which speaks MCP over stdio. Default to the process's own. */
   stdin?: Readable;
   stdoutStream?: Writable;
+  /** Environment for `check --github`. Defaults to the process's own. */
+  env?: Readonly<Record<string, string | undefined>>;
+  /** For `check --github`'s API calls; tests pass a fake. Defaults to the global fetch. */
+  fetch?: typeof globalThis.fetch;
 }
 
 const COMMANDS = [
@@ -43,6 +48,7 @@ function help(): string {
     "  --base <ref>  Branch to compare with (default: \"base\" in .steward/config.json, then the repo's default branch)",
     "  --all         Check every TSX and JSX file, not just changed lines",
     "  --json        Print the full result as JSON",
+    "  --github      In GitHub Actions: comment on the pull request's lines and keep one summary comment",
     "  Stories and tests are left out. In .steward/config.json, \"mode\": \"error\" fails the build when",
     "  anything is found (the default, \"warn\", never does), and \"rules\": { \"<rule>\": \"off\" } turns a rule off.",
   );
@@ -127,6 +133,7 @@ async function check(args: string[], io: Io): Promise<number> {
       base: { type: "string" },
       all: { type: "boolean", default: false },
       json: { type: "boolean", default: false },
+      github: { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
   });
@@ -135,11 +142,16 @@ async function check(args: string[], io: Io): Promise<number> {
     return 0;
   }
   if (positionals.length > 1) throw new StewardError(`check takes one folder, but got ${positionals.length}: ${positionals.join(" ")}`);
+  if (values.github && (values.all || values.json)) throw new StewardError("--github checks the pull request's changes and comments on them, so it doesn't go with --all or --json.");
+  if (values.github) {
+    const githubIo = { stdout: io.stdout, cwd: io.cwd, env: io.env ?? process.env, ...(io.fetch ? { fetch: io.fetch } : {}) };
+    return runGithubCheck(positionals[0] ?? ".", githubIo, values.base === undefined ? {} : { base: values.base });
+  }
   if (values.all && values.base !== undefined) throw new StewardError("Use --all or --base, not both: --all checks every file, --base picks what to compare changes with.");
 
   const target = positionals[0] ?? ".";
   const options = { all: values.all, shownAs: target, ...(values.base === undefined ? {} : { base: values.base }) };
-  const result = await runCheck(resolve(io.cwd, target), options);
+  const { result } = await runCheck(resolve(io.cwd, target), options);
   io.stdout(values.json ? `${JSON.stringify(checkJson(result), null, 2)}\n` : formatReview(result));
   return result.failed ? 1 : 0;
 }
