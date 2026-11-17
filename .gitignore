@@ -7,3 +7,6 @@ coverage/
 
 # Local Steward history from running `steward check` on the fixture
 fixtures/messy-app/.steward/history.jsonl
+
+# Next.js
+next-env.d.ts

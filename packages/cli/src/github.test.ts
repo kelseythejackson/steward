@@ -91,7 +91,7 @@ describe("steward check --github", () => {
   beforeEach(async () => {
     work = await mkdtemp(join(tmpdir(), "steward-github-"));
     repo = join(work, "repo");
-    await cp(FIXTURE, join(repo, "app"), { recursive: true, filter: (src) => !src.includes("node_modules") });
+    await cp(FIXTURE, join(repo, "app"), { recursive: true, filter: (src) => !src.includes("node_modules") && !src.endsWith("history.jsonl") });
     git("init", "--quiet", "--initial-branch=main");
     git("add", ".");
     git("commit", "--quiet", "-m", "baseline");

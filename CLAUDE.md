@@ -108,7 +108,9 @@ node packages/cli/dist/bin.js check <path> --github   # in GitHub Actions only: 
 pnpm -F cli test       # includes the end-to-end scan test (builds first, runs dist/bin.js on a temp copy of the fixture)
 pnpm -F guard test     # Review rules engine (packages/guard: one module per rule in src/rules; checkFile + applyFixes, shared by check_snippet and, later, the Review action)
 pnpm -F context test   # design.md snapshot: packages/context/src/__snapshots__/messy-app.design.md (update with `pnpm -F context test -u`)
-pnpm -F web dev                        # planned (apps/web is empty)
+STEWARD_REPO=fixtures/messy-app pnpm -F web dev   # web app (Setup, Brief, Review, Report) on http://localhost:3000, reading that repo's .steward/ (read-only; relative paths resolve from where you ran it)
+pnpm -F web theme      # regenerates apps/web/app/steward-theme.css from the fixture's tokens (the app uses only the system's colors and spacing)
+pnpm -F web test       # theme, repo loading, summaries, and the dogfood test: Steward Review must find nothing in the app's own TSX
 eval/setup.sh [dest]                   # before/after test: creates ~/steward-eval/{without,with} copies of the fixture (see eval/README.md)
 eval/reset.sh ~/steward-eval/with      # puts a copy back to its baseline between runs
 pnpm eval:score ~/steward-eval/with --label pricing-1   # runs the guard checks on lines the AI tool added; saves eval/results/<copy>/<label>.json

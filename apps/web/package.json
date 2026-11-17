@@ -1,0 +1,31 @@
+{
+  "name": "@steward/web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Steward's web app: Setup, Brief, Review and Report, reading a repo's .steward folder",
+  "type": "module",
+  "scripts": {
+    "predev": "pnpm run model",
+    "dev": "next dev",
+    "prebuild": "pnpm run model",
+    "build": "next build",
+    "start": "next start",
+    "model": "tsc -b ../../packages/model",
+    "theme": "tsx --conditions=source scripts/theme.ts",
+    "typecheck": "pnpm run model && tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@steward/model": "workspace:*",
+    "next": "16.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@steward/guard": "workspace:*",
+    "@tailwindcss/postcss": "4.3.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "tailwindcss": "4.3.5"
+  }
+}

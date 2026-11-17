@@ -1,0 +1,7 @@
+@import "tailwindcss";
+@import "./steward-theme.css";
+
+body {
+  background: var(--color-white);
+  color: var(--color-gray-900);
+}

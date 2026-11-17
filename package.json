@@ -7,7 +7,7 @@
   },
   "scripts": {
     "build": "tsc -b packages/cli",
-    "typecheck": "tsc -b packages/cli eval",
+    "typecheck": "tsc -b packages/cli eval && pnpm -F web typecheck",
     "test": "vitest run",
     "steward": "tsx --conditions=source packages/cli/src/bin.ts",
     "eval:score": "tsx --conditions=source eval/src/main.ts score",
